@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<engine:UXML
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:engine="UnityEngine.UIElements"
+        xmlns:editor="UnityEditor.UIElements"
+        xmlns:modelTrainer="Unity.AI.ModelTrainer.Components"
+        xsi:noNamespaceSchemaLocation="../../../../../../UIElementsSchema/UIElements.xsd"
+        class="details-view"
+>
+    <engine:Label text="Details" class="details-view__label" />
+    <engine:VisualElement class="details-view__container">
+
+        <engine:VisualElement class="details-view__row">
+            <engine:Label text="Model ID" class="details-view__key" />
+            <engine:Label name="modelIdLabel" text="&lt;None&gt;" class="details-view__value" />
+        </engine:VisualElement>
+
+        <engine:VisualElement class="details-view__row">
+            <engine:Label text="Type" class="details-view__key" />
+            <engine:Label name="modelTypeLabel" text="&lt;None&gt;" class="details-view__value" />
+        </engine:VisualElement>
+
+        <engine:VisualElement class="details-view__row">
+            <engine:Label text="Training Duration Time" class="details-view__key" />
+            <engine:Label name="trainingDurationTimeLabel" text="&lt;None&gt;" class="details-view__value" />
+        </engine:VisualElement>
+
+        <engine:VisualElement class="details-view__row">
+            <engine:Label text="Training Steps" class="details-view__key" />
+            <engine:Label name="trainingStepsLabel" text="&lt;None&gt;" class="details-view__value" />
+        </engine:VisualElement>
+
+        <engine:VisualElement class="details-view__row">
+            <engine:Label text="Training Images" class="details-view__key" />
+            <engine:Label name="trainingImagesLabel" text="&lt;None&gt;" class="details-view__value" />
+        </engine:VisualElement>
+
+        <engine:VisualElement class="details-view__row">
+            <engine:Label text="Learning Rate" class="details-view__key" />
+            <engine:Label name="learningRateLabel" text="&lt;None&gt;" class="details-view__value" />
+        </engine:VisualElement>
+
+    </engine:VisualElement>
+
+    <engine:Label text="Training Images Used" class="details-view__training-images-label" />
+    <engine:VisualElement name="trainingImagesContainer" class="details-view__training-images-container">
+    </engine:VisualElement>
+</engine:UXML>

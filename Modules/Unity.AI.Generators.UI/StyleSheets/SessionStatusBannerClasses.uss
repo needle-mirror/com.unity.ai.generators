@@ -1,0 +1,11 @@
+SessionStatusBanner
+{
+    padding-right: 3px;
+    padding-left: 3px;
+}
+
+SessionStatusBanner .banner{
+    border-color: var(--unity-colors-button-border);
+    border-width: 1px;
+    margin-bottom: 5px;
+}

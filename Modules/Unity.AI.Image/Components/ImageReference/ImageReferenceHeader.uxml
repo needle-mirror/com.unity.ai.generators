@@ -1,0 +1,5 @@
+<UXML xmlns="UnityEngine.UIElements">
+    <Style src="./ImageReferenceHeader.uss" />
+    <Label name="header-title" class="font-bold p-4 flex-grow" text="Image Reference" />
+    <Button name="delete-image-reference" tooltip="Remove the reference control"><Image class="unity-button__image"/></Button>
+</UXML>

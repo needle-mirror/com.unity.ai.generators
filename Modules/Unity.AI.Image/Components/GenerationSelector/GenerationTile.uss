@@ -1,0 +1,14 @@
+.generation-tile.is-selected .border-selectable {
+    border-color: var(--aitk-colors-selected);
+}
+
+.image-scale-to-fit {
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.image-scale-initial {
+    -unity-background-scale-mode: initial;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: auto;
+}

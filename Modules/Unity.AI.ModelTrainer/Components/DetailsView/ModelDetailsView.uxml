@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<engine:UXML
+    xmlns:engine="UnityEngine.UIElements"
+    xmlns:components="Unity.AI.ModelTrainer.Components"
+    class="model-details-pane"
+>
+    <engine:VisualElement class="model-details-pane">
+        <!-- Name and Base Model fields -->
+        <engine:VisualElement class="model-details-pane__row">
+            <engine:VisualElement class="model-details-pane__name-column">
+                <engine:Label text="Model Name" class="model-details-pane__name-label" />
+                <engine:TextField name="nameField" placeholder-text="New Model" class="model-details-pane__name-field" />
+            </engine:VisualElement>
+            <engine:VisualElement class="model-details-pane__base-model-column">
+                <engine:Label text="Base Model" class="model-details-pane__base-model-label" />
+                <engine:ToggleButtonGroup
+                        name="baseModelToggleGroup"
+                        is-multiple-selection="false"
+                        allow-empty-selection="false"
+                        class="model-details-pane__base-model-toggle-group" />
+            </engine:VisualElement>
+        </engine:VisualElement>
+
+        <!-- Training and Inference fields -->
+        <engine:ScrollView class="model-details-pane__training-scroll-view">
+            <engine:VisualElement name="modelAuthoring">
+                <engine:VisualElement class="details-view__row">
+                    <engine:Label text="Training Images" class="model-details-pane__training-label" />
+                    <engine:Label text="Min:5, Max:100" class="model-details-pane__minmax-label" />
+                </engine:VisualElement>
+                <components:ThumbnailField class="model-details-pane__training-reference-list-view" />
+                <components:BaseModelSettingsView name="baseModelSettings" class="model-details-pane__options-view" />
+                <components:TagsView class="model-details-pane__tags-view" />
+            </engine:VisualElement>
+            <components:TrainingInfo name="trainingInfo" class="model-details-pane__details-view" />
+        </engine:ScrollView>
+
+        <!-- Footer -->
+        <engine:VisualElement class="model-details-pane__footer">
+            <engine:VisualElement class="model-details-pane__footer-left">
+                <engine:Button name="deleteButton" text="Delete Model" class="model-details-pane__delete-button" />
+            </engine:VisualElement>
+            <engine:VisualElement class="model-details-pane__footer-right">
+                <engine:Button name="trainButton" text="Train" class="model-details-pane__train-button" />
+            </engine:VisualElement>
+        </engine:VisualElement>
+    </engine:VisualElement>
+</engine:UXML>

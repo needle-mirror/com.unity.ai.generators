@@ -1,0 +1,77 @@
+﻿using System;
+using System.Threading.Tasks;
+using Unity.AI.Image.Services.Stores.Selectors;
+using Unity.AI.Image.Services.Utilities;
+using Unity.AI.Image.Utilities;
+using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Generators.UIElements.Extensions;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.UIElements;
+
+namespace Unity.AI.Image.Components
+{
+    [UxmlElement]
+    partial class PaletteImageReference : VisualElement, IImageReference
+    {
+        const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Image/Components/ImageReference/PaletteImageReference.uxml";
+
+        readonly UnityEngine.UIElements.Image m_ImagePalette;
+
+        Texture2D m_PaletteTexture;
+
+        ~PaletteImageReference() => m_PaletteTexture?.SafeDestroy();
+
+        public PaletteImageReference()
+        {
+            var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
+            tree.CloneTree(this);
+
+            AddToClassList("palette-image-reference");
+            this.AddManipulator(new PingManipulator());
+            this.Bind<PaletteImageReference, Services.Stores.States.PaletteImageReference>();
+
+            m_ImagePalette = this.Q<UnityEngine.UIElements.Image>(className: "palette-colors");
+            this.Use(state => state.SelectPaletteImageBytesTimeStamp(this), OnPaletteChanged);
+
+            m_ImagePalette.SetEnabled(false);
+        }
+
+        void OnPaletteChanged(Timestamp payload)
+        {
+            m_ImagePalette.image = null;
+            m_ImagePalette.Q<Label>().SetShown();
+
+            var bytes = this.GetState().SelectPaletteImageBytes(this);
+            if (bytes is not { Length: > 0 })
+            {
+                m_ImagePalette.SetEnabled(m_ImagePalette.image);
+                return;
+            }
+
+            if (!m_PaletteTexture)
+                m_PaletteTexture = new Texture2D(2, 2) { filterMode = FilterMode.Point };
+            m_ImagePalette.image = m_PaletteTexture;
+            m_ImagePalette.Q<Label>().SetShown(false);
+
+            m_ImagePalette.SetEnabled(m_ImagePalette.image);
+            LoadPalette();
+            async void LoadPalette()
+            {
+                await Task.Yield();
+                var paletteAssetBytes = TextureUtils.CreatePaletteApproximation(bytes);
+                m_PaletteTexture.LoadImage(paletteAssetBytes);
+                m_ImagePalette.MarkDirtyRepaint();
+            }
+        }
+
+        public ImageReferenceType type => ImageReferenceType.PaletteImage;
+
+        public bool showBaseImageByDefault => false;
+
+        public bool invertStrength => false;
+
+        public bool allowEdit => true;
+    }
+}

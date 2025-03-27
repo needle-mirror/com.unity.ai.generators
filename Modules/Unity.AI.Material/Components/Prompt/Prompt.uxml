@@ -1,0 +1,12 @@
+<UXML xmlns="UnityEngine.UIElements">
+    <VisualElement class="p-4 flex-row justify-between">
+        <Label class="font-bold" text="Prompt"/>
+        <Label name="prompt-limit-indicator" class="prompt-limit-indicator" text="0/1024" />
+    </VisualElement>
+    <TextField class="white-space-normal mb-12" name="prompt" multiline="true" placeholder-text="Enter what to generate..."/>
+    <VisualElement class="p-4 flex-row justify-between">
+        <Label class="font-bold" text="Negative Prompt"/>
+        <Label name="negative-prompt-limit-indicator" class="prompt-limit-indicator" text="0/1024" />
+    </VisualElement>
+    <TextField class="white-space-normal mb-4" name="negative-prompt" multiline="true" placeholder-text=""/>
+</UXML>

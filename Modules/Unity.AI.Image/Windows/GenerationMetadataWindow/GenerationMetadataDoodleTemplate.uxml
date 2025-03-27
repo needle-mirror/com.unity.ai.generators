@@ -1,0 +1,8 @@
+<UXML xmlns="UnityEngine.UIElements" xmlns:ui="Unity.AI.Image.Components">
+    <VisualElement class="doodle-container container">
+        <Label name="doodle-type" />
+        <ui:DoodlePad class="metadata rounded-4px flex-grow-100pct p-0 m-0" modifier-state="1"/>
+        <Button text="Copy" class="data-button" name="copy-doodle-button"/>
+        <Button text="Use" class="data-button" name="use-doodle-button"/>
+    </VisualElement>
+</UXML>

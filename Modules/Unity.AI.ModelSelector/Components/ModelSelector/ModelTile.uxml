@@ -1,0 +1,8 @@
+<UXML xmlns="UnityEngine.UIElements" xmlns:ui="Unity.AI.ModelSelector.Components">
+<Style src="./ModelTile.uss"/>
+<VisualElement class="model-tile border-2px border-selectable rounded-12px p-4">
+    <ui:ModelTileCarousel/>
+    <ui:ModelTitleCard/>
+    <Image class="model-tile-icon absolute size-16px rounded-4px hide"/>
+</VisualElement>
+</UXML>

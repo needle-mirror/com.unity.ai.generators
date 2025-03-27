@@ -1,0 +1,28 @@
+:root {
+    padding: 4px;
+}
+
+.container {
+    flex-direction: row;
+    -unity-text-align: upper-left;
+}
+
+.container .metadata {
+    flex-grow: 1;
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.container .data-button {
+    flex-basis: auto;
+    height: 20px;
+}
+
+.hidden {
+    display: none;
+}
+
+.use-all-container Label{
+    flex-grow: 1;
+    font-size: 14px;
+}

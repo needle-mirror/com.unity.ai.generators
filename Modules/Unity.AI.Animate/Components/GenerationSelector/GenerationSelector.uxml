@@ -1,0 +1,6 @@
+<UXML xmlns="UnityEngine.UIElements" xmlns:ui="Unity.AI.Animate.Components" xmlns:aitk="Unity.AI.Generators.UI" class="flex-grow">
+    <Style src="../../../Unity.AI.Generators.UI/StyleSheets/FlexUtilities.uss"/>
+    <Label class="font-bold p-4 hide" text="History"/>
+    <aitk:GridView class="flex-grow"/>
+    <ui:PreviewSizeSlider />
+</UXML>

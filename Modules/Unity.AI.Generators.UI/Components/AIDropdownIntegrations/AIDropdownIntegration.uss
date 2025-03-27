@@ -1,0 +1,11 @@
+GenerativeMenuRoot {
+    margin-top: 8px; /* Assuming AI Assistant is there */
+}
+
+.sub-menu {
+    padding: 8px;
+}
+
+.label-button:hover .chevron {
+    --unity-image-tint-color: var(--unity-colors-label-text-focus);
+}

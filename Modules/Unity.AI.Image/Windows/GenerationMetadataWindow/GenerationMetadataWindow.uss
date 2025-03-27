@@ -1,0 +1,63 @@
+:root {
+    margin: 8px;
+}
+
+.container {
+    flex-direction: row;
+    -unity-text-align: upper-left;
+    flex-shrink: 0;
+}
+
+.container .metadata {
+    flex-grow: 1;
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.container .data-button {
+    flex-basis: auto;
+    height: 20px;
+    align-self: center;
+}
+
+.hidden {
+    display: none;
+}
+
+.use-all-container Label{
+    flex-grow: 1;
+    font-size: 14px;
+}
+
+.header {
+    flex-grow: 1;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.pixelate-settings-container {
+    flex-grow: 1;
+    margin-top: 4px;
+}
+
+.pixelate-container {
+    margin-top: 4px;
+    border-color: var(--unity-colors-button-border);
+    border-top-width: 1px;
+}
+
+.pixelate-setting {
+    flex-direction: row;
+    margin-bottom: 2px;
+}
+
+.doodle-pad-canvas {
+    height: 100px;
+    flex-grow: 1;
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.doodles-container {
+    flex-direction: column;
+}

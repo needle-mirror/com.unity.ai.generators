@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<engine:UXML xmlns:engine="UnityEngine.UIElements" xmlns:components="Unity.AI.ModelTrainer.Components" class="model-list-pane" >
+    <engine:Template src="../ModelListItem/ModelListItem.uxml" name="AddModelListItem" />
+    <engine:Label text="Models" class="model-list-pane__title" />
+    <engine:VisualElement class="model-list-pane__search-field-container">
+        <engine:TextField name="searchField" class="model-list-pane__search-field" />
+    </engine:VisualElement>
+    <engine:Instance name="addItem" template="AddModelListItem" class="model-list-pane__add-item unity-collection-view__item">
+        <AttributeOverrides element-name="label" text="New Model" />
+    </engine:Instance>
+    <engine:ListView
+            name="modelListView"
+            class="model-list-pane__list-view"
+            fixed-item-height="48"
+            selection-type="Single"
+            item-template="../ModelListItem/ModelListItem.uxml" />
+</engine:UXML>

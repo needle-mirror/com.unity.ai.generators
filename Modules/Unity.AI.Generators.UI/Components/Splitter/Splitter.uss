@@ -1,0 +1,33 @@
+.aitk-splitter {
+    height: 0;
+    flex-shrink: 0;
+    margin-bottom: 8px;
+    margin-left: -8px;
+    justify-content: center;
+    translate: 0 -1px;
+}
+
+.aitk-splitter__zone {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 16px;
+    cursor: split-resize-up-down;
+    background-color: rgba(0,0,0,0.01);
+    justify-content: center;
+    align-items: center;
+}
+
+.aitk-splitter__content {
+    background-color: var(--unity-colors-slider_thumb-background);
+    flex-shrink: 0;
+    height: 4px;
+    width: 20px;
+    border-radius: 2px;
+    translate: 0 1px;
+}
+
+.aitk-splitter__zone:hover > .aitk-splitter__content,
+.aitk-splitter--dragging > .aitk-splitter__zone > .aitk-splitter__content {
+    background-color: var(--unity-colors-slider_thumb-background-hover);
+}

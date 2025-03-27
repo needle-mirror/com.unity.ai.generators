@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<engine:UXML
+    xmlns:engine="UnityEngine.UIElements"
+    xmlns:components="Unity.AI.ModelTrainer.Components"
+    class="model-trainer"
+>
+    <engine:Style src="./Styles.uss" />
+    <engine:TwoPaneSplitView name="splitView" fixed-pane-index="0" fixed-pane-initial-dimension="250" class="model-trainer__split-view">
+        <components:ModelListView class="model-trainer__model-list-pane" />
+        <components:DetailsView class="model-trainer__model-details-pane" />
+    </engine:TwoPaneSplitView>
+</engine:UXML>

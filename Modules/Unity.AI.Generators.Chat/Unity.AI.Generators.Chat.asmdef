@@ -1,0 +1,24 @@
+{
+    "name": "Unity.AI.Generators.Chat",
+    "rootNamespace": "",
+    "references": [
+        "Guid:0e4914728ad593f4298b3b1d865ca9fa",
+        "Guid:014b346a84d6445cad431c8b47c25633",
+        "Guid:a38a99c5efe5445079abf3f3fbc951da",
+        "Guid:b134e7bb2da2842348549e2fca4773e5",
+        "Guid:7ff3712c342c8c2449b71ffa53e54e35",
+        "Guid:d65283a8512443a8b3317cfbaf7c6bcf",
+        "Guid:05990677ab48a45a584e7c14678e9d75"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

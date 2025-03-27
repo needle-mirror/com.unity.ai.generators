@@ -1,0 +1,28 @@
+{
+  "name": "com.unity.ai.generators",
+  "displayName": "AI Generators",
+  "version": "1.0.0-pre.2",
+  "unity": "6000.2",
+  "unityRelease": "0a6",
+  "description": "AI Generators is a package that provides tools for adding generative AI to Unity workflows.",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.mathematics": "1.3.2",
+    "com.unity.ai.toolkit": "1.0.0-pre.2"
+  },
+  "relatedPackages": {
+    "com.unity.ai.generators.tests": "1.0.0-pre.2"
+  },
+  "_upm": {
+    "changelog": "### Changed\n\n- Moved shared modules to generators namespace."
+  },
+  "upmCi": {
+    "footprint": "3e16fd85e03268f8611e3fc640eea8cea221778d"
+  },
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
+  "repository": {
+    "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
+    "type": "git",
+    "revision": "541364714aecad4d2b3709e280fc89d77e0cb9de"
+  }
+}

@@ -1,0 +1,235 @@
+﻿using System;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Object = UnityEngine.Object;
+
+namespace Unity.AI.Animate.Services.Utilities
+{
+    static class AnimationClipRenderingUtils
+    {
+        static AvatarPreviewRenderUtility s_AvatarPreviewRenderUtility;
+
+        [InitializeOnLoadMethod]
+        static void InitializeOnLoad() => AssemblyReloadEvents.beforeAssemblyReload += Cleanup;
+
+        static void Cleanup()
+        {
+            if (s_AvatarPreviewRenderUtility == null)
+                return;
+            s_AvatarPreviewRenderUtility.Cleanup();
+            s_AvatarPreviewRenderUtility = null;
+        }
+
+        static readonly GUIStyle k_GUIStyle = new();
+
+        public static RenderTexture GetTemporary(this AnimationClip animationClip, float time, int width = 64, int height = 64, RenderTexture reusableBuffer = null)
+        {
+            if (s_AvatarPreviewRenderUtility == null)
+                s_AvatarPreviewRenderUtility = new AvatarPreviewRenderUtility();
+
+            var animTime = time % animationClip.length;
+            animationClip.SampleAnimation(s_AvatarPreviewRenderUtility.previewObject, animTime);
+
+            var rt = s_AvatarPreviewRenderUtility.DoRenderPreview(new Rect(0, 0, width, height), k_GUIStyle);
+            if (rt == null)
+                return null;
+
+            if (!reusableBuffer || reusableBuffer.width != width || reusableBuffer.height != height)
+            {
+                if (reusableBuffer)
+                    RenderTexture.ReleaseTemporary(reusableBuffer);
+                reusableBuffer = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.Default);
+            }
+
+            var previous = RenderTexture.active;
+            Graphics.Blit(rt, reusableBuffer);
+            Graphics.SetRenderTarget(previous);
+            return reusableBuffer;
+        }
+
+        class AvatarPreviewRenderUtility
+        {
+            Animator animator => previewObject != null ? previewObject.GetComponent(typeof(Animator)) as Animator : null;
+
+            public GameObject previewObject { get; }
+
+            static GameObject GetHumanoidFallback() => (GameObject)EditorGUIUtility.Load("Avatar/DefaultAvatar.fbx");
+
+            PreviewRenderUtility m_PreviewUtility;
+            readonly GameObject m_ReferenceInstance;
+            readonly GameObject m_DirectionInstance;
+            readonly GameObject m_PivotInstance;
+            readonly GameObject m_RootInstance;
+
+            const bool k_ShowReference = true;
+
+            readonly Vector2 m_PreviewDir = new(120, -20);
+            readonly float m_AvatarScale = 1.0f;
+            readonly float m_ZoomFactor = 1.0f;
+            readonly Vector3 m_PivotPositionOffset;
+            static readonly Vector3 k_InitialPivotPositionOffset = new(0, 0.75f, 0);
+
+            void SetPreviewCharacterEnabled(bool enabled, bool showReference)
+            {
+                if (previewObject != null)
+                    SetEnabledRecursive(previewObject, enabled);
+                SetEnabledRecursive(m_ReferenceInstance, showReference && enabled);
+                SetEnabledRecursive(m_DirectionInstance, showReference && enabled);
+                SetEnabledRecursive(m_PivotInstance, showReference && enabled);
+                SetEnabledRecursive(m_RootInstance, showReference && enabled);
+            }
+
+            static void SetEnabledRecursive(GameObject go, bool enabled)
+            {
+                foreach (var componentsInChild in go.GetComponentsInChildren<Renderer>())
+                    componentsInChild.enabled = enabled;
+            }
+
+            PreviewRenderUtility previewUtility
+            {
+                get
+                {
+                    if (m_PreviewUtility != null)
+                        return m_PreviewUtility;
+
+                    m_PreviewUtility = new PreviewRenderUtility
+                    {
+                        camera =
+                        {
+                            fieldOfView = 24.0f,
+                            allowHDR = false,
+                            allowMSAA = false
+                        },
+                        ambientColor = new Color(.1f, .1f, .1f, 0)
+                    };
+                    m_PreviewUtility.lights[0].intensity = 1.4f;
+                    m_PreviewUtility.lights[0].transform.rotation = Quaternion.Euler(40f, 40f, 0);
+                    m_PreviewUtility.lights[1].intensity = 1.4f;
+                    return m_PreviewUtility;
+                }
+            }
+
+            public void Cleanup()
+            {
+                if (m_PreviewUtility == null)
+                    return;
+
+                m_PreviewUtility.Cleanup();
+                m_PreviewUtility = null;
+            }
+
+            public AvatarPreviewRenderUtility()
+            {
+                var go = GetHumanoidFallback();
+
+                previewObject = EditorUtilityWrapper.InstantiateForAnimatorPreview(go);
+                previewUtility.AddSingleGO(previewObject);
+
+                if (animator)
+                    m_AvatarScale = m_ZoomFactor = animator.humanScale;
+
+                var referenceGo = (GameObject)EditorGUIUtility.Load("Avatar/dial_flat.prefab");
+                m_ReferenceInstance = Object.Instantiate(referenceGo, Vector3.zero, Quaternion.identity);
+                EditorUtilityWrapper.InitInstantiatedPreviewRecursive(m_ReferenceInstance);
+                previewUtility.AddSingleGO(m_ReferenceInstance);
+
+                var directionGo = (GameObject)EditorGUIUtility.Load("Avatar/arrow.fbx");
+                m_DirectionInstance = Object.Instantiate(directionGo, Vector3.zero, Quaternion.identity);
+                EditorUtilityWrapper.InitInstantiatedPreviewRecursive(m_DirectionInstance);
+                previewUtility.AddSingleGO(m_DirectionInstance);
+
+                var pivotGo = (GameObject)EditorGUIUtility.Load("Avatar/root.fbx");
+                m_PivotInstance = Object.Instantiate(pivotGo, Vector3.zero, Quaternion.identity);
+                EditorUtilityWrapper.InitInstantiatedPreviewRecursive(m_PivotInstance);
+                previewUtility.AddSingleGO(m_PivotInstance);
+
+                var rootGo = (GameObject)EditorGUIUtility.Load("Avatar/root.fbx");
+                m_RootInstance = Object.Instantiate(rootGo, Vector3.zero, Quaternion.identity);
+                EditorUtilityWrapper.InitInstantiatedPreviewRecursive(m_RootInstance);
+                previewUtility.AddSingleGO(m_RootInstance);
+
+                SetPreviewCharacterEnabled(false, false);
+                m_PivotPositionOffset = k_InitialPivotPositionOffset;
+            }
+
+            public Texture DoRenderPreview(Rect rect, GUIStyle background)
+            {
+                var previewRect = rect;
+                previewRect.height = Mathf.Max(previewRect.height, 64f);
+
+                var probe = RenderSettings.ambientProbe;
+                previewUtility.BeginPreview(previewRect, background);
+
+                var bodyRot = Quaternion.identity;
+                var rootRot = Quaternion.identity;
+                var rootPos = Vector3.zero;
+                var bodyPos = previewObject ? previewObject.transform.position : Vector3.zero;
+                var pivotPos = Vector3.zero;
+
+                if (animator)
+                {
+                    rootRot = animator.rootRotation;
+                    rootPos = animator.rootPosition;
+                    bodyRot = animator.bodyRotation;
+                    pivotPos = animator.pivotPosition;
+                }
+
+                previewUtility.lights[0].intensity = 1.4f;
+                previewUtility.lights[0].transform.rotation = Quaternion.Euler(40f, 40f, 0);
+                previewUtility.lights[1].intensity = 1.4f;
+                RenderSettings.ambientMode = AmbientMode.Custom;
+                RenderSettings.ambientLight = new Color(0.1f, 0.1f, 0.1f, 1.0f);
+                RenderSettings.ambientProbe = probe;
+
+                var direction = bodyRot * Vector3.forward;
+                direction[1] = 0;
+                var directionRot = Quaternion.LookRotation(direction);
+                var directionPos = rootPos;
+                var pivotRot = rootRot;
+
+                var bodyPos1 = animator ? animator.bodyPosition : Vector3.zero;
+                m_ReferenceInstance.transform.position = rootPos;
+                m_ReferenceInstance.transform.rotation = rootRot;
+                m_ReferenceInstance.transform.localScale = Vector3.one * m_AvatarScale * 1.25f;
+
+                m_DirectionInstance.transform.position = directionPos;
+                m_DirectionInstance.transform.rotation = directionRot;
+                m_DirectionInstance.transform.localScale = Vector3.one * m_AvatarScale * 2;
+
+                m_PivotInstance.transform.position = pivotPos;
+                m_PivotInstance.transform.rotation = pivotRot;
+                m_PivotInstance.transform.localScale = Vector3.one * m_AvatarScale * 0.1f;
+
+                m_RootInstance.transform.position = bodyPos1;
+                m_RootInstance.transform.rotation = bodyRot;
+                m_RootInstance.transform.localScale = Vector3.one * m_AvatarScale * 0.25f;
+
+                previewUtility.camera.orthographic = false;
+                previewUtility.camera.nearClipPlane = 0.5f * m_ZoomFactor;
+                previewUtility.camera.farClipPlane = 100.0f * m_AvatarScale;
+                var camRot = Quaternion.Euler(-m_PreviewDir.y, -m_PreviewDir.x, 0);
+
+                var camPos = camRot * (Vector3.forward * -5.5f * m_ZoomFactor) + bodyPos + m_PivotPositionOffset;
+                previewUtility.camera.transform.position = camPos;
+                previewUtility.camera.transform.rotation = camRot;
+
+                var clearMode = previewUtility.camera.clearFlags;
+                var clearColor = previewUtility.camera.backgroundColor;
+                previewUtility.camera.clearFlags = CameraClearFlags.SolidColor;
+                previewUtility.camera.backgroundColor = Color.clear;
+                SetPreviewCharacterEnabled(true, k_ShowReference);
+                previewUtility.Render(false);
+                SetPreviewCharacterEnabled(false, false);
+                previewUtility.camera.clearFlags = clearMode;
+                previewUtility.camera.backgroundColor = clearColor;
+
+                clearMode = previewUtility.camera.clearFlags;
+                previewUtility.camera.clearFlags = CameraClearFlags.Nothing;
+                previewUtility.Render(false);
+                previewUtility.camera.clearFlags = clearMode;
+                return previewUtility.EndPreview();
+            }
+        }
+    }
+}

@@ -1,0 +1,4 @@
+<UXML class="height-128px" xmlns="UnityEngine.UIElements" xmlns:editorui="UnityEditor.UIElements">
+    <Style src="./InputReferenceObjectField.uss" />
+    <editorui:ObjectField class="flex-grow-100pct p-0 m-0" type="UnityEngine.Video.VideoClip, UnityEngine.VideoModule" label="Select an object:" />
+</UXML>

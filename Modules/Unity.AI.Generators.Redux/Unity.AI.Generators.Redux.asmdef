@@ -1,0 +1,16 @@
+{
+    "name": "Unity.AI.Generators.Redux",
+    "rootNamespace": "Unity.AI.Generators.Redux",
+    "references": ["GUID:b134e7bb2da2842348549e2fca4773e5"],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

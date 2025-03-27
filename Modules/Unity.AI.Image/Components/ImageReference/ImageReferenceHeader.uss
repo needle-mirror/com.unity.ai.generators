@@ -1,0 +1,18 @@
+:root {
+    flex-direction: row;
+    align-items: center;
+}
+
+#delete-image-reference {
+    width: 19px;
+    height: 19px;
+    padding: 0;
+}
+
+#delete-image-reference .unity-image {
+    --unity-image: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Image/Icons/Close L.png");
+}
+
+.no-delete #delete-image-reference {
+    display: none;
+}

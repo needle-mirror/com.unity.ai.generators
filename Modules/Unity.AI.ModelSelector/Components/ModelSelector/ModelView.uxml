@@ -1,0 +1,58 @@
+<UXML xmlns="UnityEngine.UIElements" xmlns:ui="Unity.AI.ModelSelector.Components" xmlns:aitk="Unity.AI.Generators.UI">
+    <Style src="../../../Unity.AI.Generators.UI/StyleSheets/FlexUtilities.uss" />
+    <Style src="./ModelView.uss"/>
+    <TabView class="width-100pct height-100pct p-12">
+        <Tab>
+            <Label text="Choose your Model" size="XS" class="text-align-middle-center font-bold font-size-14px hide"/>
+            <ui:SearchBar class="ptb-6-0 mb-12"/>
+            <VisualElement class="tags-and-models flex flex-row flex-grow overflow-hidden">
+                <VisualElement class="width-180px">
+                    <ScrollView class="tags-scroll-view flex-grow" horizontal-scroller-visibility="Hidden">
+                        <VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray modalities-container">
+                                <Label text="Modality" class="section-title font-bold mb-9"/>
+                                <VisualElement class="modalities">
+                                </VisualElement>
+                            </VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray sources-container">
+                                <Label text="Providers" class="section-title font-bold mb-9"/>
+                                <VisualElement class="sources">
+                                </VisualElement>
+                            </VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray">
+                                <Label text="Sort" class="section-title font-bold mb-9"/>
+                                <RadioButtonGroup class="sort-radio-group" value="0">
+                                    <RadioButton text="A-Z" value="true" />
+                                    <RadioButton text="Z-A"/>
+                                </RadioButtonGroup>
+                            </VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray tags-container">
+                                <Label text="Tags" class="section-title font-bold mb-9"/>
+                                <VisualElement class="tags p-8-0"/>
+                            </VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray operations-container">
+                                <Label text="Operations" class="section-title font-bold mb-9"/>
+                                <VisualElement class="operations p-8-0"/>
+                            </VisualElement>
+                        </VisualElement>
+                    </ScrollView>
+                </VisualElement>
+                <VisualElement class="flex-grow pl-12 overflow-hidden">
+                    <aitk:GridView class="models-section-grid flex-grow" fixed-item-width="180" fixed-item-height="232" />
+                    <Label class="no-search-results-text text-align-middle-center flex-grow"/>
+                </VisualElement>
+            </VisualElement>
+        </Tab>
+        <Tab class="model-details">
+            <VisualElement class="flex-row flex-no-shrink">
+                <Button class="back-button flex-row">
+                    <VisualElement class="back-button-image width-16px"/>
+                    <Label text="Back"/>
+                </Button>
+            </VisualElement>
+            <ui:DetailsModelTitleCard class="ptb-8 flex-no-shrink"/>
+            <aitk:GridView class="model-details-grid pt-8"/>
+        </Tab>
+    </TabView>
+    <Button class="close-button absolute right-12px top-12px width-20px height-20px border-none hide"/>
+</UXML>

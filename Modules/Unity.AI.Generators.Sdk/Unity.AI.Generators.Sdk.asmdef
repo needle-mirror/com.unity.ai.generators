@@ -1,0 +1,19 @@
+{
+    "name": "Unity.AI.Generators.Sdk",
+    "rootNamespace": "Unity.AI.Generators.Sdk",
+    "references": ["GUID:014b346a84d6445cad431c8b47c25633"],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll",
+        "AiEditorToolsSdk.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

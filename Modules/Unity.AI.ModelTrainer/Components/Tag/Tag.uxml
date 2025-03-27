@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<engine:UXML
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:engine="UnityEngine.UIElements"
+    xmlns:editor="UnityEditor.UIElements"
+    xmlns:modelTrainer="Unity.AI.ModelTrainer.Components"
+    xsi:noNamespaceSchemaLocation="../../../../../../UIElementsSchema/UIElements.xsd"
+    class="tag"
+>
+    <engine:Label name="label" text="Tag" class="tag__label" />
+    <engine:VisualElement name="removeButton" text="X" class="tag__remove-button" />
+</engine:UXML>

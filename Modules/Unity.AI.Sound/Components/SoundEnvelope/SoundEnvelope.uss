@@ -1,0 +1,77 @@
+.bg-medium {
+    margin-bottom: 96px;
+}
+
+.waveform {
+    --unity-image-size: stretch-to-fill;
+}
+
+.cursor-resize {
+    cursor: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Resize.png") 18 18;
+}
+
+.unity-button.is-selected {
+    background-color: rgba(255,255,255,0.08);
+}
+
+.toolbar-play {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Play.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #c0c0c0;
+}
+
+.toolbar-play.is-selected {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Pause.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #c0c0c0;
+    background-size: 64% 64%;
+}
+
+.toolbar-loop {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/AudioLoopOff.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #c0c0c0;
+    background-size: 80% 80%;
+}
+
+.toolbar-loop.is-selected {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/AudioLoopOn.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #c0c0c0;
+    background-size: 80% 80%;
+}
+
+.toolbar-envelope {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Envelope.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #c0c0c0;
+    background-size: 90% 90%;
+}
+
+.toolbar-trim {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Trim.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #c0c0c0;
+    background-size: 90% 90%;
+}
+
+.toolbar-save {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Save.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: #a0a0a0;
+    background-size: 90% 90%;
+    margin-right: 24px;
+}
+
+.zoom-button {
+    padding-top: 5px;
+}
+
+.zoom-button .unity-image {
+    height: 18px;
+}
+
+.time-ruler,
+.zoom-button {
+    font-size: 14px;
+}

@@ -1,0 +1,12 @@
+<UXML xmlns="UnityEngine.UIElements" xmlns:editorui="UnityEditor.UIElements">
+    <Style src="./ImageReference.uss" />
+    <VisualElement class="image-reference pr-1" tooltip="Useful to make a material out of an image you already have.">
+        <editorui:Template src="./ImageReferenceHeader.uxml" name="ImageReferenceHeader" />
+        <editorui:Template src="./ImageReferenceObjectField.uxml" name="ImageReferenceObjectField" />
+
+        <Instance template="ImageReferenceHeader" class="pl-2">
+            <AttributeOverrides element-name="header-title" text="Image Reference" />
+        </Instance>
+        <Instance template="ImageReferenceObjectField" class="p-4-2" />
+    </VisualElement>
+</UXML>

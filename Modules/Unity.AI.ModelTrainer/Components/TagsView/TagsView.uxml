@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<engine:UXML
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:engine="UnityEngine.UIElements"
+    xsi:noNamespaceSchemaLocation="../../../../../../UIElementsSchema/UIElements.xsd"
+    class="tags-view"
+>
+    <engine:Label text="Tags" class="tags-view__label" />
+    <engine:VisualElement class="tags-view__row">
+        <engine:TextField name="tagTextField" class="tags-view__input" placeholder-text="Write a Tag" />
+        <engine:Button name="dropDown" class="tags-view__dropdown">
+            <engine:Label text="Select Tags" />
+            <engine:VisualElement class="unity-base-popup-field__arrow" />
+        </engine:Button>
+    </engine:VisualElement>
+    <engine:VisualElement name="contentContainer" class="tags-view__tag-list-container" />
+</engine:UXML>

@@ -1,0 +1,48 @@
+.models-container {
+    padding: 10px;
+    height: 100%;
+    overflow: scroll;
+}
+
+.close-button {
+    background-image: resource("Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/X.png");
+    background-color: rgba(0,0,0,0);
+    -unity-background-image-tint-color: var(--unity-colors-default-text);
+}
+
+.tag .unity-label {
+    margin-left: 8px;
+    margin-top: 1px;
+}
+
+.tag.unity-toggle {
+    align-self: flex-start;
+    flex-direction: row-reverse;
+}
+
+.operation .unity-label {
+    margin-left: 8px;
+    margin-top: 1px;
+}
+
+.operation.unity-toggle {
+    align-self: flex-start;
+    flex-direction: row-reverse;
+}
+
+.unity-radio-button .unity-label {
+    margin-left: 6px;
+}
+
+.unity-tab-view__header-container {
+    display: none;
+}
+
+.back-button-image {
+    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.ModelSelector/Icons/CaretLeft.png");
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.model-details-grid .unity-image {
+    padding: 8px;
+}
