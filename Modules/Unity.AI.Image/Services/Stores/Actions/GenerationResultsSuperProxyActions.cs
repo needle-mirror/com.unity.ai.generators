@@ -36,73 +36,6 @@ namespace Unity.AI.Image.Services.Stores.Actions
 {
     static class GenerationResultsSuperProxyActions
     {
-        public static readonly Func<(AddImageReferenceTypeData payload, IStoreApi api), Task<bool[]>> canAddReferencesToPrompt = async arg =>
-        {
-            if (WebUtilities.AreCloudProjectSettingsInvalid())
-                return arg.payload.types.Select(_ => false).ToArray();
-
-            var asset = new AssetReference { guid = arg.payload.asset.guid };
-
-            var generationSetting = arg.api.State.SelectGenerationSetting(asset);
-            var refinementMode = generationSetting.SelectRefinementMode();
-
-            var prompt = "prompt";
-            var negativePrompt = "";
-            var modelID = arg.api.State.SelectSelectedModelID(asset);
-            var dimensions = generationSetting.SelectImageDimensionsVector2();
-            var imageReferences = generationSetting.SelectImageReferencesByRefinement();
-
-            using var httpClientLease = HttpClientManager.instance.AcquireLease();
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.mandatoryTimeout);
-            var imageComponent = builder.ImageComponent();
-
-            Guid.TryParse(modelID, out var generativeModelID);
-
-            switch (refinementMode)
-            {
-                case RefinementMode.Generation:
-                {
-                    var requestBuilder = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null);
-                    var textPrompt = new TextPrompt(prompt, negativePrompt);
-                    try
-                    {
-                        // use SelectImageReferenceIsActive to check if the UI for that reference is currently shown, even if empty
-                        var referenceGuids = imageReferences[refinementMode].ToDictionary(kvp => kvp.Key, kvp => kvp.Value.SelectImageReferenceIsActive() ? Guid.NewGuid() : Guid.Empty);
-
-                        var requests = new List<ImageGenerateRequest>();
-                        foreach (var type in arg.payload.types)
-                        {
-                            var requestReferenceGuids = referenceGuids.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-                            requestReferenceGuids[type] = Guid.NewGuid();
-                            var request = requestBuilder.GenerateWithReferences(textPrompt,
-                                requestReferenceGuids[ImageReferenceType.PromptImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.PromptImage], imageReferences[refinementMode][ImageReferenceType.PromptImage].strength) : null,
-                                requestReferenceGuids[ImageReferenceType.StyleImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.StyleImage], imageReferences[refinementMode][ImageReferenceType.StyleImage].strength) : null,
-                                requestReferenceGuids[ImageReferenceType.CompositionImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.CompositionImage], imageReferences[refinementMode][ImageReferenceType.CompositionImage].strength) : null,
-                                requestReferenceGuids[ImageReferenceType.PoseImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.PoseImage], imageReferences[refinementMode][ImageReferenceType.PoseImage].strength) : null,
-                                requestReferenceGuids[ImageReferenceType.DepthImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.DepthImage], imageReferences[refinementMode][ImageReferenceType.DepthImage].strength) : null,
-                                requestReferenceGuids[ImageReferenceType.LineArtImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.LineArtImage], imageReferences[refinementMode][ImageReferenceType.LineArtImage].strength) : null,
-                                requestReferenceGuids[ImageReferenceType.FeatureImage] != Guid.Empty ? new (requestReferenceGuids[ImageReferenceType.FeatureImage], imageReferences[refinementMode][ImageReferenceType.FeatureImage].strength) : null);
-                            requests.Add(request);
-                        }
-
-                        var results = requests.Select(request => imageComponent.GenerateQuote(request.AsSingleInAList(), Constants.mandatoryTimeout));
-                        var quoteResults = await Task.WhenAll(results.ToArray());
-                        return quoteResults.Select(r => r.Result.IsSuccessful).ToArray();
-                    }
-                    catch (UnhandledReferenceCombinationException)
-                    {
-                        return arg.payload.types.Select(_ => false).ToArray();
-                    }
-                }
-            }
-
-            return arg.payload.types.Select(_ => false).ToArray();
-        };
-
         public static readonly AsyncThunkCreatorWithArg<QuoteImagesData> quoteImages = new($"{GenerationResultsActions.slice}/quoteImagesSuperProxy", async (arg, api) =>
         {
             var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
@@ -484,6 +417,13 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         return;
                     }
 
+                    foreach (var generateResult in generateResults.Batch.Value.Where(v => !v.IsSuccessful))
+                    {
+                        LogFailedResult(generateResult.Error);
+                        // we can simply return because the error is already logged and we rely on finally statements for cleanup
+                        return;
+                    }
+
                     cost = generateResults.Batch.Value.Sum(itemResult => itemResult.Value.PointsCost);
                     ids = generateResults.Batch.Value.Select(itemResult => itemResult.Value.JobId).ToList();
                     customSeeds = generateResults.Batch.Value.Select(result => result.Value.Request.Seed ?? -1).ToArray();
@@ -494,6 +434,13 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     if (!transformResults.Batch.IsSuccessful)
                     {
                         LogFailedResult(transformResults.Batch.Error);
+                        // we can simply return because the error is already logged and we rely on finally statements for cleanup
+                        return;
+                    }
+
+                    foreach (var transformResult in transformResults.Batch.Value.Where(v => !v.IsSuccessful))
+                    {
+                        LogFailedResult(transformResult.Error);
                         // we can simply return because the error is already logged and we rely on finally statements for cleanup
                         return;
                     }
@@ -521,11 +468,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             AIToolbarButton.ShowPointsCostNotification(cost);
 
-            var modality = refinementMode is RefinementMode.Pixelate or RefinementMode.Recolor
-                ? GenerationRecoveryUtils.Modality.SpritesLegacy
-                : GenerationRecoveryUtils.Modality.SpritesMpp;
-
-            var downloadImagesData = new DownloadImagesData(asset, ids, modality, arg.taskID, generationMetadata,
+            var downloadImagesData = new DownloadImagesData(asset, ids, arg.taskID, generationMetadata,
                 refinementMode is RefinementMode.RemoveBackground or RefinementMode.Pixelate or RefinementMode.Upscale or RefinementMode.Recolor,
                 generationSetting.replaceBlankAsset, generationSetting.replaceRefinementAsset, customSeeds);
             GenerationRecoveryUtils.AddInterruptedDownload(downloadImagesData); // 'potentially' interrupted

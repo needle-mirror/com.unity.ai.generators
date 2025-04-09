@@ -8,6 +8,7 @@ using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Material.Services.Stores.States;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -36,6 +37,7 @@ namespace Unity.AI.Material.Windows.GenerationMetadataWindow
             var useAllButton = this.Q<Button>("use-all-button");
             useAllButton.clicked += UseAll;
 
+            InitRefinementMode();
             InitModel();
             InitPrompt();
             InitNegativePrompt();
@@ -46,6 +48,18 @@ namespace Unity.AI.Material.Windows.GenerationMetadataWindow
             {
                 button.clicked += OnDismiss;
             }
+        }
+
+        void InitRefinementMode()
+        {
+            var refinementModeContainer = this.Q<VisualElement>(className: "refinement-mode-container");
+            var refinementModeMetadata = this.Q<Label>("refinement-mode-metadata");
+            var refinementModeUseButton = this.Q<Button>("use-refinement-mode-button");
+
+            var refinementMode = m_GenerationMetadata?.refinementMode;
+            refinementModeMetadata.text = refinementMode.AddSpaceBeforeCapitalLetters();
+            refinementModeUseButton.clicked += UseRefinementMode;
+            refinementModeContainer.EnableInClassList("hidden", string.IsNullOrEmpty(refinementMode));
         }
 
         void InitModel()
@@ -117,6 +131,14 @@ namespace Unity.AI.Material.Windows.GenerationMetadataWindow
             customSeedContainer.EnableInClassList("hidden", customSeed == -1);
         }
 
+        void UseRefinementMode()
+        {
+            var refinementMode = m_GenerationMetadata.refinementMode;
+
+            if(Enum.TryParse<RefinementMode>(refinementMode, out var mode))
+                this.Dispatch(GenerationSettingsActions.setRefinementMode, mode);
+        }
+
         void UseModel()
         {
             if (m_ModelSettings.IsValid())
@@ -146,6 +168,7 @@ namespace Unity.AI.Material.Windows.GenerationMetadataWindow
 
         void UseAll()
         {
+            UseRefinementMode();
             UseModel();
             UsePrompt();
             UseNegativePrompt();

@@ -177,7 +177,7 @@ namespace Unity.AI.Image.Interfaces
                 TextureGeneratorInspectorButton.OpenGenerationWindow(assetPath);
         }
 
-        static ImageReferenceType ToImageReferenceType(this ControlType type) => (ImageReferenceType)type;
+        internal static ImageReferenceType ToImageReferenceType(this ControlType type) => (ImageReferenceType)type;
     }
 
     [EditorBrowsable(EditorBrowsableState.Never)]

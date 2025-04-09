@@ -168,14 +168,18 @@ namespace Unity.AI.Generators.UI.Utilities
                 return texture;
             }
 
-            var filePath = uri.GetLocalPath();
-            var fileData = await FileIO.ReadAllBytesAsync(filePath);
+            // Otherwise, try to load or download the texture.
+            var data = uri.IsFile ? File.Exists(uri.GetLocalPath()) ? await FileIO.ReadAllBytesAsync(uri.GetLocalPath()) : null : await DownloadImage(uri);
+            if (data != null)
+            {
+                var loaded = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
+                loaded.LoadImage(data);
+                textureCache[uri] = loaded;
 
-            var normalTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
-            normalTexture.LoadImage(fileData);
-            textureCache[uri] = normalTexture;
+                return loaded;
+            }
 
-            return normalTexture;
+            return null;
         }
 
         public static Texture2D GetNormalMapUnsafe(Uri uri)

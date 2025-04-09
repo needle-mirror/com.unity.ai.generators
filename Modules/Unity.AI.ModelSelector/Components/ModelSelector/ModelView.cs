@@ -21,6 +21,7 @@ namespace Unity.AI.ModelSelector.Components
     class ModelView : VisualElement
     {
         public event Action onDismissRequested;
+
         string m_SelectedModelId;
         TabView m_TabView;
         VisualElement m_TagsElement;
@@ -52,13 +53,12 @@ namespace Unity.AI.ModelSelector.Components
             {
                 m_Models = value?.OrderBy(model => model.name).ToList() ?? new List<ModelSettings>();
                 m_FilteredModels = models;
-                ShowModalities();
-                ShowSources();
-                ShowOperationTypes();
-                ShowTags();
+                RefreshFilters();
                 OnSearch();
             }
         }
+
+        readonly List<ModelTile> m_TilePool = new();
 
         public ModelView()
         {
@@ -66,6 +66,7 @@ namespace Unity.AI.ModelSelector.Components
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
 
             InitUI();
+            OnSearch();
 
             this.UseArray(ModelSelectorSelectors.SelectModelSettings, OnModelsChanged);
             this.Use(state => state.SelectLastSelectedModality(), OnModalitySelected);
@@ -76,21 +77,23 @@ namespace Unity.AI.ModelSelector.Components
         void OnModalitySelected(ModalityEnum modality)
         {
             m_SelectedModality = modality;
-            ShowModalities();
-            ShowSources();
-            ShowOperationTypes();
-            ShowTags();
+            RefreshFilters();
             OnSearch();
         }
 
         void OnOperationsSelected(IEnumerable<OperationSubTypeEnum> operations)
         {
             m_SelectedOperations = operations.ToArray();
+            RefreshFilters();
+            OnSearch();
+        }
+
+        void RefreshFilters()
+        {
             ShowModalities();
             ShowSources();
             ShowOperationTypes();
             ShowTags();
-            OnSearch();
         }
 
         bool IsModelBroken(ModelSettings model)
@@ -125,33 +128,19 @@ namespace Unity.AI.ModelSelector.Components
             m_SearchBar = this.Q<TextField>(className: "searchbar-text-field");
             m_SearchBar.RegisterValueChangedCallback(OnSearchFieldChanging);
             m_SearchResultsText = this.Q<Label>(className: "no-search-results-text");
+
             m_GridView = this.Q<GridView>(className: "models-section-grid");
-            m_GridView.selectionType = SelectionType.Single;
-            m_GridView.makeItem = () =>
+            m_GridView.keepScrollPositionWhenHidden = true;
+            m_GridView.selectedIndicesChanged += indices =>
             {
-                var tile = new ModelTile();
-                tile.showModelDetails += ShowModelDetails;
-                return tile;
+                using var enumerator = indices.GetEnumerator();
+                if (!enumerator.MoveNext()) return;
+
+                var index = enumerator.Current;
+                var model = m_GridView.itemsSource[index] as ModelSettings;
+
+                SelectModel(model);
             };
-            m_GridView.bindItem = (element, i) =>
-            {
-                if (element is ModelTile modelOption)
-                {
-                    modelOption.SetModel(m_FilteredModels[i]);
-                    modelOption.SetEnabled(!IsModelBroken(m_FilteredModels[i]));
-                    if (!modelOption.enabledSelf)
-                        modelOption.tooltip = "Temporarily not available for inpainting.";
-                }
-            };
-            m_GridView.unbindItem = (element, _) =>
-            {
-                if (element is ModelTile modelOption)
-                {
-                    modelOption.SetModel(new ModelSettings());
-                    modelOption.SetEnabled(true);
-                }
-            };
-            m_GridView.selectedIndicesChanged += OnSelectionChanged;
 
             var closeButton = this.Q<Button>(className: "close-button");
             closeButton.clickable = new Clickable(OnCancelButtonPressed);
@@ -161,21 +150,6 @@ namespace Unity.AI.ModelSelector.Components
 
             m_ModelDetailsCard = this.Q<DetailsModelTitleCard>();
             m_ModelDetailsGrid = this.Q<GridView>(className: "model-details-grid");
-
-            m_ModelDetailsGrid.MakeTileGrid(() => (float)TextureSizeHint.Carousel);
-            m_ModelDetailsGrid.selectionType = SelectionType.None;
-            m_ModelDetailsGrid.makeItem = () => new Image();
-            // ReSharper disable once AsyncVoidLambda
-            m_ModelDetailsGrid.bindItem = async (element, i) =>
-            {
-                if (element is Image image)
-                    image.image = await TextureCache.GetPreview(new Uri((string)m_ModelDetailsGrid.itemsSource[i]), (int)TextureSizeHint.Carousel);
-            };
-            m_ModelDetailsGrid.unbindItem = (element, i) =>
-            {
-                if (element is Image image)
-                    image.image = null;
-            };
         }
 
         void OnAttachToPanel(AttachToPanelEvent _) => RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -187,7 +161,9 @@ namespace Unity.AI.ModelSelector.Components
         void ShowModelDetails(ModelSettings model)
         {
             m_ModelDetailsCard.SetModel(model);
-            m_ModelDetailsGrid.itemsSource = model.thumbnails.Skip(1).ToList();
+
+            var thumbnails = model.thumbnails.Skip(1).ToList();
+            m_ModelDetailsGrid.BindToModelDetails(thumbnails);
 
             var selectButton = m_ModelDetailsCard.Q<Button>(className: "model-title-card-select");
             selectButton.clickable = new Clickable(() => SelectModel(model));
@@ -232,13 +208,13 @@ namespace Unity.AI.ModelSelector.Components
             }
 
             var sources = m_Models.Where(m => selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
-                .Select(model => model.partner).Distinct().OrderBy(s => s).ToList();
+                .Select(model => model.provider.ToString()).Distinct().OrderBy(s => s).ToList();
 
             m_SourcesElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
             m_SourcesElement.Clear();
             foreach (var source in sources)
             {
-                var sourceElement = new Toggle { label = source.Replace("TextTo", ""), name = source };
+                var sourceElement = new Toggle { label = source, name = source };
                 sourceElement.AddToClassList("tag");
                 sourceElement.RegisterValueChangedCallback(OnFilterSelectionChanged);
                 m_SourcesElement.Add(sourceElement);
@@ -266,7 +242,7 @@ namespace Unity.AI.ModelSelector.Components
             m_TagsElement.Clear();
             foreach (var tag in tags)
             {
-                var tagElement = new Toggle { label = tag };
+                var tagElement = new Toggle { name = tag, label = tag };
                 tagElement.AddToClassList("tag");
                 tagElement.RegisterValueChangedCallback(OnFilterSelectionChanged);
                 m_TagsElement.Add(tagElement);
@@ -281,7 +257,7 @@ namespace Unity.AI.ModelSelector.Components
             m_OperationsElement.Clear();
             foreach (OperationSubTypeEnum operation in Enum.GetValues(typeof(OperationSubTypeEnum)))
             {
-                var operationElement = new Toggle { label = operation.ToString().AddSpaceBeforeCapitalLetters() };
+                var operationElement = new Toggle { name = operation.ToString(), label = operation.ToString().AddSpaceBeforeCapitalLetters() };
                 if (m_SelectedOperations.Contains(operation))
                 {
                     operationElement.SetValueWithoutNotify(true);
@@ -328,63 +304,18 @@ namespace Unity.AI.ModelSelector.Components
 
         void OnSearch()
         {
-            m_FilteredModels = models;
+            m_FilteredModels = ApplyFilters(models);
 
-            var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
-                .Where(t => t.value).Select(t => t.name).ToList();
-            if (selectedModalities.Count > 0)
-                m_FilteredModels = m_FilteredModels.Where(m => selectedModalities.Any(t => m.modality.ToString().Equals(t, StringComparison.InvariantCultureIgnoreCase))).ToList();
+            m_GridView.BindToModels(
+                m_TilePool,
+                m_FilteredModels,
+                IsModelBroken,
+                ShowModelDetails,
+                m_SelectedModelId
+            );
 
-            var search = m_SearchBar?.value?.ToLower();
-            if (!string.IsNullOrEmpty(search))
-                m_FilteredModels = m_FilteredModels.Where(m => m.name.ToLower().Contains(search) ||
-                    m.description.ToLower().Contains(search) ||
-                    m.partner.ToLower().Contains(search) ||
-                    m.tags.Any(t => t.ToLower().Contains(search))
-                ).ToList();
-
-            var selectedTags = m_TagsElement.Query<Toggle>().ToList()
-                .Where(t => t.value).Select(t => t.label).ToList();
-
-            // If we want the models that match all of the selected tags we can change this to selectedTags.All.
-            if (selectedTags.Count > 0)
-                m_FilteredModels = m_FilteredModels.Where(m => selectedTags.Any(t => m.tags.Contains(t))).ToList();
-
-            var selectedOperations = m_OperationsElement.Query<Toggle>().ToList()
-                .Where(t => t.value).Select(t => t.label).ToList();
-
-            if (selectedOperations.Count > 0)
-                m_FilteredModels = m_FilteredModels.Where(m => selectedOperations.Any(t => m.operations.Any(o => o.ToString().AddSpaceBeforeCapitalLetters().Equals(t, StringComparison.InvariantCultureIgnoreCase)))).ToList();
-
-            var selectedSources = m_SourcesElement.Query<Toggle>().ToList()
-                .Where(t => t.value).Select(t => t.name).ToList();
-
-            // If we want the models that match all of the selected sources we can change this to selectedTags.All.
-            if (selectedSources.Count > 0)
-                m_FilteredModels = m_FilteredModels.Where(m => selectedSources.Any(t => m.partner.ToLower().Contains(t.ToLower()))).ToList();
-
-            m_FilteredModels = m_SortOrder.value == 0
-                ? m_FilteredModels.OrderBy(m => m.name).ToList()
-                : m_FilteredModels.OrderByDescending(m => m.name).ToList();
-
-            m_GridView.ClearSelection();
-            m_GridView.itemsSource = m_FilteredModels;
-            if (m_FilteredModels.Count > 0 && m_SelectedModelId != null)
-                m_GridView.SetSelectionWithoutNotify(new []{ m_FilteredModels.FindIndex(m => m.id == m_SelectedModelId) });
             m_GridView.EnableInClassList("hide", m_FilteredModels.Count == 0);
             m_SearchResultsText.EnableInClassList("hide", m_FilteredModels.Count > 0);
-        }
-
-        void OnSelectionChanged(IEnumerable<int> indices)
-        {
-            using var enumerator = indices.GetEnumerator();
-            if (!enumerator.MoveNext())
-                return;
-
-            var index = enumerator.Current;
-            var model = m_FilteredModels[index];
-
-            SelectModel(model);
         }
 
         void SelectModel(ModelSettings model)
@@ -399,6 +330,35 @@ namespace Unity.AI.ModelSelector.Components
 
             // Hold the modal open for a brief duration to show the change in model selection
             schedule.Execute(OnCancelButtonPressed).ExecuteLater(250);
+        }
+
+        List<ModelSettings> ApplyFilters(List<ModelSettings> filteredModels)
+        {
+            var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
+                .Where(t => t.value)
+                .Select(t => (ModalityEnum)Enum.Parse(typeof(ModalityEnum), t.name))
+                .ToList();
+
+            var searchText = m_SearchBar?.value;
+
+            var selectedTags = m_TagsElement.Query<Toggle>().ToList()
+                .Where(t => t.value)
+                .Select(t => t.name)
+                .ToList();
+
+            var selectedOperations = m_OperationsElement.Query<Toggle>().ToList()
+                .Where(t => t.value)
+                .Select(t => (OperationSubTypeEnum)Enum.Parse(typeof(OperationSubTypeEnum), t.name))
+                .ToList();
+
+            var selectedSources = m_SourcesElement.Query<Toggle>().ToList()
+                .Where(t => t.value)
+                .Select(t => (ProviderEnum)Enum.Parse(typeof(ProviderEnum), t.name))
+                .ToList();
+
+            var sortDescending = m_SortOrder.value == 1;
+
+            return ModelSelectorSelectors.SelectModels(filteredModels, selectedModalities, selectedOperations, selectedSources, selectedTags, searchText, sortDescending);
         }
     }
 }

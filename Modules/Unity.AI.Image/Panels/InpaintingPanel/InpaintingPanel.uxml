@@ -16,12 +16,10 @@
             <ui:Prompt />
         </VisualElement>
         <!-- Generate Variations Slider -->
-        <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-            <ui:GenerateVariationsSlider />
-        </VisualElement>
-        <!-- Generation Options -->
         <VisualElement class="flex-no-shrink p-8-7-8-8 bg-light">
-            <ui:GenerationOptions />
+            <Label class="font-bold p-4 pb-8" text="Options"/>
+            <ui:GenerateVariationsSlider />
+            <ui:GenerationOptions class="pt-8" />
         </VisualElement>
         <!-- Base Image -->
         <VisualElement class="flex-no-shrink bg-light">

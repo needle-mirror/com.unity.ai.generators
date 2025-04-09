@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Sound.Services.Stores.Actions;
@@ -34,6 +35,11 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 
         public static string SelectSelectedModelID(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).selectedModelID;
 
+        public static bool SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
+            ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Sound }, null);
+        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
+            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Sound }, null);
+
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
             setting.selectedModelID = !string.IsNullOrEmpty(setting.selectedModelID) ? setting.selectedModelID : state.SelectSession().settings.lastSelectedModelID;
@@ -57,19 +63,21 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             var text = string.Empty;
 
             if (!string.IsNullOrEmpty(generationMetadata.prompt))
-                text += $"Prompt: {generationMetadata.prompt}";
+                text += $"Prompt: {generationMetadata.prompt}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.negativePrompt))
-                text += $"\nNegative prompt: {generationMetadata.negativePrompt}";
+                text += $"Negative prompt: {generationMetadata.negativePrompt}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.model))
             {
                 var modelSettings = state.SelectModelSettings(generationMetadata);
                 if (!string.IsNullOrEmpty(modelSettings?.name))
                 {
-                    text += $"\nModel: {modelSettings.name}";
+                    text += $"Model: {modelSettings.name}\n";
                 }
             }
+
+            text = text.TrimEnd();
 
             if(string.IsNullOrEmpty(text))
                 text = noDataFoundString;

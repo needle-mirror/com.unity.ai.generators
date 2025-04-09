@@ -44,12 +44,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
             var taskID = Progress.Start("Precaching generations.");
             try
             {
+                var timer = Stopwatch.StartNew();
                 const float timeoutInSeconds = 2.0f;
                 const int minPrecache = 8;
                 const int maxInFlight = 4;
                 var processedTextures = 0;
                 var inFlightTasks = new List<Task>();
-                var timeoutOnce = false; // Prevent further waits once a visible count has been obtained (UI becoming visible)
 
                 // Iterate over all textures (assuming payload.textures is ordered by last write time)
                 foreach (var texture in payload.textures)
@@ -61,8 +61,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     else
                     {
                         // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
-                        var visibleCount = await WaitForVisibleCount(timeoutOnce ? 0 : timeoutInSeconds);
-                        timeoutOnce = true;
+                        var visibleCount = await WaitForVisibleCount();
                         precacheCount = Math.Max(minPrecache, visibleCount);
                     }
 
@@ -94,11 +93,10 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     await Task.WhenAll(inFlightTasks);
 
                 // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
-                async Task<int> WaitForVisibleCount(float timeout)
+                async Task<int> WaitForVisibleCount()
                 {
-                    var sw = Stopwatch.StartNew();
                     int visible;
-                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && sw.Elapsed.TotalSeconds < timeout)
+                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
                         await Task.Yield();
                     return visible;
                 }
@@ -185,12 +183,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     {
                         if (!data.asset.IsValid())
                         {
-                            Debug.LogWarning($"Unable to resume download for asset: {data.asset.GetPath()}, modality: {data.modality}");
+                            Debug.LogWarning($"Unable to resume download for asset: {data.asset.GetPath()}");
                             continue;
                         }
 
                         await api.Dispatch(downloadImagesMain,
-                            new DownloadImagesData(data.asset, data.ids.Select(Guid.Parse).ToList(), data.modality, data.taskId, data.generationMetadata, false, false, false, data.customSeeds.ToArray()), CancellationToken.None);
+                            new DownloadImagesData(data.asset, data.ids.Select(Guid.Parse).ToList(), data.taskId, data.generationMetadata, false, false, false, data.customSeeds.ToArray()), CancellationToken.None);
                     }
 
                     break;
@@ -239,7 +237,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             SkeletonExtensions.Acquire(taskID);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadImages, new DownloadImagesData(arg.asset, arg.ids, arg.modality, taskID, arg.generationMetadata, false, false, false, arg.customSeeds), CancellationToken.None);
+                await api.Dispatch(GenerationResultsSuperProxyActions.downloadImages, new DownloadImagesData(arg.asset, arg.ids, taskID, arg.generationMetadata, false, false, false, arg.customSeeds), CancellationToken.None);
             }
             finally
             {

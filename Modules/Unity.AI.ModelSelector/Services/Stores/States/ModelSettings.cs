@@ -12,7 +12,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public string name;
         public List<string> tags = new();
         public string description;
-        public string partner;
         public List<string> thumbnails = new();
         public string icon;
         public ProviderEnum provider = ProviderEnum.None;

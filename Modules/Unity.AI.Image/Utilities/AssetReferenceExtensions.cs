@@ -5,6 +5,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
+using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace Unity.AI.Image.Services.Utilities
@@ -17,6 +18,25 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static Stream GetFileStream(this AssetReference asset) =>
             FileIO.OpenFileStream(asset.GetPath(), FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+
+        public static Stream GetCompatibleImageStream(this AssetReference asset)
+        {
+            var candidateStream = asset.GetFileStream();
+            // check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go 
+            // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
+            if (ImageFileUtilities.IsJpg(candidateStream) && ImageFileUtilities.HasJpgExifMetadata(candidateStream))
+            {
+                var referenceTexture = asset.GetObject<Texture2D>();
+                var readableTexture = ImageFileUtilities.MakeTextureReadable(referenceTexture);
+                var bytes = readableTexture.EncodeToPNG();
+                candidateStream.Dispose();
+                candidateStream = new MemoryStream(bytes);
+
+                if (readableTexture != referenceTexture)
+                    readableTexture.SafeDestroy();
+            }
+            return candidateStream;
+        }
 
         public static async Task<bool> Replace(this AssetReference asset, TextureResult generatedTexture)
         {
@@ -57,6 +77,12 @@ namespace Unity.AI.Image.Services.Utilities
         {
             var path = asset.GetPath();
             return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<Object>(path);
+        }
+
+        public static T GetObject<T>(this AssetReference asset) where T : Object
+        {
+            var path = asset.GetPath();
+            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
         }
 
         public static AssetReference FromObject(Object obj)

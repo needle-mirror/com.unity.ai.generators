@@ -39,7 +39,10 @@ namespace Unity.AI.Generators.UIElements.Extensions
         /// <typeparam name="TResult"></typeparam>
         public static Unsubscribe Use<TResult>(this VisualElement element, UseSelectorOptions<TResult> options)
         {
-            options = options with {sourceInfo =  new(true)};
+            if (ExceptionUtilities.detailedExceptionStack)
+                options = options with { sourceInfo = new(true) };
+            else
+                options = options with { };
             if (options.selector == null)
                 return () => true;
 

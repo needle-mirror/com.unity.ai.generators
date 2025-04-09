@@ -19,6 +19,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 {
     static class ModelSelectorSuperProxyActions
     {
+        public const string unityLogo = "Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/UnityLogo.png";
+
         public static ModelSettings FromSuperProxy(PlatformGenerativeModelsResult info)
         {
             var model = new ModelSettings
@@ -27,7 +29,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 name = info.Name,
                 tags = info.Tags,
                 description = info.Description,
-                partner = info.Provider.ToString(),
                 provider = info.Provider,
                 thumbnails = info.ThumbnailsUrls.ToList(),
                 icon = info.IconImageUrl,
@@ -40,7 +41,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             // ugh
             if (model.provider == ProviderEnum.Unity)
             {
-                model.icon = new Uri(Path.GetFullPath(ModelSelectorMockActions.unityLogo), UriKind.Absolute).GetLocalPath();
+                model.icon = new Uri(Path.GetFullPath(unityLogo), UriKind.Absolute).GetLocalPath();
                 model.thumbnails = new List<string> { model.icon };
             }
 
@@ -86,9 +87,9 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                     if (!modelResults.Batch.IsSuccessful)
                     {
                         if (modelResults.Batch.Error.Errors.Count == 0)
-                            Debug.LogError($"Error reason is '{modelResults.Batch.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment}).");
+                            Debug.Log($"Error reason is '{modelResults.Batch.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment}).");
                         else
-                            modelResults.Batch.Error.Errors.ForEach(e => Debug.LogError($"{modelResults.Batch.Error.AiResponseError.ToString()}: {e}"));
+                            modelResults.Batch.Error.Errors.ForEach(e => Debug.Log($"{modelResults.Batch.Error.AiResponseError.ToString()}: {e}"));
 
                         // we can simply return without throwing or additional logging because the error is already logged
                         return models;

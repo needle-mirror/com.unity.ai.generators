@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.States;
@@ -45,6 +45,31 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             return setting.selectedModels.Ensure(mode).modelID;
         }
 
+        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
+        {
+            var mode = state.SelectRefinementMode(asset);
+            var operations = mode switch
+            {
+                RefinementMode.Generation => new[] { OperationSubTypeEnum.TextPrompt },
+                RefinementMode.Upscale => new[] { OperationSubTypeEnum.Upscale },
+                RefinementMode.Pbr => new[] { OperationSubTypeEnum.Pbr },
+                _ => new[] { OperationSubTypeEnum.TextPrompt }
+            };
+            return operations.ToList();
+        }
+        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+
+        public static (RefinementMode mode, bool should) SelectShouldAutoAssignModel(this IState state, VisualElement element)
+        {
+            var mode = state.SelectRefinementMode(element);
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Texture2d },
+                state.SelectRefinementOperations(element).ToArray()));
+        }
+
+        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
+            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Texture2d },
+                state.SelectRefinementOperations(element).ToArray());
+
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
@@ -72,19 +97,24 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             var text = string.Empty;
 
             if (!string.IsNullOrEmpty(generationMetadata.prompt))
-                text += $"Prompt: {generationMetadata.prompt}";
+                text += $"Prompt: {generationMetadata.prompt}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.negativePrompt))
-                text += $"\nNegative prompt: {generationMetadata.negativePrompt}";
+                text += $"Negative prompt: {generationMetadata.negativePrompt}\n";
+
+            if (!string.IsNullOrEmpty(generationMetadata.refinementMode))
+                text += $"Operation: {generationMetadata.refinementMode.AddSpaceBeforeCapitalLetters()}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.model))
             {
                 var modelSettings = state.SelectModelSettings(generationMetadata);
                 if (!string.IsNullOrEmpty(modelSettings?.name))
                 {
-                    text += $"\nModel: {modelSettings.name}";
+                    text += $"Model: {modelSettings.name}\n";
                 }
             }
+
+            text = text.TrimEnd();
 
             if(string.IsNullOrEmpty(text))
                 text = noDataFoundString;

@@ -54,6 +54,7 @@ namespace Unity.AI.Generators.UI.Utilities
         public static bool AreCloudProjectSettingsInvalid() => string.IsNullOrWhiteSpace(CloudProjectSettings.organizationKey) || string.IsNullOrWhiteSpace(CloudProjectSettings.userId);
         public static bool AreCloudProjectSettingsValid() => !AreCloudProjectSettingsInvalid();
 
+        const string k_InternalMenu = "internal:";
         const string k_SimulateClientSideFailuresMenu = "AI Toolkit/Internals/Tests/Simulate Client Side Failures";
         const string k_SimulateClientSideFailuresKey = "AI_Toolkit_Simulate_Client_Side_Failures";
 
@@ -63,12 +64,12 @@ namespace Unity.AI.Generators.UI.Utilities
             set => EditorPrefs.SetBool(k_SimulateClientSideFailuresKey, value);
         }
 
-        [MenuItem(k_SimulateClientSideFailuresMenu, false, 101)]
+        [MenuItem(k_InternalMenu + k_SimulateClientSideFailuresMenu, false, 101)]
         static void ToggleSimulateClientSideFailures()
         {
             simulateClientSideFailures = !simulateClientSideFailures;
         }
-        [MenuItem(k_SimulateClientSideFailuresMenu, true, 101)]
+        [MenuItem(k_InternalMenu + k_SimulateClientSideFailuresMenu, true, 101)]
         static bool ValidateSimulateClientSideFailures()
         {
             Menu.SetChecked(k_SimulateClientSideFailuresMenu, simulateClientSideFailures);
@@ -84,12 +85,12 @@ namespace Unity.AI.Generators.UI.Utilities
             set => EditorPrefs.SetBool(k_SimulateServerSideFailuresKey, value);
         }
 
-        [MenuItem(k_SimulateServerSideFailuresMenu, false, 101)]
+        [MenuItem(k_InternalMenu + k_SimulateServerSideFailuresMenu, false, 101)]
         static void ToggleSimulateServerSideFailures()
         {
             simulateServerSideFailures = !simulateServerSideFailures;
         }
-        [MenuItem(k_SimulateServerSideFailuresMenu, true, 101)]
+        [MenuItem(k_InternalMenu + k_SimulateServerSideFailuresMenu, true, 101)]
         static bool ValidateSimulateServerSideFailures()
         {
             Menu.SetChecked(k_SimulateServerSideFailuresMenu, simulateServerSideFailures);

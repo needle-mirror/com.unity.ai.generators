@@ -17,10 +17,10 @@ namespace Unity.AI.Material.Services.Utilities
                 "normal" => MapType.Normal,
                 "emission" => MapType.Emission,
                 "metallic" => MapType.Metallic,
-                "smoothness" => MapType.Smoothness,
-                "roughness" => MapType.Smoothness, // 1P model uses roughness instead of smoothness but with smoothness (1 - v) values
+                "roughness" => MapType.Roughness, // 1P model uses roughness instead of smoothness but with smoothness (1 - v) values
                 "delighted" => MapType.Delighted,
                 "occlusion" => MapType.Occlusion,
+                "smoothness" => MapType.Smoothness,
                 "metallicsmoothness" => MapType.MetallicSmoothness,
                 "nonmetallicsmoothness" => MapType.NonMetallicSmoothness,
                 "maskmap" => MapType.MaskMap,

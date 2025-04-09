@@ -149,6 +149,8 @@ namespace Unity.AI.Image.Components
 
         void SetAsset(AssetReference asset)
         {
+            OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize()));
+
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
             m_GenerationFileSystemWatcher = null;
 

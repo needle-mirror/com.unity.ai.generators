@@ -1,4 +1,5 @@
-﻿using System;
+﻿#define AI_TK_MATERIAL_EMISSIVE_DEFAULT
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Unity.AI.Material.Services.Stores.States;
@@ -378,6 +379,7 @@ namespace Unity.AI.Material.Services.Utilities
                     break;
 
                 case MapType.Emission:
+#if AI_TK_MATERIAL_EMISSIVE_DEFAULT
                     // Universal Render Pipeline/Lit, Standard
                     if (material.HasTexture("_EmissionMap"))
                     {
@@ -390,15 +392,37 @@ namespace Unity.AI.Material.Services.Utilities
                         texturePropertyName = "_EmissiveColorMap";
                         return true;
                     }
+#endif
                     break;
 
                 case MapType.Metallic:
+                    // Muse
+                    if (material.HasTexture("_MetallicMap"))
+                    {
+                        texturePropertyName = "_MetallicMap";
+                        return true;
+                    }
+
                     break;
 
-                case MapType.Smoothness:
+                case MapType.Roughness:
+                    // Muse
+                    if (material.HasTexture("_RoughnessMap"))
+                    {
+                        texturePropertyName = "_RoughnessMap";
+                        return true;
+                    }
+
                     break;
 
                 case MapType.Delighted: // Albedo
+                    // Muse
+                    if (material.HasTexture("_AlbedoMap"))
+                    {
+                        texturePropertyName = "_AlbedoMap";
+                        return true;
+                    }
+
                     // Universal Render Pipeline/Lit, Universal Render Pipeline/Unlit
                     if (material.HasTexture("_BaseMap"))
                     {
@@ -426,6 +450,13 @@ namespace Unity.AI.Material.Services.Utilities
                     break;
 
                 case MapType.Occlusion:
+                    // Muse
+                    if (material.HasTexture("_AmbientOcclusionMap"))
+                    {
+                        texturePropertyName = "_AmbientOcclusionMap";
+                        return true;
+                    }
+
                     // Universal Render Pipeline/Lit, Standard
                     if (material.HasTexture("_OcclusionMap"))
                     {
@@ -441,6 +472,16 @@ namespace Unity.AI.Material.Services.Utilities
                         texturePropertyName = "_MaskMap";
                         return true;
                     }
+                    break;
+
+                case MapType.Smoothness:
+                    // Muse
+                    if (material.HasTexture("_SmoothnessMap"))
+                    {
+                        texturePropertyName = "_SmoothnessMap";
+                        return true;
+                    }
+
                     break;
 
                 case MapType.MetallicSmoothness:

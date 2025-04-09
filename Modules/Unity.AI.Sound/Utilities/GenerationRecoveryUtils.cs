@@ -69,7 +69,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 s_InterruptedDownloadsByEnv[environment] = list;
             }
 
-            if (!list.Contains(data))
+            if (!list.Any(existing => existing.AreKeyFieldsEqual(data)))
             {
                 list.Add(data);
                 SaveInterruptedDownloads();

@@ -42,12 +42,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             var taskID = Progress.Start("Precaching generations.");
             try
             {
+                var timer = Stopwatch.StartNew();
                 const float timeoutInSeconds = 2.0f;
                 const int minPrecache = 8;
                 const int maxInFlight = 4;
                 var processedAnimations = 0;
                 var inFlightTasks = new List<Task>();
-                var timeoutOnce = false; // Prevent further waits once a visible count has been obtained (UI becoming visible)
 
                 // Iterate over all animations (assuming payload.animations is ordered by last write time)
                 foreach (var animation in payload.animations)
@@ -59,8 +59,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     else
                     {
                         // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
-                        var visibleCount = await WaitForVisibleCount(timeoutOnce ? 0 : timeoutInSeconds);
-                        timeoutOnce = true;
+                        var visibleCount = await WaitForVisibleCount();
                         precacheCount = Math.Max(minPrecache, visibleCount);
                     }
 
@@ -101,11 +100,10 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     await Task.WhenAll(inFlightTasks);
 
                 // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
-                async Task<int> WaitForVisibleCount(float timeout)
+                async Task<int> WaitForVisibleCount()
                 {
-                    var sw = Stopwatch.StartNew();
                     int visible;
-                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && sw.Elapsed.TotalSeconds < timeout)
+                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
                         await Task.Yield();
                     return visible;
                 }

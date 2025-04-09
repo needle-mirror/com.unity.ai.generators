@@ -128,7 +128,7 @@ namespace Unity.AI.Generators.UI
                 }
             }
         }
-        
+
         public int selectedIndex
         {
             get { return m_SelectedIndices.Count == 0 ? -1 : m_SelectedIndices.First(); }
@@ -152,6 +152,8 @@ namespace Unity.AI.Generators.UI
         public int lastVisibleIndex => m_FirstVisibleRowIndex * m_ColumnCount + (m_VisibleItemCount - 1);
 
         public bool selectOnPointerUp { get; set; }
+
+        public bool keepScrollPositionWhenHidden { get; set; }
 
         public SelectionType selectionType
         {
@@ -221,7 +223,12 @@ namespace Unity.AI.Generators.UI
 
             m_ScrollView = new ScrollView();
             m_ScrollView.AddToClassList(k_GridViewItemsScrollViewStyleClassName);
-            m_ScrollView.verticalScroller.valueChanged += offset => OnScroll(new Vector2(0, offset));
+            m_ScrollView.verticalScroller.valueChanged += offset =>
+            {
+                if (keepScrollPositionWhenHidden && (float.IsNaN(resolvedStyle.width) || resolvedStyle.width <= 0))
+                    return;
+                OnScroll(new Vector2(0, offset));
+            };
 
             m_ScrollView.RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
             m_ScrollView.RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
@@ -1065,14 +1072,14 @@ namespace Unity.AI.Generators.UI
 
             ResetAndBuildItems();
         }
-        
+
         public void Rebuild(float itemWidth, float itemHeight)
         {
             if (!float.IsNaN(itemWidth) && itemWidth > 0)
                 m_FixedItemWidth = itemWidth;
             if (!float.IsNaN(itemHeight) && itemHeight > 0)
                 m_FixedItemHeight = itemHeight;
-            
+
             if (m_ItemsSource.Count == 0)
             {
                 ResetGridViewState();
@@ -1188,8 +1195,9 @@ namespace Unity.AI.Generators.UI
             if (float.IsNaN(gridViewHeight) || gridViewHeight < 0)
                 throw new ArgumentOutOfRangeException(nameof(gridViewHeight), "Specified gridview height should be non-negative.");
 
-
-            var newColumnCount = Math.Max(1, Mathf.FloorToInt(gridViewWidth / m_FixedItemWidth));
+            var newColumnCount = Math.Max(0, Mathf.FloorToInt(gridViewWidth / m_FixedItemWidth));
+            if (newColumnCount == 0)
+                newColumnCount = Math.Max(1, m_ColumnCount);
             var displayableRowCount = Math.Max(0, Mathf.CeilToInt(gridViewHeight / m_FixedItemHeight)) + k_ExtraRows;
             var realRowCount = GetRealRowCount(newColumnCount);
             var newRowCount = Math.Min(realRowCount, displayableRowCount);

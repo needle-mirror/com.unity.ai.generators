@@ -28,6 +28,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var settings = state.SelectGenerationSettings().generationSettings;
             return settings.Ensure(asset);
         }
+        public static GenerationSetting SelectGenerationSetting2(IState state, VisualElement element) => state.SelectGenerationSetting(element.GetAsset());
         public static GenerationSetting SelectGenerationSetting(this IState state, VisualElement element) => state.SelectGenerationSetting(element.GetAsset());
 
         public static string SelectSelectedModelID(this IState state, VisualElement element) => state.SelectSelectedModelID(element.GetAsset());
@@ -56,7 +57,12 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
             {
                 var selection = setting.selectedModels.Ensure(mode);
-                selection.modelID = !string.IsNullOrEmpty(selection.modelID) ? selection.modelID : state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
+                if (!string.IsNullOrEmpty(selection.modelID))
+                    continue;
+                var session = state.SelectSession();
+                if (session == null)
+                    continue;
+                selection.modelID = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
             }
             return setting;
         }
@@ -84,9 +90,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 text += $"Negative prompt: {generationMetadata.negativePrompt}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.refinementMode))
-            {
                 text += $"Operation: {generationMetadata.refinementMode.AddSpaceBeforeCapitalLetters()}\n";
-            }
 
             if (!string.IsNullOrEmpty(generationMetadata.model))
             {
@@ -100,9 +104,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             text = text.TrimEnd();
 
             if (string.IsNullOrEmpty(text))
-            {
                 text = noDataFoundString;
-            }
 
             return text;
         }
@@ -242,7 +244,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             (imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid() || imageReference.mode == ImageReferenceMode.Doodle);
         public static Stream SelectImageReferenceStream(this ImageReferenceSettings imageReference) =>
             imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid()
-                ? imageReference.asset.GetFileStream()
+                ? imageReference.asset.GetCompatibleImageStream()
                 : new MemoryStream(imageReference.doodle);
         public static Dictionary<RefinementMode, Dictionary<ImageReferenceType, ImageReferenceSettings>> SelectImageReferencesByRefinement(this GenerationSetting setting)
         {
@@ -344,18 +346,29 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return active;
         }
 
-        public static int SelectActiveReferencesCount(this IState state, VisualElement element)
+        /// <summary>
+        /// Returns a bit mask representing active reference types with valid content.
+        /// Each bit position corresponds to the integer value of the ImageReferenceType enum.
+        /// </summary>
+        public static int SelectActiveReferencesBitMask(this IState state, AssetReference asset)
         {
-            var count = 0;
-            var generationSetting = state.SelectGenerationSetting(element);
+            var bitMask = 0;
+            var generationSetting = state.SelectGenerationSetting(asset);
+
             foreach (ImageReferenceType type in typeof(ImageReferenceType).GetEnumValues())
             {
+                var typeValue = (int)type;
+                if (typeValue >= 32)
+                    throw new InvalidOperationException($"ImageReferenceType value {typeValue} ({type}) exceeds the maximum bit position (31) " + "that can be stored in an Int32. Consider using a long (64-bit) instead.");
                 var imageReference = generationSetting.SelectImageReference(type);
-                if (imageReference.isActive && (imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid() || imageReference.mode == ImageReferenceMode.Doodle))
-                    count++;
+                var isActiveReference = imageReference.isActive;
+                if (isActiveReference)
+                    bitMask |= 1 << typeValue;
             }
-            return count;
+
+            return bitMask;
         }
+        public static int SelectActiveReferencesBitMask(this IState state, VisualElement element) => state.SelectActiveReferencesBitMask(element.GetAsset());
 
         public static string SelectPendingPing(this IState state, VisualElement element) => state.SelectGenerationSetting(element).pendingPing;
 
@@ -372,8 +385,8 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var model = state.SelectSelectedModelID(asset);
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
-            var referenceCount = state.SelectActiveReferencesCount(element);
-            return new GenerationValidationSettings(asset, prompt, negativePrompt, model, variations, mode, referenceCount);
+            var referencesBitMask = state.SelectActiveReferencesBitMask(element);
+            return new GenerationValidationSettings(asset, prompt, negativePrompt, model, variations, mode, referencesBitMask);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

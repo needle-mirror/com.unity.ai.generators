@@ -51,6 +51,7 @@
 
 #image-reference-settings-button > .unity-image {
     --unity-image: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Image/Icons/Settings.png");
+    opacity: 1;
 }
 
 .button-spacer {
@@ -66,6 +67,7 @@
 
 #edit-image-reference > .unity-image {
     --unity-image: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Image/Icons/Edit.png");
+    opacity: 1;
 }
 
 .is-selected #edit-image-reference {
@@ -91,14 +93,14 @@
     width: 19px;
     height: 19px;
     border-width: 1px;
-    border-radius: 4px;
+    border-radius: 3px;
     border-color: var(--unity-colors-button-border);
+    border-bottom-color: var(--unity-colors-button-border_accent);
     background-color: var(--unity-colors-button-background);
     -unity-background-scale-mode: scale-to-fit;
 }
 
 .unity-object-field__selector:hover {
-    border-color: var(--unity-colors-button-border-hover);
     background-color: var(--unity-colors-button-background-hover);
 }
 

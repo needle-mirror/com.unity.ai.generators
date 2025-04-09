@@ -3,7 +3,7 @@
     Properties
     {
         _MainTex ("Texture", 2D) = "black" {}
-        _SmoothnessTex ("Smoothness Texture", 2D) = "black" {}
+        _RoughnessTex ("Roughness Texture", 2D) = "black" {}
         _OcclusionTex ("Occlusion Texture", 2D) = "white" {}
     }
     SubShader
@@ -43,7 +43,7 @@
             }
 
             Texture2D _MainTex;
-            Texture2D _SmoothnessTex;
+            Texture2D _RoughnessTex;
             Texture2D _OcclusionTex;
             SamplerState point_clamp;
 
@@ -52,14 +52,14 @@
                 float4 final_color = float4(0,0,0,0);
 
                 float4 metalness_color = _MainTex.Sample(point_clamp, i.uv);
-                float4 smoothness_color = _SmoothnessTex.Sample(point_clamp, i.uv);
+                float4 roughness_color = _RoughnessTex.Sample(point_clamp, i.uv);
                 float4 occlusion_color = _OcclusionTex.Sample(point_clamp, i.uv);
 
                 float metalness = dot(metalness_color.rgb, float3(0.2126, 0.7152, 0.0722));
                 float occlusion = dot(occlusion_color.rgb, float3(0.2126, 0.7152, 0.0722));
                 float detail = 1;
                 final_color.rgb = float3(metalness, occlusion, detail);
-                final_color.a = 1 - saturate(dot(smoothness_color.rgb, float3(0.2126, 0.7152, 0.0722)));
+                final_color.a = 1 - saturate(dot(roughness_color.rgb, float3(0.2126, 0.7152, 0.0722)));
 
                 return final_color;
             }

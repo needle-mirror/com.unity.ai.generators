@@ -1,7 +1,6 @@
 ﻿using System;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.Selectors;
-using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
@@ -46,7 +45,7 @@ namespace Unity.AI.Animate.Components
                 try
                 {
                     m_Button.SetEnabled(false);
-                    await this.GetStoreApi().Dispatch(GenerationSettingsActions.openSelectModelPanel, (this, this.GetState().SelectRefinementMode(this)));
+                    await this.GetStoreApi().Dispatch(GenerationSettingsActions.openSelectModelPanel, this);
                 }
                 finally
                 {
@@ -61,6 +60,15 @@ namespace Unity.AI.Animate.Components
                     return;
                 await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
                 this.Dispatch(GenerationSettingsActions.setLastModelDiscoveryTime, Time.time);
+            });
+            this.Use(state => state.SelectShouldAutoAssignModel(this), payload =>
+            {
+                m_Button.SetEnabled(!payload.should);
+                if (!payload.should)
+                    return;
+                var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
+                if (!string.IsNullOrEmpty(autoAssignModel?.id))
+                    this.Dispatch(GenerationSettingsActions.setSelectedModelID, (payload.mode, autoAssignModel.id));
             });
         }
     }

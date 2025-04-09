@@ -16,7 +16,6 @@ namespace Unity.AI.ImageEditor.Services.Utilities
     {
         public AssetReference asset = new();
         public ImmutableStringList ids = new(new List<string>());
-        public GenerationRecoveryUtils.Modality modality = GenerationRecoveryUtils.Modality.SpritesMpp;
         public int taskId;
         public GenerationMetadata generationMetadata;
         public ImmutableArray<int> customSeeds = ImmutableArray<int>.Empty;
@@ -29,7 +28,7 @@ namespace Unity.AI.ImageEditor.Services.Utilities
                 return true;
 
             // Only compare asset, ids, and modality.
-            return asset.Equals(other.asset) && ids.Equals(other.ids) && modality.Equals(other.modality);
+            return asset.Equals(other.asset) && ids.Equals(other.ids);
         }
 
         public int progressTaskId => taskId;
@@ -37,8 +36,7 @@ namespace Unity.AI.ImageEditor.Services.Utilities
 
     static class GenerationRecoveryUtils
     {
-        const string k_LoadInterruptedDownloads = "AI Toolkit/Internals/Tests/(Re)Load Interrupted Downloads";
-        const string k_InterruptedDownloadsFilePath = "Library/AI.Image/InterruptedDownloads.json";
+        const string k_LoadInterruptedDownloads = "internal:AI Toolkit/Internals/Tests/(Re)Load Interrupted Downloads";
 
         [MenuItem(k_LoadInterruptedDownloads, false, 1000)]
         static void ReLoadInterruptedDownloads() => EditorUtility.RequestScriptReload();
@@ -47,16 +45,9 @@ namespace Unity.AI.ImageEditor.Services.Utilities
 
         static GenerationRecoveryUtils() => LoadInterruptedDownloads();
 
-        public enum Modality
-        {
-            SpritesMpp,
-            SpritesLegacy
-        }
-
         public static void AddInterruptedDownload(DownloadImagesData data) => AddInterruptedDownload(new InterruptedDownloadData
         {
             asset = data.asset,
-            modality = data.modality,
             ids = new ImmutableStringList(data.ids.Select(id => id.ToString())),
             taskId = data.taskID,
             generationMetadata =  data.generationMetadata,
@@ -66,7 +57,6 @@ namespace Unity.AI.ImageEditor.Services.Utilities
         public static void RemoveInterruptedDownload(DownloadImagesData data) => RemoveInterruptedDownload(new InterruptedDownloadData
             {
                 asset = data.asset,
-                modality = data.modality,
                 ids = new ImmutableStringList(data.ids.Select(id => id.ToString())),
                 taskId = data.taskID,
                 generationMetadata =  data.generationMetadata
@@ -84,7 +74,7 @@ namespace Unity.AI.ImageEditor.Services.Utilities
                 s_InterruptedDownloadsByEnv[environment] = list;
             }
 
-            if (!list.Contains(data))
+            if (!list.Any(existing => existing.AreKeyFieldsEqual(data)))
             {
                 list.Add(data);
                 SaveInterruptedDownloads();
@@ -116,11 +106,11 @@ namespace Unity.AI.ImageEditor.Services.Utilities
             return new List<InterruptedDownloadData>();
         }
 
-        static void LoadInterruptedDownloads()
+        public static void LoadInterruptedDownloads()
         {
-            if (System.IO.File.Exists(k_InterruptedDownloadsFilePath))
+            if (System.IO.File.Exists(InterruptedDownloadsFilePath))
             {
-                var json = FileIO.ReadAllText(k_InterruptedDownloadsFilePath);
+                var json = FileIO.ReadAllText(InterruptedDownloadsFilePath);
                 s_InterruptedDownloadsByEnv = JsonUtility.FromJson<SerializableDictionary<string, List<InterruptedDownloadData>>>(json);
                 if (s_InterruptedDownloadsByEnv == null)
                     s_InterruptedDownloadsByEnv = new SerializableDictionary<string, List<InterruptedDownloadData>>();
@@ -134,12 +124,68 @@ namespace Unity.AI.ImageEditor.Services.Utilities
         static void SaveInterruptedDownloads()
         {
             var json = JsonUtility.ToJson(s_InterruptedDownloadsByEnv, true);
-            var directory = System.IO.Path.GetDirectoryName(k_InterruptedDownloadsFilePath);
+            var directory = System.IO.Path.GetDirectoryName(InterruptedDownloadsFilePath);
 
             if (!System.IO.Directory.Exists(directory))
                 System.IO.Directory.CreateDirectory(directory);
 
-            FileIO.WriteAllText(k_InterruptedDownloadsFilePath, json);
+            FileIO.WriteAllText(InterruptedDownloadsFilePath, json);
+        }
+
+        /// <summary>
+        /// Path to the file where interrupted downloads are stored.
+        /// Can be overridden for testing purposes.
+        /// </summary>
+        public static string InterruptedDownloadsFilePath { get; set; } = "Library/AI.Image/InterruptedDownloads.json";
+
+        /// <summary>
+        /// Clears all interrupted downloads from memory and optionally from disk.
+        /// </summary>
+        /// <param name="persistToDisk">Whether to save the empty state to disk.</param>
+        public static void ClearAllInterruptedDownloads(bool persistToDisk = false)
+        {
+            s_InterruptedDownloadsByEnv = new SerializableDictionary<string, List<InterruptedDownloadData>>();
+            if (persistToDisk)
+                SaveInterruptedDownloads();
+        }
+
+        /// <summary>
+        /// Clears interrupted downloads for a specific environment.
+        /// </summary>
+        /// <param name="environment">The environment to clear. If null, uses the current environment.</param>
+        /// <param name="persistToDisk">Whether to save the changes to disk.</param>
+        public static void ClearInterruptedDownloadsForEnvironment(string environment = null, bool persistToDisk = false)
+        {
+            environment ??= WebUtils.selectedEnvironment;
+            if (string.IsNullOrEmpty(environment))
+                return;
+
+            if (!s_InterruptedDownloadsByEnv.ContainsKey(environment))
+                return;
+
+            s_InterruptedDownloadsByEnv[environment] = new List<InterruptedDownloadData>();
+            if (!persistToDisk)
+                return;
+
+            SaveInterruptedDownloads();
+        }
+
+        /// <summary>
+        /// Gets the count of interrupted downloads for an asset.
+        /// </summary>
+        /// <param name="asset">The asset to check.</param>
+        /// <param name="environment">Optional environment to check. If null, uses the current environment.</param>
+        /// <returns>The number of interrupted downloads for the asset.</returns>
+        public static int GetInterruptedDownloadCount(AssetReference asset, string environment = null)
+        {
+            environment ??= WebUtils.selectedEnvironment;
+            if (string.IsNullOrEmpty(environment))
+                return 0;
+
+            if (s_InterruptedDownloadsByEnv.TryGetValue(environment, out var list))
+                return list.Count(data => data != null && data.asset == asset);
+
+            return 0;
         }
     }
 }

@@ -134,10 +134,37 @@ namespace Unity.AI.Material.Services.Utilities
             if (setting == null)
                 return new GenerationMetadata { asset = asset.guid };
 
-            var customSeed = setting.useCustomSeed ? setting.customSeed : -1;
+            switch (setting.refinementMode)
+            {
+                case RefinementMode.Generation:
+                    var customSeed = setting.useCustomSeed ? setting.customSeed : -1;
 
-            return new GenerationMetadata
-            { prompt = setting.prompt, negativePrompt = setting.negativePrompt, model = setting.SelectSelectedModelID(), asset = asset.guid, customSeed = customSeed };
+                    return new GenerationMetadata
+                    {
+                        prompt = setting.prompt,
+                        negativePrompt = setting.negativePrompt,
+                        refinementMode = setting.refinementMode.ToString(),
+                        model = setting.SelectSelectedModelID(),
+                        asset = asset.guid,
+                        customSeed = customSeed
+                    };
+                case RefinementMode.Upscale:
+                    return new GenerationMetadata
+                    {
+                        refinementMode = setting.refinementMode.ToString(),
+                        model = setting.SelectSelectedModelID(),
+                        asset = asset.guid
+                    };
+                case RefinementMode.Pbr:
+                    return new GenerationMetadata
+                    {
+                        refinementMode = setting.refinementMode.ToString(),
+                        model = setting.SelectSelectedModelID(),
+                        asset = asset.guid
+                    };
+                default:
+                    return new GenerationMetadata { asset = asset.guid };
+            }
         }
 
         public static bool IsValid(this MaterialResult materialResult) => materialResult != null && materialResult.textures.ContainsKey(MapType.Preview);
@@ -169,6 +196,7 @@ namespace Unity.AI.Material.Services.Utilities
                 AssetDatabase.ImportAsset(destFileName, ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
+
             AssetDatabase.Refresh();
             asset.EnableGenerationLabel();
 
@@ -184,6 +212,8 @@ namespace Unity.AI.Material.Services.Utilities
             var destMaterial = asset.GetObject<UnityEngine.Material>();
             if (!generatedMaterial.IsValid() || destMaterial == null)
                 return false;
+
+            generatedMaterial.Sanitize();
 
             var sourceMaterialMaps = new Dictionary<MapType, string>();
             if (generatedMaterial.textures.Count == 1)
@@ -203,7 +233,7 @@ namespace Unity.AI.Material.Services.Utilities
             var destMaterialMaps = new Dictionary<MapType, string>();
             foreach (var mapType in Enum.GetValues(typeof(MapType)))
             {
-                if (!materialMapping.TryGetValue((MapType)mapType, out var propertyName) || propertyName == GenerationResult.noneMapping)
+                if (!materialMapping.TryGetValue((MapType)mapType, out var propertyName) || propertyName == GenerationResult.noneMapping || !destMaterial.HasTexture(propertyName))
                     continue;
                 destMaterialMaps[(MapType)mapType] = AssetDatabase.GetAssetPath(destMaterial.GetTexture(propertyName));
             }
@@ -248,6 +278,7 @@ namespace Unity.AI.Material.Services.Utilities
                 AssetDatabase.ImportAsset(destFileName, ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
+
             AssetDatabase.Refresh();
             asset.EnableGenerationLabel();
 
@@ -264,7 +295,7 @@ namespace Unity.AI.Material.Services.Utilities
                 return null;
             }
 
-            using var temporaryAsset = TemporaryAssetUtilities.ImportAssets(new []{ materialFilePath });
+            using var temporaryAsset = TemporaryAssetUtilities.ImportAssets(new[] { materialFilePath });
             var importedMaterial = temporaryAsset.assets[0].asset.GetObject<UnityEngine.Material>();
             var materialInstance = Object.Instantiate(importedMaterial);
             materialInstance.hideFlags = HideFlags.HideAndDontSave;
@@ -302,37 +333,72 @@ namespace Unity.AI.Material.Services.Utilities
             materialResult.textures[MapType.Occlusion] = TextureResult.FromPath(filePath);
         }
 
-        public static async Task GenerateMetallicSmoothnessFromMetallicAndSmoothness(this MaterialResult materialResult)
+        public static async Task InvertRoughnessInPlace(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Smoothness))
+            if (!materialResult.textures.ContainsKey(MapType.Roughness))
                 return;
 
-            var metallicSmoothness = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(await materialResult.textures[MapType.Smoothness].GetTexture(),
+            var originalRoughnessMap = await materialResult.textures[MapType.Roughness].GetTexture();
+            var roughnessMap = SmoothnessUtils.GenerateSmoothnessMap(originalRoughnessMap);
+            var filePath = Path.Combine(Application.temporaryCachePath, $"roughness_{Guid.NewGuid()}.png");
+            await FileIO.WriteAllBytesAsync(filePath, roughnessMap.EncodeToPNG());
+            materialResult.textures[MapType.Roughness] = TextureResult.FromPath(filePath);
+            originalRoughnessMap.SafeDestroy();
+        }
+
+        public static async Task GenerateRoughnessFromSmoothness(this MaterialResult materialResult)
+        {
+            if (!materialResult.textures.ContainsKey(MapType.Smoothness))
+                return;
+
+            var roughnessMap = SmoothnessUtils.GenerateSmoothnessMap(await materialResult.textures[MapType.Smoothness].GetTexture());
+            var filePath = Path.Combine(Application.temporaryCachePath, $"roughness_{Guid.NewGuid()}.png");
+            await FileIO.WriteAllBytesAsync(filePath, roughnessMap.EncodeToPNG());
+            materialResult.textures[MapType.Roughness] = TextureResult.FromPath(filePath);
+        }
+
+        public static async Task GenerateSmoothnessFromRoughness(this MaterialResult materialResult)
+        {
+            if (!materialResult.textures.ContainsKey(MapType.Roughness))
+                return;
+
+            var smoothnessMap = SmoothnessUtils.GenerateSmoothnessMap(await materialResult.textures[MapType.Roughness].GetTexture());
+            var filePath = Path.Combine(Application.temporaryCachePath, $"smoothness_{Guid.NewGuid()}.png");
+            await FileIO.WriteAllBytesAsync(filePath, smoothnessMap.EncodeToPNG());
+            materialResult.textures[MapType.Smoothness] = TextureResult.FromPath(filePath);
+        }
+
+        public static async Task GenerateMetallicSmoothnessFromMetallicAndRoughness(this MaterialResult materialResult)
+        {
+            if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Roughness))
+                return;
+
+            var metallicSmoothness = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(await materialResult.textures[MapType.Roughness].GetTexture(),
                 await materialResult.textures[MapType.Metallic].GetTexture());
             var filePath = Path.Combine(Application.temporaryCachePath, $"metallicsmoothness_{Guid.NewGuid()}.png");
             await FileIO.WriteAllBytesAsync(filePath, metallicSmoothness.EncodeToPNG());
             materialResult.textures[MapType.MetallicSmoothness] = TextureResult.FromPath(filePath);
         }
 
-        public static async Task GenerateNonMetallicSmoothnessFromSmoothness(this MaterialResult materialResult)
+        public static async Task GenerateNonMetallicSmoothnessFromRoughness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Smoothness))
+            if (!materialResult.textures.ContainsKey(MapType.Roughness))
                 return;
 
             var nonMetallicSmoothnessMap = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(
-                await materialResult.textures[MapType.Smoothness].GetTexture());
+                await materialResult.textures[MapType.Roughness].GetTexture());
             var filePath = Path.Combine(Application.temporaryCachePath, $"nonmetallicsmoothness_{Guid.NewGuid()}.png");
             await FileIO.WriteAllBytesAsync(filePath, nonMetallicSmoothnessMap.EncodeToPNG());
             materialResult.textures[MapType.NonMetallicSmoothness] = TextureResult.FromPath(filePath);
         }
 
-        public static async Task GenerateMaskMapFromAOAndMetallicAndAndSmoothness(this MaterialResult materialResult)
+        public static async Task GenerateMaskMapFromAOAndMetallicAndRoughness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Occlusion) || !materialResult.textures.ContainsKey(MapType.Smoothness))
+            if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Occlusion) || !materialResult.textures.ContainsKey(MapType.Roughness))
                 return;
 
             var maskMap = MaskMapUtils.GenerateMaskMap(
-                await materialResult.textures[MapType.Smoothness].GetTexture(),
+                await materialResult.textures[MapType.Roughness].GetTexture(),
                 await materialResult.textures[MapType.Metallic].GetTexture(),
                 await materialResult.textures[MapType.Occlusion].GetTexture());
             var filePath = Path.Combine(Application.temporaryCachePath, $"maskmap_{Guid.NewGuid()}.png");
@@ -381,5 +447,6 @@ namespace Unity.AI.Material.Services.Utilities
         public string negativePrompt;
         public string model;
         public int customSeed = -1;
+        public string refinementMode;
     }
 }

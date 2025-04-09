@@ -22,9 +22,9 @@ namespace Unity.AI.Material.Components
 
         [UxmlAttribute]
         public string mapType { get; set; }
-        
+
         public MapType mapTypeValue => (MapType)Enum.Parse(typeof(MapType), mapType);
-        
+
         public MaterialPropertyTexturePopupField()
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
@@ -32,21 +32,35 @@ namespace Unity.AI.Material.Components
             styleSheets.Add(AssetDatabase.LoadAssetAtPath<StyleSheet>(k_Uss));
 
             AddToClassList("material-property-texture-popup-field");
-            
+
             this.UseAsset(SetAsset);
             this.UseArray(state => Selectors.SelectGeneratedMaterialMapping(state, this), results => {
                 var choice = results.FirstOrDefault(p => p.Key == mapTypeValue);
                 if (!choice.Equals(default(KeyValuePair<MapType, string>)))
-                    SetValueWithoutNotify(choice.Value);   
+                    SetValueWithoutNotify(choice.Value);
             });
-            
+
             RegisterCallback<FocusEvent>(_ => SetAsset(this.GetAsset()));
             this.RegisterValueChangedCallback(evt =>
                 this.Dispatch(GenerationResultsActions.setGeneratedMaterialMapping, new GenerationMaterialMappingData(this.GetAsset(), mapTypeValue, evt.newValue)));
         }
-        
-        void SetAsset(AssetReference asset) => choices = asset.IsValid()
-            ? asset.GetObject<UnityEngine.Material>().GetTexturePropertyNames().Prepend(GenerationResult.noneMapping).ToList()
-            : new List<string>();
+
+        void SetAsset(AssetReference asset)
+        {
+            if (!asset.IsValid())
+            {
+                choices = new List<string>();
+                return;
+            }
+
+            var material = asset.GetObject<UnityEngine.Material>();
+            if (!material)
+            {
+                choices = new List<string>();
+                return;
+            }
+
+            choices = material.GetTexturePropertyNames().Prepend(GenerationResult.noneMapping).ToList();
+        }
     }
 }

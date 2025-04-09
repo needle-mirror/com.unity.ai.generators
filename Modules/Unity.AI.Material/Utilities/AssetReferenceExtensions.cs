@@ -38,10 +38,10 @@ namespace Unity.AI.Material.Services.Utilities
             // Unity can load many texture formats internally (TGA, PSD, TIFF, etc.) that our remote
             // generation pipeline doesn't support. If we detect an unsupported format, we'll convert
             // the texture to PNG (guaranteed compatible) before proceeding with any resizing operations.
-            if (!ImageResizeUtilities.IsRuntimeLoadSupported(candidateStream))
+            if (!ImageFileUtilities.IsRuntimeLoadSupported(candidateStream))
             {
                 var referenceTexture = asset.GetObject<Texture2D>();
-                var readableTexture = ImageResizeUtilities.MakeTextureReadable(referenceTexture);
+                var readableTexture = ImageFileUtilities.MakeTextureReadable(referenceTexture);
                 var bytes = readableTexture.EncodeToPNG();
                 candidateStream.Dispose();
                 candidateStream = new MemoryStream(bytes);

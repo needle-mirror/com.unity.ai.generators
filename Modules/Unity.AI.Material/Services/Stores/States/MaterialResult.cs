@@ -11,12 +11,13 @@ namespace Unity.AI.Material.Services.Stores.States
         Normal = 2,
         Emission = 3,
         Metallic = 4,
-        Smoothness = 5,
+        Roughness = 5,
         Delighted = 6,
         Occlusion = 7,
-        MetallicSmoothness = 8,
-        NonMetallicSmoothness = 9,
-        MaskMap = 10
+        Smoothness = 8,
+        MetallicSmoothness = 9,
+        NonMetallicSmoothness = 10,
+        MaskMap = 11
     }
 
     [Serializable]

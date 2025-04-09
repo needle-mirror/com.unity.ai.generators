@@ -3,7 +3,7 @@
 * Contact: mortenm@unity3d.com
 */
 
-Shader "Muse/AO"
+Shader "Hidden/AIToolkit/AmbientOcclusion"
 {
 
     Properties
@@ -184,7 +184,7 @@ Shader "Muse/AO"
                     //float fMaxTan = 0.0;
                     float fMaxTan = 0; //-FLT_MAX;
 
-                    // offset ST by (fVxo/fVyo, 1.0) 
+                    // offset ST by (fVxo/fVyo, 1.0)
                     for (int s = 0; s < iQsteps; s++)
                     {
                         float fVxs_tmp = (fVxo * (s + 1)) / fVyo;

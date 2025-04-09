@@ -25,12 +25,10 @@
                                 <ui:Prompt show-negative-prompt="false" />
                             </VisualElement>
                             <!-- Generate Duration Slider -->
-                            <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-                                <ui:GenerateDurationSlider />
-                            </VisualElement>
-                            <!-- Generation Options -->
                             <VisualElement class="flex-no-shrink p-8-7-8-8">
-                                <ui:GenerationOptions />
+                                <Label class="font-bold p-4 pb-8" text="Options"/>
+                                <ui:GenerateDurationSlider />
+                                <ui:GenerationOptions class="pt-8" />
                             </VisualElement>
                         </ScrollView>
                         <!-- Generate Button -->
@@ -49,6 +47,7 @@
                             </VisualElement>
                             <!-- Generation Options -->
                             <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
+                                <Label class="font-bold p-4 pb-8" text="Options"/>
                                 <ui:GenerationOptions />
                             </VisualElement>
                             <!-- Video Reference Section -->

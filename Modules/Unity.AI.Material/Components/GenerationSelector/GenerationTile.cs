@@ -64,7 +64,16 @@ namespace Unity.AI.Material.Components
                 copyFunction = data => SessionActions.promoteGenerationUnsafe((new DragAndDropGenerationData(this.GetAsset(),
                     MaterialResult.FromPath(data.sourcePath), data.destinationPath), this.GetStoreApi())).GetPath(),
                 moveDependencies = data => SessionActions.moveAssetDependencies((new DragAndDropFinalizeData(this.GetAsset(),
-                    data.sourcePath, data.destinationPath), this.GetStoreApi()))
+                    data.sourcePath, data.destinationPath), this.GetStoreApi())),
+                compareFunction = data => {
+                    var result = MaterialResult.FromPath(data.sourcePath);
+                    var asset = this.GetAsset();
+                    var store = this.GetStoreApi();
+                    var materialMapping = store.State.SelectGeneratedMaterialMapping(asset);
+                    var cachedAsset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(data.cachedAssetPath) };
+                    return FileIO.AreFilesIdentical(data.cachedAssetPath, data.sourcePath) ||
+                        result.AreMapsIdentical(cachedAsset, materialMapping);
+                }
             };
 
             progress = this.Q<VisualElement>("progress");

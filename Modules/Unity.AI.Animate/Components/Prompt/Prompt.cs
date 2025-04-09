@@ -39,16 +39,21 @@ namespace Unity.AI.Animate.Components
             var negativePromptLimitIndicator = this.Q<Label>("negative-prompt-limit-indicator");
             m_NegativePrompt = negativePromptText.parent;
 
-            promptText.RegisterValueChangedCallback(evt => {
+            promptText.RegisterValueChangedCallback(evt =>
+            {
                 var truncatedPrompt = PromptUtilities.TruncatePrompt(evt.newValue);
                 promptText.SetValueWithoutNotify(truncatedPrompt);
                 this.Dispatch(GenerationSettingsActions.setPrompt, truncatedPrompt);
             });
-            negativePromptText.RegisterValueChangedCallback(evt => {
+            negativePromptText.RegisterValueChangedCallback(evt =>
+            {
                 var truncatedPrompt = PromptUtilities.TruncatePrompt(evt.newValue);
                 negativePromptText.SetValueWithoutNotify(truncatedPrompt);
                 this.Dispatch(GenerationSettingsActions.setNegativePrompt, truncatedPrompt);
             });
+
+            promptText.RegisterTabEvent();
+            negativePromptText.RegisterTabEvent();
 
             this.Use(state => state.SelectPrompt(this), prompt =>
             {

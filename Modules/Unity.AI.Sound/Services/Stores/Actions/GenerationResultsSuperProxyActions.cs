@@ -191,6 +191,14 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     // we can simply return without throwing or additional logging because the error is already logged
                     return;
                 }
+
+                foreach (var generateResult in generateResults.Batch.Value.Where(v => !v.IsSuccessful))
+                {
+                    LogFailedResult(generateResult.Error);
+                    // we can simply return because the error is already logged and we rely on finally statements for cleanup
+                    return;
+                }
+
                 cost = generateResults.Batch.Value.Sum(itemResult => itemResult.Value.PointsCost);
                 ids = generateResults.Batch.Value.Select(itemResult => itemResult.Value.JobId).ToList();
             }

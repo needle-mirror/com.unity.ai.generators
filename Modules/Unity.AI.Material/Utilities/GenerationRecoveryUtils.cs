@@ -167,7 +167,7 @@ namespace Unity.AI.Material.Services.Utilities
                 s_InterruptedDownloadsByEnv[environment] = list;
             }
 
-            if (list.Contains(data))
+            if (!list.Any(existing => existing.AreKeyFieldsEqual(data)))
                 return;
 
             list.Add(data);

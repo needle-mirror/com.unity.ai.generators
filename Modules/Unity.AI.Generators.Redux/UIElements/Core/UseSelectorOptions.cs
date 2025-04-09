@@ -12,6 +12,6 @@ namespace Unity.AI.Generators.UIElements.Core
         IEqualityComparer<TResult> Comparer = null,     // Compares results for dispatching changes
         bool selectImmediately = true,
         TResult initialValue = default,
-        bool waitForValue = false,                       // Wait until a non-default (eg: non-null) value has been returned before processing changes
+        bool waitForValue = false,                      // Wait until a non-default (eg: non-null) value has been returned before processing changes
         StackTrace sourceInfo = null);                  // Optional stacktrace containing original builder of option object to retrace source calls.
 }

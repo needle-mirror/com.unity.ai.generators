@@ -5,6 +5,7 @@ using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Sound.Services.Stores.Selectors;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -59,6 +60,15 @@ namespace Unity.AI.Sound.Components
                     return;
                 await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
                 this.Dispatch(GenerationSettingsActions.setLastModelDiscoveryTime, Time.time);
+            });
+            this.Use(state => state.SelectShouldAutoAssignModel(this), should =>
+            {
+                m_Button.SetEnabled(!should);
+                if (!should)
+                    return;
+                var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
+                if (!string.IsNullOrEmpty(autoAssignModel?.id))
+                    this.Dispatch(GenerationSettingsActions.setSelectedModelID, autoAssignModel.id);
             });
         }
     }

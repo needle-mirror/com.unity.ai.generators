@@ -1,4 +1,4 @@
 <UXML xmlns="UnityEngine.UIElements">
-    <Label class="font-bold p-4" text="Duration"/>
-    <Slider class="flex-grow" show-input-field="true" low-value="1" high-value="10" value="10"/>
+    <Label class="hide font-bold p-4" text="Duration"/>
+    <Slider class="flex-grow" label="Duration" show-input-field="true" low-value="1" high-value="10" value="10"/>
 </UXML>

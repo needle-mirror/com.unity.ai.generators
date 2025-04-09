@@ -26,7 +26,7 @@ namespace Unity.AI.Material.Components
                 if (this.GetStoreApi() == null)
                     return;
                 this.Dispatch(GenerationSettingsActions.setRefinementMode,
-                    (RefinementMode)Math.Clamp(selectedTabIndex, (int)RefinementMode.First, (int)RefinementMode.Last + 1));
+                    (RefinementMode)Math.Clamp(selectedTabIndex, 0, Enum.GetNames(typeof(RefinementMode)).Length));
             };
 
             RegisterCallback<AttachToPanelEvent>(_ =>

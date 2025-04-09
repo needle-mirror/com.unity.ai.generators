@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Unity.AI.Generators.Asset;
 using UnityEditor;
 using UnityEngine;
@@ -17,13 +19,15 @@ namespace Unity.AI.Generators.UI.Utilities
         public const string moveDepsFun = "ai_toolkit_drag_and_drop_move_deps_fun";
     }
 
+    record CompareFunctionData(string sourcePath, string cachedAssetPath);
+    record CopyFunctionData(string sourcePath, string destinationPath);
+    record MoveFunctionData(string sourcePath, string destinationPath);
     static class ExternalFileDragDrop
     {
-        static readonly string k_TemporaryAssetDirectory = Path.Combine("Assets", "AI Toolkit", "Temp");
-        static readonly string k_CacheDirectory = Path.Combine("Assets", "AI Toolkit", "Cache");
+        static readonly string k_TemporaryDirectory = Path.Combine("Assets", "AI Toolkit", "Temp");
+        static readonly string k_TemporaryDragAndDropDirectory = Path.Combine("Assets", "AI Toolkit", "Temp", "DragAndDrop");
 
-        static DragAndDropVisualMode s_PreviousLastVisualMode = DragAndDropVisualMode.None;
-        static DragAndDropVisualMode s_LastVisualMode = DragAndDropVisualMode.None;
+        static readonly Queue<DragAndDropVisualMode> k_PreviousVisualModes = new();
         static int s_DragOverFrameCount;
 
         public static bool tempAssetDragged { get; private set; }
@@ -33,6 +37,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             DragAndDrop.AddDropHandler(HandleDropHierarchy);
             DragAndDrop.AddDropHandler(HandleDropProjectBrowser);
+            SceneView.duringSceneGui += HandleDropOnSceneView;
             GeneratedAssetCache.instance.EnsureSaved();
         }
 
@@ -41,10 +46,10 @@ namespace Unity.AI.Generators.UI.Utilities
             var parentDirectory = Path.Combine("Assets", "AI Toolkit");
             if (!AssetDatabase.IsValidFolder(parentDirectory))
                 AssetDatabase.CreateFolder("Assets", "AI Toolkit");
-            if (!AssetDatabase.IsValidFolder(k_TemporaryAssetDirectory))
+            if (!AssetDatabase.IsValidFolder(k_TemporaryDirectory))
                 AssetDatabase.CreateFolder("Assets/AI Toolkit", "Temp");
-            if (!AssetDatabase.IsValidFolder(k_CacheDirectory))
-                AssetDatabase.CreateFolder("Assets/AI Toolkit", "Cache");
+            if (!AssetDatabase.IsValidFolder(k_TemporaryDragAndDropDirectory))
+                AssetDatabase.CreateFolder("Assets/AI Toolkit/Temp", "DragAndDrop");
         }
 
         static void StopTracking()
@@ -58,8 +63,9 @@ namespace Unity.AI.Generators.UI.Utilities
             tempAssetDragged = true;
             EditorApplication.update += OnTrackingUpdate;
 
-            s_PreviousLastVisualMode = DragAndDrop.visualMode;
-            s_LastVisualMode = DragAndDrop.visualMode;
+            s_DragOverFrameCount = 0;
+            k_PreviousVisualModes.Clear();
+            k_PreviousVisualModes.Enqueue(DragAndDrop.visualMode);
         }
 
         static bool HasTemporaryAssetInDrag()
@@ -71,6 +77,10 @@ namespace Unity.AI.Generators.UI.Utilities
 
         static void OnTrackingUpdate()
         {
+            k_PreviousVisualModes.Enqueue(DragAndDrop.visualMode);
+            while (k_PreviousVisualModes.Count > 10)
+                k_PreviousVisualModes.Dequeue();
+
             // When a UI element accepts the drag, and the mouse is released, objects are dropped and
             // cleared from DragAndDrop.objectReferences.
             // OnTrackingUpdate() will always know about the end of a drag operation after a RegisterValueChangedCallback
@@ -78,41 +88,55 @@ namespace Unity.AI.Generators.UI.Utilities
             // If the drag is canceled, OnTrackingUpdate() will also know about it
             // by monitoring the previous frame DragAndDrop visual mode.
             var hasTemporaryAssetInDrag = HasTemporaryAssetInDrag();
-            if (!hasTemporaryAssetInDrag || DragAndDrop.objectReferences is not {Length: > 0})
+            if (hasTemporaryAssetInDrag && DragAndDrop.objectReferences is { Length: > 0 })
             {
-                // Note that having no more objectReferences doesn't mean the drag is over.
-                // There's a mysterious thing in imGUI when you drag items from a window to another where
-                // the objectReferences are cleared for 2 frames but the drag is still ongoing.
-                // We need to wait for 3 frames to be sure the drag is over.
-                s_DragOverFrameCount++;
-                if (s_DragOverFrameCount < 3)
-                    return;
-
-                StopTracking();
-                // Note that accepting/canceling the drag does not clear the DragAndDrop GenericData hash table.
-                if (hasTemporaryAssetInDrag)
-                {
-                    var accepted = s_PreviousLastVisualMode is not (DragAndDropVisualMode.None or DragAndDropVisualMode.Rejected);
-                    if (!accepted)
-                    {
-                        var assetPath = DragAndDrop.GetGenericData(ExternalFileDragDropConstants.tempAssetPath) as string;
-                        if (!string.IsNullOrEmpty(assetPath))
-                        {
-                            AssetDatabase.DeleteAsset(assetPath);
-                        }
-                    }
-                    ClearGenericData();
-                }
+                s_DragOverFrameCount = 0;
                 return;
             }
 
-            s_PreviousLastVisualMode = s_LastVisualMode;
-            s_LastVisualMode = DragAndDrop.visualMode;
-            s_DragOverFrameCount = 0;
+            // Note that having no more objectReferences doesn't mean the drag is over.
+            // There's a mysterious thing in imGUI when you drag items from a window to another where
+            // the objectReferences are cleared for 2 frames but the drag is still ongoing.
+            // We need to wait for 3 frames to be sure the drag is over.
+            s_DragOverFrameCount++;
+            if (s_DragOverFrameCount < 3)
+                return;
+
+            StopTracking();
+
+            if (!hasTemporaryAssetInDrag)
+            {
+                ClearGenericData();
+                return;
+            }
+
+            var assetPath = DragAndDrop.GetGenericData(ExternalFileDragDropConstants.tempAssetPath) as string;
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                ClearGenericData();
+                return;
+            }
+
+            // Note that we don't have a good way of differentiating between accepting/canceling on valid targets (such as ESC or alt+tab)
+            var accepted = k_PreviousVisualModes.Any(mode => mode is not (DragAndDropVisualMode.None or DragAndDropVisualMode.Rejected));
+            if (accepted)
+            {
+                OnProjectWindowDragPerform(null, MoveFunction());
+                ClearGenericData();
+                return;
+            }
+
+            ClearGenericData();
+            return;
+
+            Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
 
         // Creates a temporary asset at drag start; if dropped in Project, it's moved at drop time.
-        public static void StartDragFromExternalPath(string externalFilePath, string dropFileName = "")
+        public static void StartDragFromExternalPath(string externalFilePath, string dropFileName = "",
+            Func<CopyFunctionData, string> copyFunction = null,
+            Func<MoveFunctionData, string> moveDependencies = null,
+            Func<CompareFunctionData, bool> compareFunction = null)
         {
             if (!File.Exists(externalFilePath))
             {
@@ -127,12 +151,12 @@ namespace Unity.AI.Generators.UI.Utilities
                 dropFileName = Path.ChangeExtension(dropFileName, extension);
             }
 
-            var createdAsset = CreateTemporaryAssetInProject(externalFilePath, dropFileName, out var cacheHit);
+            var createdAsset = CreateTemporaryAssetInProject(externalFilePath, dropFileName, out var cacheHit, copyFunction, compareFunction);
             if (!createdAsset)
                 return;
 
             DragAndDrop.PrepareStartDrag();
-            DragAndDrop.paths = Array.Empty<string>();
+            DragAndDrop.paths = new[] { AssetDatabase.GetAssetPath(createdAsset) };
             DragAndDrop.objectReferences = new[] { createdAsset };
 
             // Store the temporary asset path and optional dropFileName for final location
@@ -141,11 +165,42 @@ namespace Unity.AI.Generators.UI.Utilities
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.dropFileName, dropFileName);
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.externalFilePath, externalFilePath);
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.cacheHit, cacheHit);
-            DragAndDrop.SetGenericData(ExternalFileDragDropConstants.moveDepsFun, null);
+            DragAndDrop.SetGenericData(ExternalFileDragDropConstants.moveDepsFun, moveDependencies);
 
             DragAndDrop.StartDrag("Promote Generation to Project");
 
             StartTracking();
+        }
+
+        static void HandleDropOnSceneView(SceneView sceneView)
+        {
+            if (!HasTemporaryAssetInDrag())
+                return;
+
+            var evt = Event.current;
+            switch (evt.type)
+            {
+                case EventType.DragPerform:
+                    try
+                    {
+                        StopTracking();
+                        DragAndDrop.AcceptDrag();
+                        OnProjectWindowDragPerform(null, MoveFunction());
+                    }
+                    finally
+                    {
+                        ClearGenericData();
+                    }
+                    break;
+                case EventType.DragUpdated when DragAndDrop.objectReferences.Length != 0:
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+                    evt.Use();
+                    break;
+            }
+
+            return;
+
+            Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
 
         static DragAndDropVisualMode HandleDropProjectBrowser(int dragInstanceId, string dropUponPath, bool perform)
@@ -155,13 +210,21 @@ namespace Unity.AI.Generators.UI.Utilities
 
             if (perform)
             {
-                StopTracking();
-                DragAndDrop.AcceptDrag();
-                OnProjectWindowDragPerform(dropUponPath);
-                ClearGenericData();
+                try
+                {
+                    StopTracking();
+                    DragAndDrop.AcceptDrag();
+                    OnProjectWindowDragPerform(dropUponPath, MoveFunction());
+                }
+                finally
+                {
+                    ClearGenericData();
+                }
             }
 
             return DragAndDropVisualMode.Copy;
+
+            Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
 
         static DragAndDropVisualMode HandleDropHierarchy(int dropTargetInstanceID, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
@@ -169,17 +232,31 @@ namespace Unity.AI.Generators.UI.Utilities
             if (!HasTemporaryAssetInDrag())
                 return DragAndDropVisualMode.None;
 
-            if (perform)
+            if (!perform)
+                return DragAndDropVisualMode.Copy;
+
+            try
             {
                 StopTracking();
                 DragAndDrop.AcceptDrag();
+                OnProjectWindowDragPerform(null, MoveFunction());
+            }
+            finally
+            {
                 ClearGenericData();
             }
 
             return DragAndDropVisualMode.Copy;
+
+            Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
 
-        static void OnProjectWindowDragPerform(string dropTargetPath)
+        /// <summary>
+        /// Move the temporary asset to its final location in the Project
+        /// </summary>
+        /// <param name="dropTargetPath"></param>
+        /// <param name="moveDependenciesFunction"></param>
+        static void OnProjectWindowDragPerform(string dropTargetPath, Func<MoveFunctionData, string> moveDependenciesFunction)
         {
             var tempPath = DragAndDrop.GetGenericData(ExternalFileDragDropConstants.tempAssetPath) as string;
             if (string.IsNullOrEmpty(tempPath))
@@ -204,15 +281,33 @@ namespace Unity.AI.Generators.UI.Utilities
                 newPath = Path.Combine(folderPath ?? "Assets", fileName);
             }
 
-            var tempFolder = Path.GetDirectoryName(tempPath);
-            var newFolder = Path.GetDirectoryName(newPath);
-            var sameFolder = tempFolder == newFolder;
-
             newPath = AssetDatabase.GenerateUniqueAssetPath(newPath);
-            if (sameFolder)
-                return;
-            AssetDatabase.MoveAsset(tempPath, newPath);
+            // If the asset was already used before, copy it instead of moving it
+            var cacheHit = (bool)DragAndDrop.GetGenericData(ExternalFileDragDropConstants.cacheHit);
+            if (cacheHit)
+                AssetDatabase.CopyAsset(tempPath, newPath);
+            else
+            {
+                if (moveDependenciesFunction != null)
+                    newPath = moveDependenciesFunction(new (tempPath, newPath));
+                AssetDatabase.MoveAsset(tempPath, newPath);
+            }
             AssetDatabase.Refresh();
+
+            var asset = AssetDatabase.LoadAssetAtPath<Object>(newPath);
+            if (!asset)
+                Debug.LogError($"Failed to load newly created asset at '{newPath}'");
+            asset.EnableGenerationLabel();
+
+            // Update the cache so that the new asset is the cached version.
+            var externalFilePath = DragAndDrop.GetGenericData(ExternalFileDragDropConstants.externalFilePath) as string;
+            if (string.IsNullOrEmpty(externalFilePath))
+                return;
+            var assetGuid = AssetDatabase.AssetPathToGUID(newPath);
+            var currentDirectory = Directory.GetCurrentDirectory();
+            var relativeExternalPath = Path.GetRelativePath(currentDirectory, externalFilePath);
+            GeneratedAssetCache.instance.assetCacheEntries[relativeExternalPath] = assetGuid;
+            GeneratedAssetCache.instance.EnsureSaved();
         }
 
         static void ClearGenericData()
@@ -223,9 +318,15 @@ namespace Unity.AI.Generators.UI.Utilities
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.externalFilePath, null);
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.cacheHit, null);
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.moveDepsFun, null);
+
+            AssetDatabase.DeleteAsset(k_TemporaryDragAndDropDirectory);
+            if (!Directory.EnumerateFileSystemEntries(k_TemporaryDirectory).Any())
+                AssetDatabase.DeleteAsset(k_TemporaryDirectory);
         }
 
-        static Object CreateTemporaryAssetInProject(string externalPath, string newFileName, out bool cacheHit)
+        static Object CreateTemporaryAssetInProject(string externalPath, string newFileName, out bool cacheHit,
+            Func<CopyFunctionData, string> copyFunction = null,
+            Func<CompareFunctionData, bool> compareFunction = null)
         {
             EnsureDirectoriesExist();
 
@@ -235,23 +336,32 @@ namespace Unity.AI.Generators.UI.Utilities
             if (GeneratedAssetCache.instance.assetCacheEntries.TryGetValue(relativeExternalPath, out var cachedGuid))
             {
                 var cachedPath = AssetDatabase.GUIDToAssetPath(cachedGuid);
-                if (!string.IsNullOrEmpty(cachedPath) && FileIO.AreFilesIdentical(cachedPath, externalPath))
+                if (!string.IsNullOrEmpty(cachedPath))
                 {
-                    var cachedAsset = AssetDatabase.LoadAssetAtPath<Object>(cachedPath);
-                    if (cachedAsset != null)
+                    var identical = compareFunction != null
+                        ? compareFunction(new(externalPath, cachedPath))
+                        : FileIO.AreFilesIdentical(cachedPath, externalPath);
+                    if (identical)
                     {
-                        cacheHit = true;
-                        return GetTemporaryAsset(cachedAsset);
+                        var cachedAsset = AssetDatabase.LoadAssetAtPath<Object>(cachedPath);
+                        if (cachedAsset != null)
+                        {
+                            cacheHit = true;
+                            return cachedAsset;
+                        }
                     }
                 }
                 GeneratedAssetCache.instance.assetCacheEntries.Remove(relativeExternalPath);
             }
 
             newFileName = Path.GetFileName(!string.IsNullOrEmpty(newFileName) ? newFileName : externalPath);
-            var newPath = Path.Combine(k_CacheDirectory, newFileName);
+            var newPath = Path.Combine(k_TemporaryDragAndDropDirectory, newFileName);
             newPath = AssetDatabase.GenerateUniqueAssetPath(newPath);
 
-            File.Copy(externalPath, newPath);
+            if (copyFunction != null)
+                newPath = copyFunction(new (externalPath, newPath));
+            else
+                File.Copy(externalPath, newPath);
             AssetDatabase.Refresh();
 
             var asset = AssetDatabase.LoadAssetAtPath<Object>(newPath);
@@ -262,22 +372,7 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             asset.EnableGenerationLabel();
-
-            var assetGuid = AssetDatabase.AssetPathToGUID(newPath);
-            GeneratedAssetCache.instance.assetCacheEntries[relativeExternalPath] = assetGuid;
-            GeneratedAssetCache.instance.EnsureSaved();
-            return GetTemporaryAsset(asset);
-        }
-
-        static Object GetTemporaryAsset(Object cachedAsset)
-        {
-            var cachedPath = AssetDatabase.GetAssetPath(cachedAsset);
-            var fileName = Path.GetFileName(cachedPath);
-            var newPath = Path.Combine(k_TemporaryAssetDirectory, fileName);
-            newPath = AssetDatabase.GenerateUniqueAssetPath(newPath);
-            AssetDatabase.CopyAsset(cachedPath, newPath);
-
-            return AssetDatabase.LoadAssetAtPath<Object>(newPath);
+            return asset;
         }
     }
 }

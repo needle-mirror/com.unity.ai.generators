@@ -282,7 +282,8 @@ namespace Unity.AI.Image.Services.Utilities
             try
             {
                 source = new Texture2D(2, 2) { hideFlags = HideFlags.HideAndDontSave };
-                source.LoadImage(imageAsset);
+                if (!source.LoadImage(imageAsset))
+                    return true; // Treat empty or invalid image as having all pixels the same color
                 return source.AreAllPixelsSameColor();
             }
             finally

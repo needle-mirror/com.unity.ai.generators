@@ -9,11 +9,12 @@
             name="image-reference-object-field__input-field"
             class="image-reference-object-field__input-field"
             type="UnityEngine.Texture2D, UnityEngine.CoreModule"
-            label="Select an object:" />
-        <VisualElement name="image-reference-object-field__overlay" class="image-reference-object-field__overlay" picking-mode="Ignore">
-            <Button name="edit-image-reference" tooltip="Edit the reference data"><Image class="unity-button__image"/></Button>
-            <VisualElement class="button-spacer" />
-            <Button name="image-reference-settings-button" tooltip="More"><Image class="unity-button__image"/></Button>
-        </VisualElement>
+            label="Select an object:" >
+            <VisualElement name="image-reference-object-field__overlay" class="image-reference-object-field__overlay" picking-mode="Ignore">
+                <Button name="edit-image-reference" tooltip="Edit the reference data"><Image class="unity-button__image"/></Button>
+                <VisualElement class="button-spacer" />
+                <Button name="image-reference-settings-button" tooltip="More"><Image class="unity-button__image"/></Button>
+            </VisualElement>
+        </editorui:ObjectField>
     </VisualElement>
 </UXML>

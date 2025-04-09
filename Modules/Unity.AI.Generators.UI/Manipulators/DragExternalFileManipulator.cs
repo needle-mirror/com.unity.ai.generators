@@ -15,6 +15,7 @@ namespace Unity.AI.Generators.UI
 
         public Func<CopyFunctionData, string> copyFunction { get; set; }
         public Func<MoveFunctionData, string> moveDependencies { get; set; }
+        public Func<CompareFunctionData, bool> compareFunction { get; set; }
 
         const float k_DragThreshold = 5f;
 
@@ -33,7 +34,7 @@ namespace Unity.AI.Generators.UI
             target.UnregisterCallback<MouseDownEvent>(OnMouseDown);
             target.UnregisterCallback<MouseMoveEvent>(OnMouseMove);
             target.UnregisterCallback<MouseUpEvent>(OnMouseUp);
-            target.RegisterCallback<MouseLeaveEvent>(OnMouseLeave);
+            target.UnregisterCallback<MouseLeaveEvent>(OnMouseLeave);
         }
 
         void OnMouseLeave(MouseLeaveEvent evt) => m_IsDragging = false;
@@ -55,10 +56,7 @@ namespace Unity.AI.Generators.UI
             if (!((evt.mousePosition - m_MouseDownPos).magnitude > k_DragThreshold))
                 return;
 
-            if (copyFunction == null && moveDependencies == null)
-                ExternalFileDragDrop.StartDragFromExternalPath(externalFilePath, newFileName);
-            else
-                ExternalFileDragDropComplex.StartDragFromExternalPath(externalFilePath, newFileName, copyFunction, moveDependencies);
+            ExternalFileDragDrop.StartDragFromExternalPath(externalFilePath, newFileName, copyFunction, moveDependencies, compareFunction);
             m_IsDragging = false;
         }
 

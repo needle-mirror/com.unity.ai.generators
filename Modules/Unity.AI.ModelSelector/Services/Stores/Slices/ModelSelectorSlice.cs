@@ -13,9 +13,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                     .AddCase(ModelSelectorSuperProxyActions.fetchModels.Fulfilled, (state, action) => {
                         if (action.payload is { Count: > 0 })
                             state.settings.models = action.payload; })
-                    .AddCase(ModelSelectorMockActions.fetchModels.Fulfilled, (state, action) => {
-                        if (action.payload is { Count: > 0 })
-                            state.settings.models = action.payload; })
                     .Add(ModelSelectorActions.setEnvironment, (state, payload) => state.settings.environment = payload)
                     .Add(ModelSelectorActions.setLastSelectedModelID, (state, payload) => state.lastSelectedModelID = payload)
                     .Add(ModelSelectorActions.setLastSelectedModality, (state, payload) => state.lastSelectedModality = payload)

@@ -1,40 +1,6 @@
-:root {
-    margin: 8px;
+.pixelate-settings-container .metadata-type {
+    min-width: 110px;
 }
-
-.container {
-    flex-direction: row;
-    -unity-text-align: upper-left;
-    flex-shrink: 0;
-}
-
-.container .metadata {
-    flex-grow: 1;
-    white-space: normal;
-    flex-shrink: 1;
-}
-
-.container .data-button {
-    flex-basis: auto;
-    height: 20px;
-    align-self: center;
-}
-
-.hidden {
-    display: none;
-}
-
-.use-all-container Label{
-    flex-grow: 1;
-    font-size: 14px;
-}
-
-.header {
-    flex-grow: 1;
-    font-size: 14px;
-    margin-bottom: 4px;
-}
-
 .pixelate-settings-container {
     flex-grow: 1;
     margin-top: 4px;
@@ -56,6 +22,10 @@
     flex-grow: 1;
     white-space: normal;
     flex-shrink: 1;
+}
+
+#doodle-pad-canvas.doodle-pad-canvas {
+    position: relative;
 }
 
 .doodles-container {

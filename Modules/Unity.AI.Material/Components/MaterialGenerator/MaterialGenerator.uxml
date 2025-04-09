@@ -26,12 +26,10 @@
                             </VisualElement>
                             <!-- Generate Variations Slider -->
                             <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
+                                <Label class="font-bold p-4 pb-8" text="Options"/>
                                 <ui:GenerateVariationsSlider />
                                 <ui:DimensionsDropDown class="hide" />
-                            </VisualElement>
-                            <!-- Generation Options -->
-                            <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-                                <ui:GenerationOptions />
+                                <ui:GenerationOptions class="pt-8" />
                             </VisualElement>
                             <!-- Pattern Reference Section -->
                             <VisualElement class="flex-no-shrink border-color-dark border-bottom-1px">
@@ -61,7 +59,7 @@
                                 <ui:ModelSelectorButton />
                             </VisualElement>
                             <!-- Base Image -->
-                            <VisualElement class="flex-no-shrink bg-light">
+                            <VisualElement class="flex-no-shrink bg-light border-color-dark border-bottom-1px">
                                 <ui:BaseImageReference name="baseImage" />
                             </VisualElement>
                             <!-- Material Mapping Section -->
@@ -100,9 +98,10 @@
                                 <ui:MaterialPropertyTexturePopupField label="normal" map-type="Normal" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="height" map-type="Height" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="metallic" map-type="Metallic" value="None"/>
-                                <ui:MaterialPropertyTexturePopupField label="smoothness" map-type="Smoothness" value="None"/>
+                                <ui:MaterialPropertyTexturePopupField label="roughness" map-type="Roughness" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="emission" map-type="Emission" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="occlusion" map-type="Occlusion" value="None"/>
+                                <ui:MaterialPropertyTexturePopupField label="smoothness" map-type="Smoothness" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="metalsmoothness" map-type="MetallicSmoothness" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="nonmetalsmoothness" map-type="NonMetallicSmoothness" value="None"/>
                                 <ui:MaterialPropertyTexturePopupField label="maskmap" map-type="MaskMap" value="None"/>
@@ -111,7 +110,7 @@
                         <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px border-top-1px">
                             <!-- Session Status Banner -->
                             <aitk-account:SessionStatusBanner />
-                            <ui:GenerateButton text="PBR" quote-monitor="false" />
+                            <ui:GenerateButton text="Generate PBR" quote-monitor="false" />
                         </VisualElement>
                     </Tab>
                 </ui:RefinementModeTabView>

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Animate.Services.Stores.Actions;
@@ -41,6 +43,30 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             return setting.selectedModels.Ensure(mode).modelID;
         }
 
+        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
+        {
+            var mode = state.SelectRefinementMode(asset);
+            var operations = mode switch
+            {
+                RefinementMode.TextToMotion => new[] { OperationSubTypeEnum.TextPrompt },
+                RefinementMode.VideoToMotion => new[] { OperationSubTypeEnum.ReferencePrompt },
+                _ => new[] { OperationSubTypeEnum.TextPrompt }
+            };
+            return operations.ToList();
+        }
+        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+
+        public static (RefinementMode mode, bool should) SelectShouldAutoAssignModel(this IState state, VisualElement element)
+        {
+            var mode = state.SelectRefinementMode(element);
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Animate },
+                state.SelectRefinementOperations(element).ToArray()));
+        }
+
+        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
+            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Animate },
+                state.SelectRefinementOperations(element).ToArray());
+
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
@@ -68,19 +94,21 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             var text = string.Empty;
 
             if (!string.IsNullOrEmpty(generationMetadata.prompt))
-                text += $"Prompt: {generationMetadata.prompt}";
+                text += $"Prompt: {generationMetadata.prompt}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.negativePrompt))
-                text += $"\nNegative prompt: {generationMetadata.negativePrompt}";
+                text += $"Negative prompt: {generationMetadata.negativePrompt}\n";
 
             if (!string.IsNullOrEmpty(generationMetadata.model))
             {
                 var modelSettings = state.SelectModelSettings(generationMetadata);
                 if (!string.IsNullOrEmpty(modelSettings?.name))
                 {
-                    text += $"\nModel: {modelSettings.name}";
+                    text += $"Model: {modelSettings.name}\n";
                 }
             }
+
+            text = text.TrimEnd();
 
             if(string.IsNullOrEmpty(text))
                 text = noDataFoundString;

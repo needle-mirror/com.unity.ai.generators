@@ -146,6 +146,8 @@ namespace Unity.AI.Sound.Components
 
         void SetAsset(AssetReference asset)
         {
+            OnItemViewMaxCountChanged(this.GetOscillogramGridMaxItemsInElement(m_GridView.fixedItemHeight, GetHorizontalItemCount()));
+
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
             m_GenerationFileSystemWatcher = null;
 

@@ -27,9 +27,10 @@ namespace Unity.AI.Material.Services.Stores.States
             { MapType.Normal, noneMapping },
             { MapType.Emission, noneMapping },
             { MapType.Metallic, noneMapping },
-            { MapType.Smoothness, noneMapping },
+            { MapType.Roughness, noneMapping },
             { MapType.Delighted, noneMapping },
             { MapType.Occlusion, noneMapping },
+            { MapType.Smoothness, noneMapping },
             { MapType.MetallicSmoothness, noneMapping },
             { MapType.NonMetallicSmoothness, noneMapping },
             { MapType.MaskMap, noneMapping }

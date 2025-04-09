@@ -12,3 +12,14 @@
     background-repeat: no-repeat;
     background-size: auto;
 }
+
+.pbr-upper-left-label {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: auto;
+    height: auto;
+    transform-origin: center;
+    -unity-text-align: upper-left;
+    background-color: rgba(50, 50, 50, 0.5);
+}

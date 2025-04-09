@@ -6,7 +6,7 @@ namespace Unity.AI.Generators.Chat
 {
     class PromptWindow : EditorWindow
     {
-        [MenuItem("AI Toolkit/Internals/Chat/Generate Sound", false, 1)]
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Sound", false, 1)]
         public static void OnGenerateSound()
         {
             ShowWindow(
@@ -16,7 +16,7 @@ namespace Unity.AI.Generators.Chat
             );
         }
 
-        [MenuItem("AI Toolkit/Internals/Chat/Generate Texture", false, 2)]
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Texture", false, 2)]
         public static void OnGenerateTexture()
         {
             ShowWindow(
@@ -26,7 +26,7 @@ namespace Unity.AI.Generators.Chat
             );
         }
 
-        [MenuItem("AI Toolkit/Internals/Chat/Generate Sprite", false, 3)]
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Sprite", false, 3)]
         public static void OnGenerateSprite()
         {
             ShowWindow(

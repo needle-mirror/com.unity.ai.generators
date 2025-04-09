@@ -227,6 +227,28 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
+        public static bool IsJpg(Stream imageStream)
+        {
+            if (imageStream == null)
+                throw new ArgumentNullException(nameof(imageStream));
+
+            if (!imageStream.CanSeek)
+                throw new NotSupportedException("The specified stream must be seekable.");
+
+            var originalPosition = imageStream.Position;
+            try
+            {
+                imageStream.Position = 0;
+                var headerBytes = new byte[8];
+                var bytesRead = imageStream.Read(headerBytes, 0, headerBytes.Length);
+                return bytesRead >= 8 && FileIO.IsJpg(headerBytes);
+            }
+            finally
+            {
+                imageStream.Position = originalPosition;
+            }
+        }
+
         public static bool HasPngAlphaChannel(byte[] headerBytes)
         {
             if (headerBytes == null || headerBytes.Length < 26)
@@ -235,6 +257,79 @@ namespace Unity.AI.Generators.UI.Utilities
             var colorType = headerBytes[25];
 
             return colorType == 4 || colorType == 6;
+        }
+
+        public static bool HasJpgExifMetadata(Stream jpegStream)
+        {
+            var originalPosition = jpegStream.Position;
+            const int headerSize = 512;
+
+            try
+            {
+                var buffer = new byte[8];
+
+                // Check for JPEG header (FF D8)
+                _ = jpegStream.Read(buffer, 0, 2);
+                if (buffer[0] != 0xFF || buffer[1] != 0xD8)
+                    return false; // Not a valid JPEG file
+
+                long bytesRead = 2;
+
+                // Search only through the header area
+                while (bytesRead < headerSize && jpegStream.Position < jpegStream.Length)
+                {
+                    var markerStart = jpegStream.ReadByte();
+                    var markerType = jpegStream.ReadByte();
+                    bytesRead += 2; // Increment for marker bytes
+
+                    // Valid marker must start with 0xFF
+                    if (markerStart != 0xFF)
+                        break;
+
+                    // Found EXIF marker (0xE1)
+                    if (markerType == 0xE1)
+                    {
+                        // Read segment length
+                        _ = jpegStream.Read(buffer, 0, 2);
+                        bytesRead += 2;
+
+                        // Verify this is EXIF by checking for "Exif\0\0" header
+                        _ = jpegStream.Read(buffer, 0, 6);
+                        bytesRead += 6;
+
+                        if (buffer[0] == 'E' && buffer[1] == 'x' && buffer[2] == 'i' &&
+                            buffer[3] == 'f' && buffer[4] == 0 && buffer[5] == 0)
+                        {
+                            return true; // Valid EXIF data found
+                        }
+                    }
+
+                    // Stop at SOS marker, as all metadata appears before image data
+                    if (markerType == 0xDA)
+                        break;
+
+                    // Skip segments with variable length
+                    if (markerType != 0xD9 && markerType >= 0xE0)
+                    {
+                        _ = jpegStream.Read(buffer, 0, 2);
+                        var segmentLength = (buffer[0] << 8) | buffer[1];
+                        bytesRead += 2;
+
+                        jpegStream.Seek(segmentLength - 2, SeekOrigin.Current);
+                        bytesRead += (segmentLength - 2);
+                    }
+                }
+
+                return false; // No EXIF data found
+            }
+            catch
+            {
+                return false; // Error reading the file
+            }
+            finally
+            {
+                jpegStream.Position = originalPosition;
+            }
         }
 
         public static bool TryConvert(byte[] imageBytes, out byte[] destData, string toType = ".png")
@@ -342,6 +437,97 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             return imageStream;
+        }
+
+        /// <summary>
+        /// Determines if a stream contains an image format that can be loaded at runtime (PNG, JPG, or EXR).
+        /// </summary>
+        /// <param name="stream">The stream to check.</param>
+        /// <returns>True if the stream contains a PNG, JPG, or EXR image; otherwise, false.</returns>
+        public static bool IsRuntimeLoadSupported(Stream stream)
+        {
+            if (stream == null || stream.Length == 0 || !stream.CanRead)
+                return false;
+
+            long originalPosition = 0;
+            if (stream.CanSeek)
+                originalPosition = stream.Position;
+
+            try
+            {
+                stream.Position = 0;
+
+                // Read enough bytes to determine the file format (16 bytes should be sufficient)
+                var headerBytes = new byte[16];
+                var bytesRead = stream.Read(headerBytes, 0, headerBytes.Length);
+
+                if (bytesRead < 4) // Need at least 4 bytes to identify any format
+                    return false;
+
+                // Check for PNG signature
+                if (FileIO.IsPng(headerBytes))
+                    return true;
+
+                // Check for JPG signature
+                if (FileIO.IsJpg(headerBytes))
+                    return true;
+
+                // Check for EXR signature
+                if (FileIO.IsExr(headerBytes))
+                    return true;
+
+                // Not a supported format
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                // Restore the original position if possible
+                if (stream.CanSeek)
+                {
+                    try { stream.Position = originalPosition; }
+                    catch { /* Ignore positioning errors */ }
+                }
+            }
+        }
+
+        public static Texture2D MakeTextureReadable(Texture sourceTexture)
+        {
+            // Early return if texture is already readable
+            if (sourceTexture is Texture2D { isReadable: true } texture2D)
+                return texture2D;
+
+            var previousActive = RenderTexture.active;
+            RenderTexture rt = null;
+
+            try
+            {
+                // Create render texture with same dimensions as source
+                rt = RenderTexture.GetTemporary(sourceTexture.width, sourceTexture.height, 0, RenderTextureFormat.ARGB32);
+
+                // Blit texture to render texture
+                Graphics.Blit(sourceTexture, rt);
+                RenderTexture.active = rt;
+
+                // Create new readable texture
+                var readableTexture = new Texture2D(sourceTexture.width, sourceTexture.height, TextureFormat.RGBA32, false);
+
+                // Read pixels from render texture to new texture
+                readableTexture.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+                readableTexture.Apply();
+
+                return readableTexture;
+            }
+            finally
+            {
+                // Clean up
+                RenderTexture.active = previousActive;
+                if (rt)
+                    RenderTexture.ReleaseTemporary(rt);
+            }
         }
 
         public static readonly string[] knownExtensions = { ".png", ".jpg", "jpeg", ".exr" };

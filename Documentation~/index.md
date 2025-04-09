@@ -11,6 +11,7 @@ Use the following topics to get started with using AI Generator tools.
 | Topic | Description |
 | ----- | ----------- |
 | [AI Generator tools](ai-gen-tools.md) | Get to know the Unity's AI Generator tools and their features. |
+| [Sprite Generator](xref:sprite-overview) | Learn how to create high-quality 2D sprites based on text-based prompts and reference images. |
 | [Texture2D Generator](xref:texture2d-overview) | Learn how to use machine learning to create high-quality 2D assets based on text-based prompts and reference images. |
 | [Sound Generator](xref:sound-intro) | Learn how to create custom audio clips from text-to-sound models or reference audio clips. |
 | [Animation Generator](xref:animation-overview) | Learn how to create animation clips directly from text or video inputs. |
@@ -18,6 +19,7 @@ Use the following topics to get started with using AI Generator tools.
 
 ## Additional resources
 
+* [Generate sprite with a prompt](xref:generate-sprite)
 * [Generate Texture2D asset with a prompt](xref:generate-texture2d)
 * [Generate sound assets with a prompt](xref:sound-prompt)
 * [Generate material with a prompt](xref:material-generate-prompt)

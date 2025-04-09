@@ -167,8 +167,7 @@ namespace Unity.AI.Image.Components
             {
                 m_Texture.Reinitialize(m_Size.x, m_Size.y);
                 var pixels = new Color32[m_Size.x * m_Size.y];
-                for (var i = 0; i < pixels.Length; i++)
-                    pixels[i] = clearColor;
+                Array.Fill(pixels, clearColor);
                 m_Texture.SetPixels32(pixels);
                 m_Texture.Apply();
 
@@ -341,10 +340,7 @@ namespace Unity.AI.Image.Components
             UpdateTextureData();
 
             var doodleCanvas = m_Texture.GetPixels();
-
-            for (var i = 0; i < doodleCanvas.Length; i++)
-                doodleCanvas[i] = paintColor;
-
+            Array.Fill(doodleCanvas, paintColor);
             m_Texture.SetPixels(doodleCanvas);
             m_Texture.Apply();
 
@@ -361,87 +357,99 @@ namespace Unity.AI.Image.Components
                 return;
 
             m_Clear = false;
-
             UpdateTextureData();
 
-            var doodleCanvas = m_Texture.GetPixels();
+            // Use Color32 for better performance
+            var pixels = m_Texture.GetPixels32();
+            Color32 fillColor = paintColor;
 
-            // Fetch the seed position.
-            var seedX = (int)seedPosition.x;
-            var seedY = (int)seedPosition.y;
+            var width = m_Size.x;
+            var height = m_Size.y;
 
-            // Finish if seed point out-of-bounds or already filled.
-            if (!(seedX >= 0 && seedX < m_Size.x && seedY >= 0 && seedY < m_Size.y) &&
-                (doodleCanvas[seedY * m_Size.x + seedX] != paintColor))
+            // Convert to integer coordinates
+            var seedX = Mathf.Clamp((int)seedPosition.x, 0, width - 1);
+            var seedY = Mathf.Clamp((int)seedPosition.y, 0, height - 1);
+
+            // Get target color from seed point
+            var seedIndex = seedY * width + seedX;
+            var targetColor = pixels[seedIndex];
+
+            // If target is already the fill color, no need to do anything
+            if (targetColor.Equals(fillColor))
                 return;
 
-            // Set-up the initial seed points.
-            var fillSpans = new Stack<PaintFillSpan>(128);
-            fillSpans.Push(new PaintFillSpan(x1: seedX, x2: seedX, y: seedY, dy: 1));
-            fillSpans.Push(new PaintFillSpan(x1: seedX, x2: seedX, y: seedY - 1, dy: -1));
+            // Queue-based flood fill (more efficient than stack for large areas)
+            var pixelsToCheck = new Queue<Vector2Int>(width * height / 4); // Preallocate a reasonable size
+            pixelsToCheck.Enqueue(new Vector2Int(seedX, seedY));
 
-            // Iterate the spans.
-            while (fillSpans.Count > 0)
+            // Process pixels
+            while (pixelsToCheck.Count > 0)
             {
-                // Fetch the span.
-                var span = fillSpans.Pop();
-                var x1 = span.x1;
-                var x2 = span.x2;
-                var y = span.y;
-                var dy = span.dy;
+                var current = pixelsToCheck.Dequeue();
+                var x = current.x;
+                var y = current.y;
+                var index = y * width + x;
 
-                var x = x1;
+                // Skip if already processed or doesn't match target color
+                if (!pixels[index].Equals(targetColor))
+                    continue;
 
-                var canvasSpanOffset = y * m_Size.x;
-
-                if ((x >= 0 && x < m_Size.x && y >= 0 && y < m_Size.y) &&
-                    doodleCanvas[canvasSpanOffset + x] != paintColor)
+                // Find the leftmost pixel of the current span
+                var leftX = x;
+                while (leftX > 0 && pixels[y * width + (leftX - 1)].Equals(targetColor))
                 {
-                    while (x > 0 && doodleCanvas[canvasSpanOffset + x - 1] != paintColor)
-                    {
-                        doodleCanvas[canvasSpanOffset + x - 1] = paintColor;
-                        --x;
-                    }
+                    leftX--;
                 }
 
-                if (x < x1)
-                {
-                    fillSpans.Push(new PaintFillSpan(x1: x, x2: x1 - 1, y: y - dy, dy: -dy));
-                }
+                // Fill the span and check above/below pixels
+                var spanAbove = false;
+                var spanBelow = false;
 
-                while (x1 <= x2)
+                for (var i = leftX; i <= x || (i < width && pixels[y * width + i].Equals(targetColor)); i++)
                 {
-                    if (y >= 0 && y < m_Size.x)
+                    var currentIndex = y * width + i;
+                    pixels[currentIndex] = fillColor;
+
+                    // Check pixel above
+                    if (y < height - 1)
                     {
-                        while (x1 >= 0 && x1 < m_Size.x && doodleCanvas[canvasSpanOffset + x1] != paintColor)
+                        var aboveIndex = (y + 1) * width + i;
+                        if (pixels[aboveIndex].Equals(targetColor))
                         {
-                            doodleCanvas[canvasSpanOffset + x1] = paintColor;
-
-                            ++x1;
-                            fillSpans.Push(new PaintFillSpan(x1: x, x2: x1 - 1, y: y + dy, dy: dy));
-
-                            if ((x1 - 1) > x2)
+                            if (!spanAbove)
                             {
-                                fillSpans.Push(new PaintFillSpan(x1: x2 + 1, x2: x1 - 1, y: y - dy, dy: -dy));
+                                pixelsToCheck.Enqueue(new Vector2Int(i, y + 1));
+                                spanAbove = true;
                             }
                         }
-                    }
-
-                    ++x1;
-                    if (y >= 0 && y < m_Size.y)
-                    {
-                        while (x1 < x2 && !(x1 < m_Size.x && doodleCanvas[canvasSpanOffset + x1] != paintColor))
+                        else
                         {
-                            ++x1;
+                            spanAbove = false;
                         }
                     }
 
-                    x = x1;
+                    // Check pixel below
+                    if (y > 0)
+                    {
+                        var belowIndex = (y - 1) * width + i;
+                        if (pixels[belowIndex].Equals(targetColor))
+                        {
+                            if (!spanBelow)
+                            {
+                                pixelsToCheck.Enqueue(new Vector2Int(i, y - 1));
+                                spanBelow = true;
+                            }
+                        }
+                        else
+                        {
+                            spanBelow = false;
+                        }
+                    }
                 }
             }
 
-            // Update the textures.
-            m_Texture.SetPixels(doodleCanvas);
+            // Update texture with modified pixels
+            m_Texture.SetPixels32(pixels);
             m_Texture.Apply();
 
             UpdateRenderTexture();

@@ -90,5 +90,35 @@ namespace Unity.AI.Generators.UI.Utilities
             Array.Copy(hashBytes, guidBytes, 16);
             return new Guid(guidBytes);
         }
+
+        public static void RegisterTabEvent(this TextField textField)
+        {
+            textField.RegisterCallback<KeyDownEvent>(HandleTab, TrickleDown.TrickleDown);
+        }
+
+        static void HandleTab(KeyDownEvent evt)
+        {
+            if (evt.keyCode != KeyCode.Tab) return;
+
+            var root = ((VisualElement)evt.target).panel.visualTree;
+            var elements = root.Query<VisualElement>().Where(x => x.focusable
+                && x.resolvedStyle.visibility == Visibility.Visible
+                && x.worldBound is { width: > 0, height: > 0 }).ToList();
+            var currentElement = (VisualElement)evt.target;
+            var currentIndex = elements.IndexOf(currentElement);
+            if (currentIndex == -1) return;
+
+            int nextIndex;
+            if (evt.shiftKey)
+                nextIndex = (currentIndex - 1) % elements.Count;
+            else
+            {
+                evt.StopImmediatePropagation();
+                nextIndex = (currentIndex + 1) % elements.Count;
+            }
+
+            elements[nextIndex].Focus();
+
+        }
     }
 }

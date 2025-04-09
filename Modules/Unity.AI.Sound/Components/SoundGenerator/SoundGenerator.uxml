@@ -22,17 +22,14 @@
                     <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
                         <ui:Prompt />
                     </VisualElement>
-                    <!-- Generate Duration Slider -->
-                    <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-                        <ui:GenerateDurationSlider />
-                    </VisualElement>
-                    <!-- Generate Variations Slider -->
-                    <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-                        <ui:GenerateVariationsSlider />
-                    </VisualElement>
-                    <!-- Generation Options -->
                     <VisualElement class="flex-no-shrink p-8-7-8-8 bg-light">
-                        <ui:GenerationOptions />
+                        <Label class="font-bold p-4 pb-8" text="Options"/>
+                        <!-- Generation Duration Slider -->
+                        <ui:GenerateDurationSlider />
+                        <!-- Generation Variations Slider -->
+                        <ui:GenerateVariationsSlider />
+                        <!-- Generation Options -->
+                        <ui:GenerationOptions class="pt-8" />
                     </VisualElement>
                     <!-- Input Reference -->
                     <VisualElement class="flex-no-shrink bg-light">

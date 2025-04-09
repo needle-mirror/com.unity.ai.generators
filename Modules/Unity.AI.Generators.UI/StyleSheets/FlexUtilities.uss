@@ -183,6 +183,11 @@
     width: 16px;
 }
 
+.size-18px {
+    height: 18px;
+    width: 18px;
+}
+
 .size-20px {
     height: 20px;
     width: 20px;
@@ -281,6 +286,10 @@
 
 .m-8 {
     margin: 8px;
+}
+
+.mt-2 {
+    margin-top: 2px;
 }
 
 .mt-4 {

@@ -65,4 +65,22 @@ namespace Unity.AI.ModelSelector.Components
                 m_PartnerIcon.image = await TextureCache.GetPreview(new Uri(modelSettings.icon), (int)TextureSizeHint.Partner);
         }
     }
+
+    class ModelTileItem : VisualElement
+    {
+        ModelTile m_Tile;
+
+        public ModelTile tile
+        {
+            get => m_Tile;
+            set
+            {
+                if (m_Tile != null)
+                    Remove(m_Tile);
+                if (value != null)
+                    Add(value);
+                m_Tile = value;
+            }
+        }
+    }
 }

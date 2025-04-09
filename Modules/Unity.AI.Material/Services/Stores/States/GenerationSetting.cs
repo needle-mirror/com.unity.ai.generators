@@ -40,10 +40,7 @@ namespace Unity.AI.Material.Services.Stores.States
     {
         Generation = 0,
         Upscale = 1,
-        Pbr = 2,
-        // ...
-        First = 0,
-        Last = Pbr
+        Pbr = 2
     }
 
     [Serializable]

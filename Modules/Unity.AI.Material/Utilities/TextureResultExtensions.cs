@@ -65,5 +65,9 @@ namespace Unity.AI.Material.Services.Utilities
         public static async Task<Texture2D> GetTexture(this TextureResult textureResult) => await TextureCache.GetTexture(textureResult.uri);
 
         public static Texture2D GetTextureUnsafe(this TextureResult textureResult) => TextureCache.GetTextureUnsafe(textureResult.uri);
+
+        public static async Task<Texture2D> GetNormalMap(this TextureResult textureResult) => await TextureCache.GetNormalMap(textureResult.uri);
+
+        public static Texture2D GetNormalMapUnsafe(this TextureResult textureResult) => TextureCache.GetNormalMapUnsafe(textureResult.uri);
     }
 }

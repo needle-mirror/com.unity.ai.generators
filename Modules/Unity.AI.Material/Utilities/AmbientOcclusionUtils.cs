@@ -46,7 +46,7 @@ namespace Unity.AI.Material.Services.Utilities
             var previousRT = RenderTexture.active;
             RenderTexture.active = destRT;
 
-            var aoMap = new Texture2D(heightMap.width, heightMap.height, TextureFormat.RGBA32, true, true);
+            var aoMap = new Texture2D(heightMap.width, heightMap.height, TextureFormat.RGBA32, false, true);
             aoMap.ReadPixels(new Rect(0, 0, aoMap.width, aoMap.height), 0, 0);
             aoMap.Apply();
 

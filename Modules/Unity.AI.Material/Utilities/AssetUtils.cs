@@ -11,10 +11,16 @@ namespace Unity.AI.Material.Services.Utilities
     {
         public const string defaultNewAssetName = "New Material";
         public const string defaultAssetExtension = ".mat";
-        
+
         public static string CreateBlankMaterial(string path, bool force = true)
         {
+#if AI_TK_MATERIAL_MUSE_DEFAULT
+            var defaultShader = AssetDatabase.LoadAssetAtPath<Shader>(MaterialUtilities.aiToolkitSampleLit);
+            if (!defaultShader)
+                defaultShader = GraphicsSettings.defaultRenderPipeline ? GraphicsSettings.defaultRenderPipeline.defaultShader : Shader.Find("Standard");
+#else
             var defaultShader = GraphicsSettings.defaultRenderPipeline ? GraphicsSettings.defaultRenderPipeline.defaultShader : Shader.Find("Standard");
+#endif
             var newMaterial = new UnityEngine.Material(defaultShader);
             var assetPath = AssetDatabase.GenerateUniqueAssetPath(path);
             AssetDatabase.CreateAsset(newMaterial, assetPath);

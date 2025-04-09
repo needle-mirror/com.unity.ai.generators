@@ -34,31 +34,17 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static AssetActionCreator<float> setPatternImageReferenceStrength => new($"{slice}/setPatternImageReferenceStrength");
         public static AssetActionCreator<PatternImageReference> setPatternImageReference => new($"{slice}/setPatternImageReference");
 
-        public static readonly AsyncThunkCreatorWithArg<(VisualElement element, RefinementMode mode)> openSelectModelPanel = new($"{slice}/{nameof(openSelectModelPanel)}", async (payload, api) =>
+        public static readonly AsyncThunkCreatorWithArg<VisualElement> openSelectModelPanel = new($"{slice}/{nameof(openSelectModelPanel)}", async (element, api) =>
         {
-            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            // its model selection is transient and needs to be exchanged with the current modality's slice
-            var element = payload.element;
             var selectedModelID = api.State.SelectSelectedModelID(element);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModelID, selectedModelID);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModality, ModalityEnum.Texture2d);
-            var operations = payload.mode switch
-            {
-                RefinementMode.Generation => new[] { OperationSubTypeEnum.TextPrompt },
-                RefinementMode.Upscale => new[] { OperationSubTypeEnum.Upscale },
-                RefinementMode.Pbr => new[] { OperationSubTypeEnum.Pbr },
-                _ => new[] { OperationSubTypeEnum.TextPrompt }
-            };
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastOperationSubTypes, operations);
-            await ModelSelectorWindow.Open(element.GetStore());
-            selectedModelID = ModelSelector.Services.Stores.Selectors.ModelSelectorSelectors.SelectLastSelectedModelID(api.State);
+            var operations = api.State.SelectRefinementOperations(element);
+            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Texture2d, operations.ToArray());
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 
-        public static readonly AsyncThunkCreatorWithArg<GenerationDataWindowArgs> openGenerationDataWindow = new($"{slice}/openGenerationDataWindow", async (args, api) =>
-        {
-            await GenerationMetadataWindow.Open(args.element.GetStore(), args.asset, args.element, args.result);
-        });
+        public static readonly AsyncThunkCreatorWithArg<GenerationDataWindowArgs> openGenerationDataWindow = new($"{slice}/openGenerationDataWindow",
+            async (args, api) => await GenerationMetadataWindow.Open(args.element.GetStore(), args.asset, args.element, args.result));
 
         public static readonly AssetActionCreator<float> setHistoryDrawerHeight = new($"{slice}/setHistoryDrawerHeight");
     }

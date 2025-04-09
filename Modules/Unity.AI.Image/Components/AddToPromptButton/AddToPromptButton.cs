@@ -25,9 +25,9 @@ namespace Unity.AI.Image.Components
         GenericDropdownMenu m_AllowedOperatorsMenu;
         readonly Button m_AddToPrompt;
 
-        bool m_HasItems = false;
-        bool m_Once = false;
-        bool m_IsDirty = false;
+        bool m_HasItems;
+        bool m_Once;
+        bool m_IsDirty;
 
         public AddToPromptButton()
         {
@@ -58,10 +58,17 @@ namespace Unity.AI.Image.Components
 
         void MarkDirty()
         {
-            m_IsDirty = true;
-            m_AddToPrompt.SetEnabled(!m_IsDirty);
-            m_AddToPrompt.tooltip = "Parsing reference types rules...";
-            Debouncer.DebounceAction(this.GetAsset().guid, Rebuild);
+            var typesToValidate = GetTypesToValidate();
+            var (success, results) = GenerationResultsSuperProxyValidations.canAddReferencesToPromptCached((new AddImageReferenceTypeData(this.GetAsset(), typesToValidate), this.GetStoreApi()));
+            if (success)
+                Rebuild(typesToValidate, results); // try a fast rebuild first
+            else
+            {
+                m_IsDirty = true;
+                m_AddToPrompt.SetEnabled(!m_IsDirty);
+                m_AddToPrompt.tooltip = "Validating rules...";
+                Debouncer.DebounceAction(this.GetAsset().guid, Rebuild, 125);
+            }
         }
 
         void AddItemToMenu(ImageReferenceType type, bool itemVisible, bool enabled, AssetActionCreator<ImageReferenceActiveData> setImageReferenceIsActive)
@@ -91,26 +98,39 @@ namespace Unity.AI.Image.Components
             if (!m_IsDirty)
                 return;
 
+            var typesToValidate = GetTypesToValidate();
+            var results = await GenerationResultsSuperProxyValidations.canAddReferencesToPrompt((new AddImageReferenceTypeData(this.GetAsset(), typesToValidate), this.GetStoreApi()));
+            Rebuild(typesToValidate, results);
+        }
+
+        void Rebuild(ImageReferenceType[] typesToValidate, bool[] results)
+        {
+            if (results == null)
+                return;
+
             m_IsDirty = false;
             m_HasItems = false;
 
-            var typesToValidate = new List<ImageReferenceType>();
-
             m_AllowedOperatorsMenu = new GenericDropdownMenu();
+            for (var i = 0; i < typesToValidate.Length; i++)
+            {
+                AddItemToMenu(typesToValidate[i], true, !this.GetState().SelectImageReferenceIsActive(this, typesToValidate[i]) && results[i],
+                    GenerationSettingsActions.setImageReferenceActive);
+            }
+
+            m_AddToPrompt.SetEnabled(!m_IsDirty);
+            m_AddToPrompt.tooltip = "";
+        }
+
+        static ImageReferenceType[] GetTypesToValidate()
+        {
+            var typesToValidate = new List<ImageReferenceType>();
             foreach (var type in Enum.GetValues(typeof(ImageReferenceType)).Cast<ImageReferenceType>().OrderBy(t => t.GetDisplayOrder()))
             {
                 if (type.GetRefinementModeForType().Contains(RefinementMode.Generation))
                     typesToValidate.Add(type);
             }
-
-            var results = await GenerationResultsSuperProxyActions.canAddReferencesToPrompt((new AddImageReferenceTypeData(this.GetAsset(), typesToValidate.ToArray()), this.GetStoreApi()));
-            for (var i = 0; i < typesToValidate.Count; i++)
-            {
-                AddItemToMenu(typesToValidate[i], true, !this.GetState().SelectImageReferenceIsActive(this, typesToValidate[i]) && results[i], GenerationSettingsActions.setImageReferenceActive);
-            }
-
-            m_AddToPrompt.SetEnabled(!m_IsDirty);
-            m_AddToPrompt.tooltip = "";
+            return typesToValidate.ToArray();
         }
     }
 }

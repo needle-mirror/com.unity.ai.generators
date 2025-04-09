@@ -215,6 +215,15 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             return;
                         }
 
+                        foreach (var upscaleResult in upscaleResults.Batch.Value.Where(v => !v.IsSuccessful))
+                        {
+                            AbortCleanup(materialGenerations);
+                            LogFailedResult(upscaleResult.Error);
+
+                            // we can simply return because the error is already logged and we rely on finally statements for cleanup
+                            return;
+                        }
+
                         cost = upscaleResults.Batch.Value.Sum(itemResult => itemResult.Value.PointsCost);
                         materialGenerations = upscaleResults.Batch.Value.Select(r => r.Value.JobId)
                             .Select(id => new Dictionary<MapType, Guid> { [MapType.Preview] = id }).ToList();
@@ -252,6 +261,15 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             LogFailedResult(pbrResults.Batch.Error);
 
                             // we can simply return without throwing or additional logging because the error is already logged
+                            return;
+                        }
+
+                        foreach (var pbrResult in pbrResults.Batch.Value.Where(v => !v.IsSuccessful))
+                        {
+                            AbortCleanup(materialGenerations);
+                            LogFailedResult(pbrResult.Error);
+
+                            // we can simply return because the error is already logged and we rely on finally statements for cleanup
                             return;
                         }
 
@@ -300,6 +318,15 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             LogFailedResult(generateResults.Batch.Error);
 
                             // we can simply return without throwing or additional logging because the error is already logged
+                            return;
+                        }
+
+                        foreach (var generateResult in generateResults.Batch.Value.Where(v => !v.IsSuccessful))
+                        {
+                            AbortCleanup(materialGenerations);
+                            LogFailedResult(generateResult.Error);
+
+                            // we can simply return because the error is already logged and we rely on finally statements for cleanup
                             return;
                         }
 
@@ -486,15 +513,19 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         { textures = new SerializableDictionary<MapType, TextureResult>(pair.Value.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)) })).ToList();
 
                 generatedMaterials = generatedMaterialsWithName.Select(tuple => tuple.material).ToList();
-                var metallicSmoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateMetallicSmoothnessFromMetallicAndSmoothness);
-                var nonMetallicSmoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateNonMetallicSmoothnessFromSmoothness);
+                var smoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateSmoothnessFromRoughness);
+                var metallicSmoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateMetallicSmoothnessFromMetallicAndRoughness);
+                var nonMetallicSmoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateNonMetallicSmoothnessFromRoughness);
                 var aoTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateAOFromHeight);
-                var postProcessTasks = metallicSmoothnessTasks.Concat(nonMetallicSmoothnessTasks).Concat(aoTasks).ToList();
+                var postProcessTasks = smoothnessTasks.Concat(metallicSmoothnessTasks).Concat(nonMetallicSmoothnessTasks).Concat(aoTasks).ToList();
 
                 await Task.WhenAll(postProcessTasks);
 
-                var maskMapTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateMaskMapFromAOAndMetallicAndAndSmoothness);
+                var maskMapTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateMaskMapFromAOAndMetallicAndRoughness); // ao needs to be completed first
                 await Task.WhenAll(maskMapTasks);
+
+                // gather temporary files
+                var temporaryFiles = generatedMaterials.SelectMany(m => m.textures.Values.Select(r => r.uri)).Where(uri => uri.IsFile).ToList();
 
                 var metadata = arg.generationMetadata;
                 var saveTasks = generatedMaterialsWithName.Select((result, index) =>
@@ -507,6 +538,22 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 }).ToList();
 
                 await Task.WhenAll(saveTasks); // saves to project and is picked up by GenerationFileSystemWatcherManipulator
+
+                // cleanup temporary files
+                try
+                {
+                    foreach (var temporaryFile in temporaryFiles)
+                    {
+                        var path = temporaryFile.GetLocalPath();
+                        Debug.Assert(!FileIO.IsFileDirectChildOfFolder(generativePath, path));
+                        if (File.Exists(path))
+                            File.Delete(path);
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
 
                 // the ui defers the removal of the skeletons a little bit so we can call this pretty early
                 api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.taskID));

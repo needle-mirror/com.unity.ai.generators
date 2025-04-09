@@ -34,6 +34,7 @@ namespace Unity.AI.Generators.Sdk
 
     static class LoggerUtilities
     {
+        const string k_InternalMenu = "internal:";
         const string k_SdkLogLevelMenu = "AI Toolkit/Internals/Log All Sdk Messages";
         const string k_SdkLogLevelKey = "AI_Toolkit_Sdk_Log_Level";
 
@@ -43,12 +44,12 @@ namespace Unity.AI.Generators.Sdk
             private set => EditorPrefs.SetInt(k_SdkLogLevelKey, value);
         }
 
-        [MenuItem(k_SdkLogLevelMenu, false, 1020)]
+        [MenuItem(k_InternalMenu + k_SdkLogLevelMenu, false, 1020)]
         static void ToggleSdkLogLevel()
         {
             sdkLogLevel = sdkLogLevel == 1 ? 0 : 1;
         }
-        [MenuItem(k_SdkLogLevelMenu, true, 1020)]
+        [MenuItem(k_InternalMenu + k_SdkLogLevelMenu, true, 1020)]
         static bool ValidateSdkLogLevel()
         {
             Menu.SetChecked(k_SdkLogLevelMenu, sdkLogLevel == 1);

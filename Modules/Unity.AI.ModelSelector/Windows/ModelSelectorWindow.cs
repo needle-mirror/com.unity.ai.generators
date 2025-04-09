@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Components;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Unity.AI.ModelSelector.Windows
 {
@@ -22,6 +25,16 @@ namespace Unity.AI.ModelSelector.Windows
             window.m_TaskCompletionSource = tcs;
 
             await tcs.Task;
+        }
+
+        public static async Task<string> Open(VisualElement parent, string selectedModelID, ModalityEnum modality, OperationSubTypeEnum[] operations)
+        {
+            // model selection is transient and needs to be exchanged with the current modality's slice
+            parent.Dispatch(Services.Stores.Actions.ModelSelectorActions.setLastSelectedModelID, selectedModelID);
+            parent.Dispatch(Services.Stores.Actions.ModelSelectorActions.setLastSelectedModality, modality);
+            parent.Dispatch(Services.Stores.Actions.ModelSelectorActions.setLastOperationSubTypes, operations);
+            await Open(parent.GetStore());
+            return Services.Stores.Selectors.ModelSelectorSelectors.SelectLastSelectedModelID(parent.GetStore().State);
         }
 
         TaskCompletionSource<bool> m_TaskCompletionSource;

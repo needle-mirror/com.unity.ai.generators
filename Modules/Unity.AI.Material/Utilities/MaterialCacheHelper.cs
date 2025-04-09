@@ -44,7 +44,7 @@ namespace Unity.AI.Material.Services.Utilities
                     continue;
 
                 // Launch the appropriate load request based on map type.
-                _ = kvp.Key == MapType.Normal
+                _ = kvp.Key is MapType.Normal
                     ? await TextureCache.GetNormalMap(kvp.Value.uri)
                     : await TextureCache.GetTexture(kvp.Value.uri);
             }

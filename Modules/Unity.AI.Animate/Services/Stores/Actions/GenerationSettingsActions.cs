@@ -30,19 +30,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         public static AssetActionCreator<AssetReference> setVideoInputReferenceAsset => new($"{slice}/{nameof(setVideoInputReferenceAsset)}");
         public static AssetActionCreator<VideoInputReference> setVideoInputReference => new($"{slice}/{nameof(setVideoInputReference)}");
 
-        public static readonly AsyncThunkCreatorWithArg<(VisualElement element, RefinementMode mode)> openSelectModelPanel = new($"{slice}/{nameof(openSelectModelPanel)}", async (payload, api) =>
+        public static readonly AsyncThunkCreatorWithArg<VisualElement> openSelectModelPanel = new($"{slice}/{nameof(openSelectModelPanel)}", async (element, api) =>
         {
-            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            // its model selection is transient and needs to be exchanged with the current modality's slice
-            var element = payload.element;
             var selectedModelID = api.State.SelectSelectedModelID(element);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModelID, selectedModelID);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModality, ModalityEnum.Animate); //Animate
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastOperationSubTypes, payload.mode == RefinementMode.VideoToMotion
-                    ? new [] { OperationSubTypeEnum.ReferencePrompt }
-                    : new [] { OperationSubTypeEnum.TextPrompt });
-            await ModelSelectorWindow.Open(element.GetStore());
-            selectedModelID = ModelSelector.Services.Stores.Selectors.ModelSelectorSelectors.SelectLastSelectedModelID(api.State);
+            var operations = api.State.SelectRefinementOperations(element);
+            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Animate, operations.ToArray());
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 
