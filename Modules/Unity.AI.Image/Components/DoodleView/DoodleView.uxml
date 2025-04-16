@@ -30,6 +30,7 @@
             <VisualElement name="brushSettingsToolbar" class="flex-row items-center flex-no-shrink flex-grow hide">
                 <editorui:ColorField name="brushColorField" style="width: 72px;" value="#FFFFFFFF" />
                 <Label
+                        name="brushSizeLabel"
                         text="Size "
                         tooltip="The size of the brush or eraser"
                         class="text-align-middle-center pl-2" />
@@ -51,7 +52,7 @@
         </editorui:Toolbar>
 
         <!-- <TwoPaneSplitView fixed-pane-index="1" fixed-pane-initial-dimension="200" class="flex-grow"> -->
-            <VisualElement name="canvas" class="canvas overflow-hidden flex-grow m-2">
+            <VisualElement name="canvas" class="canvas overflow-hidden flex-grow">
 
                 <VisualElement class="items-stretch justify-center flex-grow">
                     <ui:DoodlePad name="doodlePad" />

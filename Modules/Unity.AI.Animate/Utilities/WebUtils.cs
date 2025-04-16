@@ -11,7 +11,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
         public static string selectedEnvironment
         {
-            get => EditorPrefs.GetString(k_SelectedEnvironmentKey, ModelSelector.Services.Utilities.WebUtils.testEnvironment);
+            get => EditorPrefs.GetString(k_SelectedEnvironmentKey, ModelSelector.Services.Utilities.WebUtils.stagingEnvironment);
             set => EditorPrefs.SetString(k_SelectedEnvironmentKey, value);
         }
 

@@ -17,7 +17,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
     record GenerationsProgressData(AssetReference asset, GenerationProgressData progress) : AsssetContext(asset);
     record GenerationFeedbackData(string message);
     record GenerationsFeedbackData(AssetReference asset, GenerationFeedbackData feedback) : AsssetContext(asset);
-    record GenerationValidationSettings(AssetReference asset, bool prompt, string model, int roundedFrameDuration, int variations, RefinementMode mode, int referenceCount) : AsssetContext(asset);
+    record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, string model, int roundedFrameDuration, int variations, RefinementMode mode, int referenceCount) : AsssetContext(asset);
     record GenerationValidationResult(bool success, AiResultErrorEnum error, int cost, List<GenerationFeedbackData> feedback);
     record GenerationsValidationResult(AssetReference asset, GenerationValidationResult result) : AsssetContext(asset);
     record GenerationResultData(AssetReference asset, GenerationResult result) : AsssetContext(asset);

@@ -3,8 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AI.Material.Services.Utilities
@@ -20,7 +22,7 @@ namespace Unity.AI.Material.Services.Utilities
             var extension = Path.GetExtension(path);
             if (!ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase)))
             {
-                using var fileStream = FileIO.OpenFileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+                using var fileStream = FileIO.OpenReadAsync(path);
                 extension = FileIO.GetFileExtension(fileStream);
             }
 
@@ -38,6 +40,7 @@ namespace Unity.AI.Material.Services.Utilities
                 return;
 
             File.Copy(path, newPath, overwrite: true);
+            Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
         }
 
@@ -56,11 +59,6 @@ namespace Unity.AI.Material.Services.Utilities
 
             textureResult.uri = newUri;
         }
-
-        public static async Task<byte[]> GetFile(this TextureResult textureResult) => await FileIO.ReadAllBytesAsync(textureResult.uri.GetLocalPath());
-
-        public static Stream GetFileStream(this TextureResult textureResult) =>
-            FileIO.OpenFileStream(textureResult.uri.GetLocalPath(), FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
 
         public static async Task<Texture2D> GetTexture(this TextureResult textureResult) => await TextureCache.GetTexture(textureResult.uri);
 

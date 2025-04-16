@@ -2,13 +2,32 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using Unity.AI.Generators.Asset;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
+using UnityEngine.Networking;
+using Object = UnityEngine.Object;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
     static class ImageFileUtilities
     {
         public const string failedDownloadIcon = "Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Warning.png";
+
+        /// <summary>
+        /// Gets the last modified UTC time for a URI as ticks.
+        /// </summary>
+        /// <param name="uri">The URI to check.</param>
+        /// <returns>The last modified time in UTC ticks, or 0 if the URI is not a valid local file.</returns>
+        public static long GetLastModifiedUtcTime(Uri uri)
+        {
+            if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
+                return 0;
+
+            return new FileInfo(uri.GetLocalPath()).LastWriteTimeUtc.Ticks;
+        }
 
         public static bool TryGetImageExtension(IReadOnlyList<byte> imageBytes, out string extension)
         {
@@ -30,6 +49,34 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             if (FileIO.IsExr(imageBytes))
+            {
+                extension = ".exr";
+                return true;
+            }
+
+            return false; // Unsupported image type
+        }
+
+        public static bool TryGetImageExtension(Stream imageStream, out string extension)
+        {
+            extension = null;
+
+            if (imageStream == null || imageStream.Length < 4)
+                return false;
+
+            if (IsPng(imageStream))
+            {
+                extension = ".png";
+                return true;
+            }
+
+            if (IsJpg(imageStream))
+            {
+                extension = ".jpg";
+                return true;
+            }
+
+            if (IsExr(imageStream))
             {
                 extension = ".exr";
                 return true;
@@ -68,8 +115,8 @@ namespace Unity.AI.Generators.UI.Utilities
                 return false;
 
             // Width: bytes 16-19, Height: bytes 20-23
-            width = ReadInt32BigEndian(imageBytes, 16);
-            height = ReadInt32BigEndian(imageBytes, 20);
+            width = ReadInt32(imageBytes, 16, false);
+            height = ReadInt32(imageBytes, 20, false);
             return true;
         }
 
@@ -149,7 +196,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (offset + 1 >= imageBytes.Count)
                     break;
 
-                var length = ReadInt16BigEndian(imageBytes, offset);
+                var length = ReadInt16(imageBytes, offset, false); // Use the shared method, always big-endian
                 offset += 2;
 
                 if (length < 2)
@@ -173,13 +220,13 @@ namespace Unity.AI.Generators.UI.Utilities
                     // Image Height (2 bytes)
                     if (offset + 1 >= segmentEnd)
                         break;
-                    height = ReadInt16BigEndian(imageBytes, offset);
+                    height = ReadInt16(imageBytes, offset, false); // Use the shared method, always big-endian
                     offset += 2;
 
                     // Image Width (2 bytes)
                     if (offset + 1 >= segmentEnd)
                         break;
-                    width = ReadInt16BigEndian(imageBytes, offset);
+                    width = ReadInt16(imageBytes, offset, false); // Use the shared method, always big-endian
                     //offset += 2;
 
                     return true;
@@ -190,19 +237,6 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             return false;
-        }
-
-        static int ReadInt32BigEndian(IReadOnlyList<byte> bytes, int offset)
-        {
-            return (bytes[offset] << 24) |
-                (bytes[offset + 1] << 16) |
-                (bytes[offset + 2] << 8) |
-                bytes[offset + 3];
-        }
-
-        static int ReadInt16BigEndian(IReadOnlyList<byte> bytes, int offset)
-        {
-            return (bytes[offset] << 8) | bytes[offset + 1];
         }
 
         public static bool IsPng(Stream imageStream)
@@ -249,82 +283,138 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
+        public static bool IsExr(Stream imageStream)
+        {
+            if (imageStream == null)
+                throw new ArgumentNullException(nameof(imageStream));
+
+            if (!imageStream.CanSeek)
+                throw new NotSupportedException("The specified stream must be seekable.");
+
+            var originalPosition = imageStream.Position;
+            try
+            {
+                imageStream.Position = 0;
+                var headerBytes = new byte[8];
+                var bytesRead = imageStream.Read(headerBytes, 0, headerBytes.Length);
+                return bytesRead >= 8 && FileIO.IsExr(headerBytes);
+            }
+            finally
+            {
+                imageStream.Position = originalPosition;
+            }
+        }
+
         public static bool HasPngAlphaChannel(byte[] headerBytes)
         {
             if (headerBytes == null || headerBytes.Length < 26)
                 return true;
 
             var colorType = headerBytes[25];
-
-            return colorType == 4 || colorType == 6;
+            return colorType is 4 or 6;
         }
 
-        public static bool HasJpgExifMetadata(Stream jpegStream)
+        // Explanation for the different endianness handling:
+
+        /*
+         * The methods handle endianness differently because:
+         *
+         * 1. TryGetJpegDimensions: Always uses big-endian (false parameter) because the JPEG file format
+         *    specification requires that all multi-byte integers in the JPEG header structure are stored
+         *    in big-endian (network byte order).
+         *
+         * 2. HasJpgOrientation: Uses variable endianness for EXIF metadata because the EXIF specification
+         *    supports both endianness formats. The EXIF data block begins with either "II" (Intel, little-endian)
+         *    or "MM" (Motorola, big-endian) to indicate which byte order is used.
+         *
+         *    - JPEG structure elements (like segment length) are still read as big-endian
+         *    - EXIF data elements are read using the endianness specified in the EXIF header
+         */
+
+        public static bool HasJpgOrientation(Stream jpegStream)
         {
             var originalPosition = jpegStream.Position;
-            const int headerSize = 512;
+            const int headerSize = 1024;
 
             try
             {
-                var buffer = new byte[8];
+                var buffer = new byte[12];
 
-                // Check for JPEG header (FF D8)
                 _ = jpegStream.Read(buffer, 0, 2);
                 if (buffer[0] != 0xFF || buffer[1] != 0xD8)
-                    return false; // Not a valid JPEG file
+                    return false;
 
                 long bytesRead = 2;
-
-                // Search only through the header area
                 while (bytesRead < headerSize && jpegStream.Position < jpegStream.Length)
                 {
                     var markerStart = jpegStream.ReadByte();
                     var markerType = jpegStream.ReadByte();
-                    bytesRead += 2; // Increment for marker bytes
+                    bytesRead += 2;
 
-                    // Valid marker must start with 0xFF
                     if (markerStart != 0xFF)
                         break;
 
-                    // Found EXIF marker (0xE1)
                     if (markerType == 0xE1)
                     {
-                        // Read segment length
                         _ = jpegStream.Read(buffer, 0, 2);
+                        _ = ReadInt16(buffer, 0, false); // Use helper method consistently, always big-endian
                         bytesRead += 2;
 
-                        // Verify this is EXIF by checking for "Exif\0\0" header
                         _ = jpegStream.Read(buffer, 0, 6);
                         bytesRead += 6;
 
                         if (buffer[0] == 'E' && buffer[1] == 'x' && buffer[2] == 'i' &&
                             buffer[3] == 'f' && buffer[4] == 0 && buffer[5] == 0)
                         {
-                            return true; // Valid EXIF data found
+                            _ = jpegStream.Read(buffer, 0, 8);
+                            bytesRead += 8;
+
+                            var isLittleEndian = (buffer[0] == 'I' && buffer[1] == 'I');
+                            var ifdOffset = ReadInt32(buffer, 4, isLittleEndian);
+
+                            jpegStream.Seek(ifdOffset - 8, SeekOrigin.Current);
+                            bytesRead += (ifdOffset - 8);
+
+                            _ = jpegStream.Read(buffer, 0, 2);
+                            bytesRead += 2;
+
+                            var numEntries = ReadInt16(buffer, 0, isLittleEndian);
+                            for (var i = 0; i < numEntries; i++)
+                            {
+                                _ = jpegStream.Read(buffer, 0, 12);
+                                bytesRead += 12;
+
+                                var tagId = ReadInt16(buffer, 0, isLittleEndian);
+                                if (tagId != 0x0112)
+                                    continue;
+
+                                var orientationValue = ReadInt16(buffer, 8, isLittleEndian);
+                                return orientationValue != 1;
+                            }
+
+                            return false;
                         }
                     }
 
-                    // Stop at SOS marker, as all metadata appears before image data
                     if (markerType == 0xDA)
                         break;
 
-                    // Skip segments with variable length
-                    if (markerType != 0xD9 && markerType >= 0xE0)
-                    {
-                        _ = jpegStream.Read(buffer, 0, 2);
-                        var segmentLength = (buffer[0] << 8) | buffer[1];
-                        bytesRead += 2;
+                    if (markerType is 0xD9 or < 0xE0)
+                        continue;
 
-                        jpegStream.Seek(segmentLength - 2, SeekOrigin.Current);
-                        bytesRead += (segmentLength - 2);
-                    }
+                    _ = jpegStream.Read(buffer, 0, 2);
+                    var segmentLength = ReadInt16(buffer, 0, false); // Use helper method consistently, always big-endian
+                    bytesRead += 2;
+
+                    jpegStream.Seek(segmentLength - 2, SeekOrigin.Current);
+                    bytesRead += (segmentLength - 2);
                 }
 
-                return false; // No EXIF data found
+                return false;
             }
             catch
             {
-                return false; // Error reading the file
+                return false;
             }
             finally
             {
@@ -332,37 +422,92 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
+        static int ReadInt16<T>(T bytes, int offset, bool isLittleEndian) where T : IReadOnlyList<byte> =>
+            isLittleEndian
+                ? bytes[offset] | (bytes[offset + 1] << 8)
+                : (bytes[offset] << 8) | bytes[offset + 1];
+
+        static int ReadInt32<T>(T bytes, int offset, bool isLittleEndian) where T : IReadOnlyList<byte> =>
+            isLittleEndian
+                ? bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)
+                : (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+
         public static bool TryConvert(byte[] imageBytes, out byte[] destData, string toType = ".png")
         {
             Texture2D texture = null;
+            Texture2D destTexture = null;
+            RenderTexture renderTexture = null;
+            destData = null;
+
             try
             {
-                texture = new Texture2D(1, 1);
-                texture.LoadImage(imageBytes);
-                destData = null;
+                // Check if the source is a JPEG with EXIF orientation data
+                using var imageStream = new MemoryStream(imageBytes);
+                if (IsJpg(imageStream) && HasJpgOrientation(imageStream))
+                {
+                    // For JPEGs with orientation data, use an approach that handles rotation
+                    texture = LoadJpegWithExifRotation(imageBytes);
+                }
+                else
+                {
+                    texture = new Texture2D(1, 1);
+                    texture.LoadImage(imageBytes);
+                }
+
                 switch (toType.ToLower())
                 {
+                    // For non-HDR formats, use the source texture directly
                     case ".png":
                         destData = texture.EncodeToPNG();
                         break;
                     case ".jpg":
                     case ".jpeg":
-                        destData = texture.EncodeToJPG();
+                        destData = texture.EncodeToJPG(100);
                         break;
+                    // For EXR, perform GPU-accelerated sRGB to linear conversion
                     case ".exr":
-                        destData = texture.EncodeToEXR();
+                    {
+                        renderTexture = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+                        Graphics.Blit(texture, renderTexture);
+                        destTexture = new Texture2D(texture.width, texture.height, TextureFormat.RGBAHalf, false, true);
+
+                        var prevRT = RenderTexture.active;
+                        RenderTexture.active = renderTexture;
+                        destTexture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+                        RenderTexture.active = prevRT;
+
+                        destData = destTexture.EncodeToEXR(Texture2D.EXRFlags.CompressRLE); // RLE is fastest
                         break;
+                    }
                     default:
-                        texture.SafeDestroy();
                         return false;
                 }
+
+                return destData != null;
             }
             finally
             {
-                texture?.SafeDestroy();
-            }
+                if (renderTexture != null)
+                    RenderTexture.ReleaseTemporary(renderTexture);
 
-            return true;
+                texture?.SafeDestroy();
+                destTexture?.SafeDestroy();
+            }
+        }
+
+        const string k_ToolkitTemp = "Assets/AI Toolkit/Temp";
+
+        static Texture2D LoadJpegWithExifRotation(byte[] imageBytes)
+        {
+            // Use Unity's asset import system to properly handle EXIF rotation
+            using var tempAsset = TemporaryAssetUtilities.ImportAssets(new[] { ($"{k_ToolkitTemp}/{Guid.NewGuid():N}.jpg", imageBytes) });
+            var asset = tempAsset.assets[0].asset;
+            var importedTexture = asset.GetObject<Texture2D>();
+
+            // Create properly oriented readable texture
+            return TryGetAspectRatio(asset, out var aspect)
+                ? MakeTextureReadable(importedTexture, aspect)
+                : MakeTextureReadable(importedTexture);
         }
 
         public static bool TryConvert(Stream imageStream, out Stream destStream, string toType = ".png")
@@ -370,11 +515,34 @@ namespace Unity.AI.Generators.UI.Utilities
             if (imageStream == null)
                 throw new ArgumentNullException(nameof(imageStream));
 
-            var imageBytes = imageStream.ReadFully();
-            var success = TryConvert(imageBytes, out var destData, toType);
-            destStream = success ? new MemoryStream(destData) : null;
+            if (!imageStream.CanSeek)
+                throw new NotSupportedException("The provided stream must be seekable.");
 
-            return success;
+            var normalizedToType = toType.ToLowerInvariant();
+            var originalPosition = imageStream.Position;
+            try
+            {
+                imageStream.Position = 0;
+                var formatMatches = TryGetImageExtension(imageStream, out var extension) &&
+                    extension.Equals(normalizedToType, StringComparison.OrdinalIgnoreCase);
+                if (formatMatches)
+                {
+                    imageStream.Position = 0;
+                    destStream = imageStream;
+                    return true;
+                }
+
+                imageStream.Position = 0;
+                var imageBytes = imageStream.ReadFully();
+                var success = TryConvert(imageBytes, out var destData, toType);
+                destStream = success ? new MemoryStream(destData) : null;
+                return success;
+            }
+            finally
+            {
+                if (imageStream.CanSeek)
+                    imageStream.Position = originalPosition;
+            }
         }
 
         public static byte[] CheckImageSize(byte[] imageBytes, int minimumSize = 33, int maximumSize = 8192)
@@ -494,28 +662,49 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        public static Texture2D MakeTextureReadable(Texture sourceTexture)
+        /// <summary>
+        /// Convert any texture into a readable Texture2D, optionally correcting the aspect if the texture is not already within tolerance of the given aspect (and the given aspect is > 0)
+        /// by stretching to restore the original aspect ratio.
+        /// </summary>
+        public static Texture2D MakeTextureReadable(Texture sourceTexture, float aspect = -1)
         {
-            // Early return if texture is already readable
+            const float aspectTolerance = 0.001f;
+
+            if (!sourceTexture)
+                return null;
+
+            // Early return if texture is already readable AND (no aspect correction needed OR aspect already matches)
             if (sourceTexture is Texture2D { isReadable: true } texture2D)
-                return texture2D;
+            {
+                var currentAspect = (float)texture2D.width / texture2D.height;
+                if (aspect <= 0 || Mathf.Abs(currentAspect - aspect) < aspectTolerance)
+                    return texture2D;
+            }
 
             var previousActive = RenderTexture.active;
             RenderTexture rt = null;
 
             try
             {
-                // Create render texture with same dimensions as source
-                rt = RenderTexture.GetTemporary(sourceTexture.width, sourceTexture.height, 0, RenderTextureFormat.ARGB32);
+                var outputWidth = sourceTexture.width;
+                var outputHeight = sourceTexture.height;
 
-                // Blit texture to render texture
+                var currentAspect = (float)sourceTexture.width / sourceTexture.height;
+                // Calculate new dimensions if aspect ratio correction is needed
+                if (aspect > 0 && Mathf.Abs(currentAspect - aspect) >= aspectTolerance)
+                {
+                    // Determine new dimensions while maintaining approximately the same pixel count
+                    float pixelCount = sourceTexture.width * sourceTexture.height;
+                    outputHeight = Mathf.RoundToInt(Mathf.Sqrt(pixelCount / aspect));
+                    outputWidth = Mathf.RoundToInt(outputHeight * aspect);
+                }
+
+                rt = RenderTexture.GetTemporary(outputWidth, outputHeight, 0, RenderTextureFormat.ARGB32);
                 Graphics.Blit(sourceTexture, rt);
                 RenderTexture.active = rt;
 
                 // Create new readable texture
-                var readableTexture = new Texture2D(sourceTexture.width, sourceTexture.height, TextureFormat.RGBA32, false);
-
-                // Read pixels from render texture to new texture
+                var readableTexture = new Texture2D(outputWidth, outputHeight, TextureFormat.RGBA32, false);
                 readableTexture.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
                 readableTexture.Apply();
 
@@ -523,7 +712,6 @@ namespace Unity.AI.Generators.UI.Utilities
             }
             finally
             {
-                // Clean up
                 RenderTexture.active = previousActive;
                 if (rt)
                     RenderTexture.ReleaseTemporary(rt);
@@ -531,5 +719,201 @@ namespace Unity.AI.Generators.UI.Utilities
         }
 
         public static readonly string[] knownExtensions = { ".png", ".jpg", "jpeg", ".exr" };
+
+        public static async Task<(Texture2D texture, long timestamp)> GetCompatibleImageTextureAsync(Uri uri, bool linear = false)
+        {
+            var timestamp = GetLastModifiedUtcTime(uri);
+
+            if (!uri.IsFile)
+            {
+                var data = await DownloadImage(uri);
+                await using var candidateStream = new MemoryStream(data);
+                return (await CompatibleImageTexture(candidateStream), timestamp);
+            }
+
+            if (File.Exists(uri.GetLocalPath()))
+            {
+                await using Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
+                return (await CompatibleImageTexture(candidateStream), timestamp);
+            }
+
+            return (null, timestamp);
+
+            async Task<Texture2D> CompatibleImageTexture(Stream stream)
+            {
+                // check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
+                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
+                // exr also doesn't seem to be supported by the backend
+                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                {
+                    var loaded = new Texture2D(1, 1, TextureFormat.RGBA32, false, linear) { hideFlags = HideFlags.HideAndDontSave };
+                    loaded.LoadImage(await stream.ReadFullyAsync());
+                    return loaded;
+                }
+
+                using var temporaryAsset = await TemporaryAssetUtilities.ImportAssetsAsync(new[] { (uri.GetLocalPath(), stream) });
+
+                var asset = temporaryAsset.assets[0].asset;
+                var referenceTexture = asset.GetObject<Texture2D>();
+                var readableTexture = TryGetAspectRatio(asset, out var aspect)
+                    ? MakeTextureReadable(referenceTexture, aspect)
+                    : MakeTextureReadable(referenceTexture);
+
+                return readableTexture;
+            }
+        }
+
+        public static (Texture2D texture, long timestamp) GetCompatibleImageTexture(Uri uri, bool linear = false)
+        {
+            var timestamp = GetLastModifiedUtcTime(uri);
+
+            if (!uri.IsFile)
+                return (null, timestamp);
+
+            if (File.Exists(uri.GetLocalPath()))
+            {
+                using Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
+                return (CompatibleImageTexture(candidateStream), timestamp);
+            }
+
+            return (null, timestamp);
+
+            Texture2D CompatibleImageTexture(Stream stream)
+            {
+                // check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
+                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
+                // exr also doesn't seem to be supported by the backend
+                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                {
+                    var loaded = new Texture2D(1, 1, TextureFormat.RGBA32, false, linear) { hideFlags = HideFlags.HideAndDontSave };
+                    loaded.LoadImage(stream.ReadFully());
+                    return loaded;
+                }
+
+                using var temporaryAsset = TemporaryAssetUtilities.ImportAssets(new[] { (uri.GetLocalPath(), stream) });
+
+                var asset = temporaryAsset.assets[0].asset;
+                var referenceTexture = asset.GetObject<Texture2D>();
+                var readableTexture = TryGetAspectRatio(asset, out var aspect)
+                    ? MakeTextureReadable(referenceTexture, aspect)
+                    : MakeTextureReadable(referenceTexture);
+
+                return readableTexture;
+            }
+        }
+
+        public static Stream GetCompatibleImageStream(Uri uri)
+        {
+            if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
+                return null;
+
+            Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
+            return CompatibleImageStream(candidateStream, uri.GetLocalPath());
+
+            Stream CompatibleImageStream(Stream stream, string filePath)
+            {
+                // Check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
+                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
+                // exr also doesn't seem to be supported by the backend
+                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                    return stream;
+
+                using var temporaryAsset = TemporaryAssetUtilities.ImportAssets(new[] { filePath });
+
+                var asset = temporaryAsset.assets[0].asset;
+                var referenceTexture = asset.GetObject<Texture2D>();
+                var readableTexture = TryGetAspectRatio(asset, out var aspect)
+                    ? MakeTextureReadable(referenceTexture, aspect)
+                    : MakeTextureReadable(referenceTexture);
+
+                var bytes = readableTexture.EncodeToPNG();
+                stream.Dispose();
+                stream = new MemoryStream(bytes);
+
+                if (readableTexture != referenceTexture)
+                    readableTexture.SafeDestroy();
+
+                return stream;
+            }
+        }
+
+        public static async Task<Stream> GetCompatibleImageStreamAsync(Uri uri)
+        {
+            if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
+                return null;
+
+            Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
+            return await CompatibleImageStream(candidateStream, uri.GetLocalPath());
+
+            async Task<Stream> CompatibleImageStream(Stream stream, string filePath)
+            {
+                // Check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
+                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
+                // exr also doesn't seem to be supported by the backend
+                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                    return stream;
+
+                using var temporaryAsset = await TemporaryAssetUtilities.ImportAssetsAsync(new[] { filePath });
+
+                var asset = temporaryAsset.assets[0].asset;
+                var referenceTexture = asset.GetObject<Texture2D>();
+                var readableTexture = TryGetAspectRatio(asset, out var aspect)
+                    ? MakeTextureReadable(referenceTexture, aspect)
+                    : MakeTextureReadable(referenceTexture);
+
+                var bytes = readableTexture.EncodeToPNG();
+                await stream.DisposeAsync();
+                stream = new MemoryStream(bytes);
+
+                if (readableTexture != referenceTexture)
+                    readableTexture.SafeDestroy();
+
+                return stream;
+            }
+        }
+
+        static T GetObject<T>(this AssetReference asset) where T : Object
+        {
+            var path = asset.GetPath();
+            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
+        }
+
+        static byte[] s_FailImageBytes = null;
+
+        static async Task<byte[]> DownloadImage(Uri uri)
+        {
+            using var uwr = UnityWebRequest.Get(uri.AbsoluteUri);
+            await uwr.SendWebRequest();
+
+            if (uwr.result != UnityWebRequest.Result.Success)
+            {
+                s_FailImageBytes ??= await FileIO.ReadAllBytesAsync("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Fail.png");
+                return s_FailImageBytes;
+            }
+
+            return uwr.downloadHandler.data;
+        }
+
+        static bool TryGetAspectRatio(string assetPath, out float aspect)
+        {
+            aspect = 1.0f;
+            if (string.IsNullOrEmpty(assetPath))
+                return false;
+
+            var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (!importer)
+                return false;
+
+            importer.GetSourceTextureWidthAndHeight(out var width, out var height);
+            if (width <= 0 || height <= 0)
+                return false;
+
+            aspect = (float)width / height;
+            return true;
+        }
+
+        public static bool TryGetAspectRatio(AssetReference asset, out float aspect) => TryGetAspectRatio(asset.GetPath(), out aspect);
+
+        public static bool TryGetAspectRatio(Texture asset, out float aspect) => TryGetAspectRatio(AssetDatabase.GetAssetPath(asset), out aspect);
     }
 }

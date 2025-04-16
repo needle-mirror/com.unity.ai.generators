@@ -96,12 +96,7 @@ namespace Unity.AI.ModelSelector.Components
             ShowTags();
         }
 
-        bool IsModelBroken(ModelSettings model)
-        {
-            // layer inpainting is broken
-            var op = m_SelectedOperations.Length == 1 && m_SelectedOperations.Contains(OperationSubTypeEnum.MaskReference);
-            return op && model.provider == ProviderEnum.Layer;
-        }
+        bool IsModelBroken(ModelSettings model) => false;
 
         void OnModelSelected(string modelID) => m_SelectedModelId = modelID;
 

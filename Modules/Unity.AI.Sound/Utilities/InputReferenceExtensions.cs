@@ -19,9 +19,8 @@ namespace Unity.AI.Sound.Services.Utilities
             Func<IState, VisualElement, AssetReference> selectInputReferenceAsset) where T: VisualElement, IInputReference
         {
             var objectField = element.Q<ObjectField>();
-            var objectFieldDisplayIcon = element.Q<Image>(className: "unity-object-field-display__icon");
 
-            objectFieldDisplayIcon.AddManipulator(new ScaleToFitImage());
+            objectField.AddManipulator(new ScaleToFitObjectFieldImage());
             objectField.RegisterValueChangedCallback(evt =>
                 element.Dispatch(setInputReferenceAsset, AssetReferenceExtensions.FromObject(evt.newValue as AudioClip)));
 

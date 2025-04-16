@@ -1,7 +1,3 @@
-GenerativeMenuRoot {
-    margin-top: 8px; /* Assuming AI Assistant is there */
-}
-
 .sub-menu {
     padding: 8px;
 }

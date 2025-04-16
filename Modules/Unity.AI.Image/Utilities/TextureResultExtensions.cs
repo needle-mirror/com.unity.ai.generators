@@ -9,6 +9,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -25,7 +26,7 @@ namespace Unity.AI.Image.Services.Utilities
             var extension = Path.GetExtension(path);
             if (!ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase)))
             {
-                using var fileStream = FileIO.OpenFileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+                await using var fileStream = FileIO.OpenReadAsync(path);
                 extension = FileIO.GetFileExtension(fileStream);
             }
 
@@ -41,6 +42,7 @@ namespace Unity.AI.Image.Services.Utilities
                 return;
 
             File.Copy(path, newPath, overwrite: true);
+            Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
 
             await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
@@ -168,22 +170,27 @@ namespace Unity.AI.Image.Services.Utilities
             var sourceExtension = Path.GetExtension(sourceFileName).ToLower();
             if (destExtension != sourceExtension)
             {
-                var imageBytes = await FileIO.ReadAllBytesAsync(sourceFileName);
-                if (!ImageFileUtilities.TryConvert(imageBytes, out var convertedBytes, destExtension))
+                await using Stream imageStream = FileIO.OpenReadAsync(generatedTexture.uri.GetLocalPath());
+                if (!ImageFileUtilities.TryConvert(imageStream, out var convertedStream, destExtension))
                     return false;
-                await FileIO.WriteAllBytesAsync(destFileName, convertedBytes);
+
+                await using var stream = convertedStream != imageStream ? convertedStream : null;
+                await FileIO.WriteAllBytesAsync(destFileName, convertedStream);
             }
             else
-            {
                 File.Copy(sourceFileName, destFileName, true);
-            }
+            Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
             return true;
         }
 
-        public static async Task<byte[]> GetFile(this TextureResult textureResult) => await FileIO.ReadAllBytesAsync(textureResult.uri.GetLocalPath());
+        public static async Task<byte[]> GetFile(this TextureResult textureResult)
+        {
+            await using var stream = await textureResult.GetCompatibleImageStreamAsync();
+            return await stream.ReadFullyAsync();
+        }
 
-        public static Stream GetFileStream(this TextureResult textureResult) =>
-            FileIO.OpenFileStream(textureResult.uri.GetLocalPath(), FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+        public static async Task<Stream> GetCompatibleImageStreamAsync(this TextureResult textureResult) =>
+            await ImageFileUtilities.GetCompatibleImageStreamAsync(textureResult.uri);
 
         static List<GenerationDataDoodle> GetDoodlesForGenerationMetadata(GenerationSetting setting)
         {
@@ -214,15 +221,9 @@ namespace Unity.AI.Image.Services.Utilities
     // We duplicate variable names instead of using GenerationSettings directly because we want to control
     // the serialization and not have problems if a variable name changes.
     [Serializable]
-    record GenerationMetadata
+    record GenerationMetadata : GeneratedAssetMetadata
     {
-        public string asset;
-        public string fileName;
-        public string prompt;
-        public string negativePrompt;
-        public string model;
         public string refinementMode;
-        public int customSeed = -1;
         public int pixelateTargetSize;
         public bool pixelateKeepImageSize;
         public int pixelatePixelBlockSize;

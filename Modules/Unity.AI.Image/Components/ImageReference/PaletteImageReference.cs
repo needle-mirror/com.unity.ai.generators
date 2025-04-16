@@ -40,28 +40,28 @@ namespace Unity.AI.Image.Components
 
         void OnPaletteChanged(Timestamp payload)
         {
-            m_ImagePalette.image = null;
-            m_ImagePalette.Q<Label>().SetShown();
-
-            var bytes = this.GetState().SelectPaletteImageBytes(this);
-            if (bytes is not { Length: > 0 })
-            {
-                m_ImagePalette.SetEnabled(m_ImagePalette.image);
-                return;
-            }
-
             if (!m_PaletteTexture)
                 m_PaletteTexture = new Texture2D(2, 2) { filterMode = FilterMode.Point };
-            m_ImagePalette.image = m_PaletteTexture;
-            m_ImagePalette.Q<Label>().SetShown(false);
+            _ = LoadPalette();
+            return;
 
-            m_ImagePalette.SetEnabled(m_ImagePalette.image);
-            LoadPalette();
-            async void LoadPalette()
+            async Task LoadPalette()
             {
+                await using var stream = await this.GetState().SelectPaletteImageStream(this);
+                if (stream is not { Length: > 0 })
+                {
+                    m_ImagePalette.image = null;
+                    m_ImagePalette.Q<Label>().SetShown();
+                    m_ImagePalette.SetEnabled(false);
+                    return;
+                }
+
                 await Task.Yield();
-                var paletteAssetBytes = TextureUtils.CreatePaletteApproximation(bytes);
+                var paletteAssetBytes = TextureUtils.CreatePaletteApproximation(await stream.ReadFullyAsync());
                 m_PaletteTexture.LoadImage(paletteAssetBytes);
+                m_ImagePalette.Q<Label>().SetShown(false);
+                m_ImagePalette.image = m_PaletteTexture;
+                m_ImagePalette.SetEnabled(true);
                 m_ImagePalette.MarkDirtyRepaint();
             }
         }

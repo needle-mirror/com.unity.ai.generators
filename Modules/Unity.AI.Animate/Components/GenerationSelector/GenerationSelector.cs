@@ -151,12 +151,10 @@ namespace Unity.AI.Animate.Components
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
             m_GenerationFileSystemWatcher = null;
 
-            UpdateItems(new List<AnimationClipResult>());
+            UpdateItems(this.GetState().SelectGeneratedAnimationsAndSkeletons(this));
 
             if (!asset.IsValid() || !assetMonitor)
                 return;
-
-            UpdateItems(this.GetState().SelectGeneratedAnimationsAndSkeletons(this));
 
             m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset,
                 new[] { ".pose.json", AssetUtils.defaultAssetExtension, AssetUtils.fbxAssetExtension },

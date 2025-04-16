@@ -44,6 +44,16 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
 
             var asset = new AssetReference { guid = arg.asset.guid };
+            if (!asset.Exists())
+            {
+                var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new (arg.asset,
+                        new (false, AiResultErrorEnum.UnknownError, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                return;
+            }
+
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
             var generationSetting = arg.generationSetting;
 
@@ -153,7 +163,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                         await using var uploadStream = !Path.GetExtension(videoReference.asset.GetPath()).Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
                             videoClip.length > 10
                                 ? await videoClip.ConvertAsync(0, 10)
-                                : videoReference.asset.GetFileStream();
+                                : FileIO.OpenReadAsync(videoReference.asset.GetPath());
 
                         var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
                             projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
@@ -418,7 +428,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             if (generatedAnimationClips.Count > 0 && (assetWasBlank || arg.autoApply))
             {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedAnimationClips[0], backupSuccess, !assetWasBlank));
-                AssetDatabase.Refresh();
+                AssetDatabase.ImportAsset(arg.asset.GetPath(), ImportAssetOptions.ForceUpdate);
             }
 
             SetProgress(progress with { progress = 1f }, "Done.");

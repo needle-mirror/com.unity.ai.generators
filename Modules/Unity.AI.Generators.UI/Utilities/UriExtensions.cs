@@ -26,7 +26,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     response.EnsureSuccessStatusCode();
 
                     {
-                        await using var writeFileStream = FileIO.OpenFileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                        await using var writeFileStream = FileIO.OpenWriteAsync(tempFilePath);
                         await response.Content.CopyToAsync(writeFileStream);
                     }
                 }
@@ -34,7 +34,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 string destinationPath;
 
                 {
-                    await using var fileStream = FileIO.OpenFileStream(tempFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+                    await using var fileStream = FileIO.OpenReadAsync(tempFilePath);
                     var extension = FileIO.GetFileExtension(fileStream);
 
                     destinationFileNameWithoutExtension ??= fileNameWithoutExtension;
@@ -52,6 +52,14 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (File.Exists(tempFilePath))
                     File.Delete(tempFilePath);
             }
+        }
+
+        public static GeneratedAssetMetadata GetGenerationMetadata(Uri resultUri)
+        {
+            var data = new GeneratedAssetMetadata();
+            try { data = JsonUtility.FromJson<GeneratedAssetMetadata>(FileIO.ReadAllText($"{resultUri.GetLocalPath()}.json")); }
+            catch { /*Debug.LogWarning($"Could not read {animationClipResult.uri.GetLocalPath()}.json");*/ }
+            return data;
         }
     }
 }

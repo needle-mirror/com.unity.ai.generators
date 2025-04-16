@@ -153,7 +153,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     assetUndoManager.BeginRecord(payload.asset);
                     if (await payload.asset.Replace(payload.result))
                     {
-                        AssetDatabase.Refresh();
+                        AssetDatabase.ImportAsset(payload.asset.GetPath(), ImportAssetOptions.ForceUpdate);
                         api.Dispatch(setReplaceWithoutConfirmation, new (payload.asset, replaceWithoutConfirmation));
                         assetUndoManager.EndRecord(payload.asset, payload.result);
                         result = true;

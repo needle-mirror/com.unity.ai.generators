@@ -26,7 +26,17 @@ namespace Unity.AI.Generators.Chat
             );
         }
 
-        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Sprite", false, 3)]
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Material", false, 3)]
+        public static void OnGenerateMaterial()
+        {
+            ShowWindow(
+                "Generate Material Prompt (Chat Plugin Test)",
+                "Enter the prompt for the material to be generated:",
+                PluginEntryPoints.GenerateMaterial
+            );
+        }
+
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Sprite", false, 4)]
         public static void OnGenerateSprite()
         {
             ShowWindow(
@@ -35,7 +45,17 @@ namespace Unity.AI.Generators.Chat
                 PluginEntryPoints.GenerateSprite
             );
         }
-        
+
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Animation", false, 5)]
+        public static void OnGenerateAnimation()
+        {
+            ShowWindow(
+                "Generate Animation Prompt (Chat Plugin Test)",
+                "Enter the prompt for the animation to be generated:",
+                PluginEntryPoints.GenerateAnimation
+            );
+        }
+
         string m_InputText = "";
         string m_Label;
         Action<string> m_OnConfirm;

@@ -39,7 +39,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             AnimateGeneratorWindow.Display(destFileName);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAnimationClipResult, true, false));
-            AssetDatabase.Refresh();
+            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
         });
 
         public static readonly Func<(DragAndDropGenerationData data, IStoreApi api), AssetReference> promoteGenerationUnsafe = args =>
@@ -55,7 +55,6 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
             var promotedAnimationClipResult = AnimationClipResult.FromPath(originalAnimationClipResult.uri.GetLocalPath());
             var promotedAsset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(destFileName) };
-
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
 
             _ = SaveToProjectUnsafe();
@@ -66,9 +65,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             {
                 await promotedAnimationClipResult.CopyToProject(await originalAnimationClipResult.GetMetadata(), generativePath);
 
-                // unsafe because it forcibly overwrites the asset, only ok when we create a new asset (as here)
-                if (promotedAsset.Replace(promotedAnimationClipResult))
-                    AssetDatabase.Refresh();
+                // forcibly overwrite the asset, only ok when we create a new asset (as here)
+                promotedAsset.Replace(promotedAnimationClipResult);
 
                 // set late because asset import clears the selection
                 args.api.Dispatch(GenerationResultsActions.setSelectedGeneration, new PromotedGenerationData(promotedAsset, promotedAnimationClipResult));

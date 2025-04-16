@@ -151,12 +151,10 @@ namespace Unity.AI.Sound.Components
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
             m_GenerationFileSystemWatcher = null;
 
-            UpdateItems(new List<AudioClipResult>());
+            UpdateItems(this.GetState().SelectGeneratedAudioClipsAndSkeletons(this));
 
             if (!asset.IsValid() || !assetMonitor)
                 return;
-
-            UpdateItems(this.GetState().SelectGeneratedAudioClipsAndSkeletons(this));
 
             m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, new[] { ".wav" },
                 files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedAudioClipsAsync,

@@ -17,12 +17,15 @@ namespace Unity.AI.Animate.Windows
         public static bool GenerateAnimateValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
 
         [MenuItem("Assets/Create/Animation/Generate Animation Clip", false, -1000)]
-        public static void EmptyAnimate()
+        public static void EmptyAnimateMenu() => EmptyAnimate();
+
+        public static AnimationClip EmptyAnimate()
         {
             var animate = AssetUtils.CreateAndSelectBlankAnimation();
             Selection.activeObject = animate;
-            OnAssetGenerationRequest(new[] { Selection.activeObject });
-        }        
+            GenerateAnimate();
+            return animate;
+        }
 
         [InitializeOnLoadMethod]
         static void EditorHeaderButtons() => Editor.finishedDefaultHeaderGUI += OnHeaderControlsGUI;
@@ -73,7 +76,7 @@ namespace Unity.AI.Animate.Windows
                 AnimationClip animate => AssetDatabase.GetAssetPath(animate),
                 _ => null
             };
-            
+
             if (string.IsNullOrEmpty(path))
                 path = AssetDatabase.GetAssetPath(obj);
 

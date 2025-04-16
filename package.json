@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "AI Generators",
-  "version": "1.0.0-pre.3",
+  "version": "1.0.0-pre.4",
   "unity": "6000.2",
-  "unityRelease": "0a6",
+  "unityRelease": "0a9",
   "description": "AI Generators is a package that provides tools for adding generative AI to Unity workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.3"
+    "com.unity.ai.toolkit": "1.0.0-pre.4"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.3"
+    "com.unity.ai.generators.tests": "1.0.0-pre.4"
   },
   "_upm": {
-    "changelog": "### Fixed\n\n- Update SDK to version 0.15.0"
+    "changelog": "### Changed\n\n- Update SDK to version 0.16.2.\n\n### Fixed\n\n- Image file conversions.\n- Image reference aspect ratios.\n- Generate new sprite in object picker."
   },
   "upmCi": {
-    "footprint": "f4e7382ff735f6fd44586479755a6cdb47aba139"
+    "footprint": "a38e984644c540851627ceb19611323919718a2d"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "0580257ab8ea1d58fe5c295571652033520b7211"
+    "revision": "299ac8bcb2576f563f9593ae6c1ff3892a37eb6d"
   }
 }

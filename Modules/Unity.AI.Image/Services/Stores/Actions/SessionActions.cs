@@ -36,27 +36,24 @@ namespace Unity.AI.Image.Services.Stores.Actions
             TextureGeneratorWindow.Display(destFileName);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedTextureResult, true, false));
-            AssetDatabase.Refresh();
-
-            AssetDatabase.ImportAsset(destFileName);
 
             // copy sprite properties
             var sourceImporter = AssetImporter.GetAtPath(data.asset.GetPath()) as TextureImporter;
             var destImporter = AssetImporter.GetAtPath(promotedAsset.GetPath()) as TextureImporter;
-            if (sourceImporter != null && destImporter != null)
-            {
-                var json = EditorJsonUtility.ToJson(sourceImporter);
-                EditorJsonUtility.FromJsonOverwrite(json, destImporter);
+            if (sourceImporter == null || destImporter == null)
+                return;
 
-                // todo: copy spritesheet slicing metadata
-                destImporter.textureType = sourceImporter.textureType;
-                destImporter.spritePixelsPerUnit = sourceImporter.spritePixelsPerUnit;
-                destImporter.spritePivot = sourceImporter.spritePivot;
-                destImporter.spriteBorder = sourceImporter.spriteBorder;
-                destImporter.spriteImportMode = sourceImporter.spriteImportMode;
+            var json = EditorJsonUtility.ToJson(sourceImporter);
+            EditorJsonUtility.FromJsonOverwrite(json, destImporter);
 
-                destImporter.SaveAndReimport();
-            }
+            // todo: copy spritesheet slicing metadata
+            destImporter.textureType = sourceImporter.textureType;
+            destImporter.spritePixelsPerUnit = sourceImporter.spritePixelsPerUnit;
+            destImporter.spritePivot = sourceImporter.spritePivot;
+            destImporter.spriteBorder = sourceImporter.spriteBorder;
+            destImporter.spriteImportMode = sourceImporter.spriteImportMode;
+
+            destImporter.SaveAndReimport();
         });
         public static Creator<float> setPreviewSizeFactor => new($"{slice}/setPreviewSizeFactor");
     }

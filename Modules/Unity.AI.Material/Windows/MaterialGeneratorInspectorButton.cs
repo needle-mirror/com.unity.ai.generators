@@ -25,7 +25,7 @@ namespace Unity.AI.Material.Windows
             Selection.activeObject = material;
             OnAssetGenerationRequest(new[] { Selection.activeObject });
             return material;
-        }          
+        }
 
         [InitializeOnLoadMethod]
         static void EditorHeaderButtons() => Editor.finishedDefaultHeaderGUI += OnHeaderControlsGUI;
@@ -49,7 +49,16 @@ namespace Unity.AI.Material.Windows
         {
             foreach (var obj in objects)
             {
-                if (TryGetValidMaterialPath(obj, out var validPath))
+                if (AssetUtils.IsShaderGraph(obj))
+                {
+                    var shaderPath = AssetDatabase.GetAssetPath(obj);
+                    var newMaterial = AssetUtils.CreateMaterialFromShaderGraph(shaderPath);
+                    if (newMaterial != null)
+                    {
+                        OpenGenerationWindow(AssetDatabase.GetAssetPath(newMaterial));
+                    }
+                }
+                else if (TryGetValidMaterialPath(obj, out var validPath))
                 {
                     OpenGenerationWindow(validPath);
                 }
@@ -60,7 +69,7 @@ namespace Unity.AI.Material.Windows
         {
             foreach (var obj in objects)
             {
-                if (AssetDatabase.IsOpenForEdit(obj) && TryGetValidMaterialPath(obj, out _))
+                if (AssetDatabase.IsOpenForEdit(obj) && (TryGetValidMaterialPath(obj, out _) || AssetUtils.IsShaderGraph(obj)))
                 {
                     return true;
                 }
@@ -69,21 +78,22 @@ namespace Unity.AI.Material.Windows
             return false;
         }
 
-        public static bool TryGetValidMaterialPath(Object obj, out string path)
+        static bool TryGetValidMaterialPath(Object obj, out string path)
         {
             path = obj switch
             {
                 UnityEngine.Material material => AssetDatabase.GetAssetPath(material),
                 _ => null
             };
-            
+
             if (string.IsNullOrEmpty(path))
                 path = AssetDatabase.GetAssetPath(obj);
 
             return obj is UnityEngine.Material && !string.IsNullOrEmpty(path);
         }
 
-        static bool OnAssetGenerationMultipleValidation(IReadOnlyCollection<Object> objects) => objects.FirstOrDefault(o => TryGetValidMaterialPath(o, out _));
+        static bool OnAssetGenerationMultipleValidation(IReadOnlyCollection<Object> objects) =>
+            objects.Any(o => TryGetValidMaterialPath(o, out _) || AssetUtils.IsShaderGraph(o));
 
         public static void OpenGenerationWindow(string assetPath) => MaterialGeneratorWindow.Display(assetPath);
     }

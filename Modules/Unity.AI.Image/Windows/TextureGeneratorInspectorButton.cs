@@ -18,12 +18,26 @@ namespace Unity.AI.Image.Windows
 
         public static bool GenerateImageValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
 
+        [MenuItem("Assets/Create/2D/Generate Sprite", false, -1000)]
+        public static void Empty2dSpriteMenu() => EmptySprite();
+
+        [MenuItem("Assets/Create/Rendering/Generate Sprite", false, -1000)]
+        public static void EmptySpriteMenu() => EmptySprite();
+
         [MenuItem("Assets/Create/Rendering/Generate Texture 2D", false, -1000)]
         public static void EmptyTextureMenu() => EmptyTexture();
 
         public static Texture2D EmptyTexture()
         {
             var texture = AssetUtils.CreateAndSelectBlankTexture();
+            Selection.activeObject = texture;
+            GenerateImage();
+            return texture;
+        }
+
+        public static Texture2D EmptySprite()
+        {
+            var texture = AssetUtils.CreateAndSelectBlankSprite();
             Selection.activeObject = texture;
             GenerateImage();
             return texture;

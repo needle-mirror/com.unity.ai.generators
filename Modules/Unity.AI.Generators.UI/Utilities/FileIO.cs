@@ -40,12 +40,15 @@ namespace Unity.AI.Generators.UI.Utilities
             if (fileInfo1.Length != fileInfo2.Length)
                 return false;
 
-            using Stream stream1 = options.getBytes1 ? OpenRead(options.path1) : new MemoryStream(options.bytes1 = ReadAllBytes(options.path1));
-            using Stream stream2 = options.getBytes2 ? OpenRead(options.path2) : new MemoryStream(options.bytes2 = ReadAllBytes(options.path2));
+            using Stream fileStream1 = OpenReadAsync(options.path1);
+            using Stream fileStream2 = OpenReadAsync(options.path2);
+
+            using Stream readStream1 = options.getBytes1 ? new MemoryStream(options.bytes1 = fileStream1.ReadFully()) : null;
+            using Stream readStream2 = options.getBytes2 ? new MemoryStream(options.bytes2 = fileStream2.ReadFully()) : null;
 
             using var sha256 = SHA256.Create();
-            var hash1 = sha256.ComputeHash(stream1);
-            var hash2 = sha256.ComputeHash(stream2);
+            var hash1 = sha256.ComputeHash(readStream1 ?? fileStream1);
+            var hash2 = sha256.ComputeHash(readStream2 ?? fileStream2);
             return StructuralComparisons.StructuralEqualityComparer.Equals(hash1, hash2);
         }
 
@@ -509,7 +512,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (canSeek)
                     inputStream.Position = 0;
 
-                using var fileStream = OpenFileStream(path, FileMode.Create);
+                using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, false ? FileOptions.Asynchronous : FileOptions.None);
                 inputStream.CopyTo(fileStream);
             }
             finally
@@ -534,7 +537,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (canSeek)
                     inputStream.Position = 0;
 
-                await using var fileStream = OpenFileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+                await using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
                 await inputStream.CopyToAsync(fileStream);
             }
             finally
@@ -581,24 +584,19 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        public static FileStream OpenFileStream(string path, FileMode mode) => OpenFileStreamInternal(path, mode,
-            mode == FileMode.Append ? FileAccess.Write : FileAccess.ReadWrite, FileShare.Read, 4096, FileOptions.None);
-
-        public static FileStream OpenFileStream(string path, FileMode mode, FileAccess access) =>
-            OpenFileStreamInternal(path, mode, access, FileShare.Read, 4096, FileOptions.None);
-
-        public static FileStream OpenFileStream(string path, FileMode mode, FileAccess access, FileShare share) =>
-            OpenFileStreamInternal(path, mode, access, share, 4096, FileOptions.None);
-
-        public static FileStream OpenFileStream(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize) =>
-            OpenFileStreamInternal(path, mode, access, share, bufferSize, FileOptions.None);
-
         public static FileStream OpenFileStream(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize, FileOptions options) =>
             OpenFileStreamInternal(path, mode, access, share, bufferSize, options);
 
-        public static FileStream OpenFileStream(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize, bool useAsync) =>
-            OpenFileStreamInternal(path, mode, access, share, bufferSize, useAsync ? FileOptions.Asynchronous : FileOptions.None);
+        public static FileStream OpenRead(string path) =>
+            OpenFileStreamInternal(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.None);
 
-        public static FileStream OpenRead(string path) => OpenFileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        public static FileStream OpenReadAsync(string path) =>
+            OpenFileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
+
+        public static FileStream OpenWrite(string path) =>
+            OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.None);
+
+        public static FileStream OpenWriteAsync(string path) =>
+            OpenFileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
     }
 }

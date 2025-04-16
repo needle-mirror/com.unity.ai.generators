@@ -35,7 +35,6 @@ namespace Unity.AI.Image.Services.Utilities
         {
             var objectField = e.Q<ObjectField>();
             var imageReferenceObjectField = e.Q<VisualElement>("image-reference-object-field");
-            var objectFieldDisplayIcon = e.Q<UnityEngine.UIElements.Image>(className: "unity-object-field-display__icon");
             var doodleBackground = imageReferenceObjectField.Q<VisualElement>("doodle-pad-background-image");
             var doodleCanvas = imageReferenceObjectField.Q<UnityEngine.UIElements.Image>("doodle-pad-canvas");
             var settingsButton = e.Q<Button>("image-reference-settings-button");
@@ -51,20 +50,26 @@ namespace Unity.AI.Image.Services.Utilities
             editButton.SetShown(e.allowEdit);
 
             // UI events
-            objectFieldDisplayIcon.AddManipulator(new ScaleToFitImage());
+            objectField.AddManipulator(new ScaleToFitObjectFieldImage());
             objectField.RegisterValueChangedCallback(async evt =>
             {
                 var wasTempAsset = ExternalFileDragDrop.tempAssetDragged;
                 var assetRef = AssetReferenceExtensions.FromObject(evt.newValue);
                 if (wasTempAsset)
                 {
-                    var path = assetRef.GetPath();
-                    var data = await assetRef.GetFile();
+                    ExternalFileDragDrop.EndDragFromExternalPath();
+
+                    byte[] data;
+                    {
+                        await using var stream = await assetRef.GetCompatibleImageStreamAsync();
+                        data = await stream.ReadFullyAsync();
+                    }
                     objectField.SetValueWithoutNotify(null); // force the field to be empty to not hold a reference to the temp asset
                     e.Dispatch(GenerationSettingsActions.setImageReferenceAsset, new (e.type, null));
                     e.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (e.type, ImageReferenceMode.Doodle));
                     e.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (e.type, data));
-                    AssetDatabase.DeleteAsset(path);
+
+                    ExternalFileDragDrop.CleanupDragFromExternalPath();
                 }
                 else
                 {
@@ -73,8 +78,7 @@ namespace Unity.AI.Image.Services.Utilities
                     e.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (e.type, null));
                 }
             });
-            strengthSlider?.RegisterValueChangedCallback(evt =>
-            {
+            strengthSlider?.RegisterValueChangedCallback(evt => {
                 e.Dispatch(GenerationSettingsActions.setImageReferenceStrength, new (e.type, e.invertStrength ? 1 - evt.newValue / 100.0f : evt.newValue / 100.0f));
             });
             deleteImageReference.clicked += () => {
@@ -215,8 +219,16 @@ namespace Unity.AI.Image.Services.Utilities
                 var imgRefAsset = state.SelectImageReferenceAsset(e, e.type);
                 var imgRefDoodle = state.SelectImageReferenceDoodle(e, e.type);
                 var mode = state.SelectImageReferenceMode(e, e.type);
-                var data = mode == ImageReferenceMode.Doodle ?
-                    imgRefDoodle : imgRefAsset.IsValid() ? await imgRefAsset.GetFile() : null;
+                byte[] data;
+                if (mode == ImageReferenceMode.Doodle)
+                    data = imgRefDoodle;
+                else if (imgRefAsset.IsValid())
+                {
+                    await using var stream = await imgRefAsset.GetCompatibleImageStreamAsync();
+                    data = await stream.ReadFullyAsync();
+                }
+                else
+                    data = null;
                 var windowArgs = new DoodleWindowArgs(e.GetAsset(), e.type, data, doodlePad.GetDoodleSize(), e.showBaseImageByDefault);
                 if (DoodleWindow.Open(windowArgs) is {hasUnsavedChanges: false})
                 {

@@ -62,8 +62,8 @@ namespace Unity.AI.Animate.Services.Utilities
             clipSettings.keepOriginalOrientation = true;
             AnimationUtility.SetAnimationClipSettings(clip, clipSettings);
 
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            EditorUtility.SetDirty(clip);
+            AssetDatabase.SaveAssetIfDirty(clip);
         }
 
         public static AnimationClip CreateAndSelectBlankAnimation(bool force = true)
@@ -76,8 +76,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 path = CreateBlankAnimation(path);
                 if (string.IsNullOrEmpty(path))
                     Debug.Log($"Failed to create animate for '{path}'.");
-                AssetDatabase.ImportAsset(path);
-                AssetDatabase.Refresh();
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
             var animate = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
             Selection.activeObject = animate;

@@ -47,25 +47,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static AssetActionCreator<string> setPendingPing => new($"{slice}/setPendingPing");
         public static AssetActionCreator<(ImageReferenceType type, byte[] data)> applyEditedImageReferenceDoodle => new($"{slice}/applyEditedImageReferenceDoodle");
 
-        public static readonly AsyncThunkCreatorWithArg<(VisualElement element, RefinementMode mode)> openSelectModelPanel = new($"{slice}/openSelectModelPanel", async (payload, api) =>
+        public static readonly AsyncThunkCreatorWithArg<VisualElement> openSelectModelPanel = new($"{slice}/{nameof(openSelectModelPanel)}", async (element, api) =>
         {
-            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            // its model selection is transient and needs to be exchanged with the current modality's slice
-            var element = payload.element;
             var selectedModelID = api.State.SelectSelectedModelID(element);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModelID, selectedModelID);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModality, ModalityEnum.Image);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastOperationSubTypes, payload.mode switch
-            {
-                RefinementMode.Generation => new [] { OperationSubTypeEnum.TextPrompt },
-                RefinementMode.Upscale => new [] { OperationSubTypeEnum.Upscale },
-                RefinementMode.Pixelate => new [] { OperationSubTypeEnum.Pixelate },
-                RefinementMode.Recolor => new [] { OperationSubTypeEnum.RecolorReference },
-                RefinementMode.Inpaint => new [] { OperationSubTypeEnum.MaskReference },
-                _ => new [] { OperationSubTypeEnum.TextPrompt }
-            });
-            await ModelSelectorWindow.Open(element.GetStore());
-            selectedModelID = ModelSelector.Services.Stores.Selectors.ModelSelectorSelectors.SelectLastSelectedModelID(api.State);
+            var operations = api.State.SelectRefinementOperations(element);
+            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Image, operations.ToArray());
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 

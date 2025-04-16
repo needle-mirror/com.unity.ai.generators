@@ -154,12 +154,10 @@ namespace Unity.AI.Image.Components
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
             m_GenerationFileSystemWatcher = null;
 
-            UpdateItems(new List<TextureResult>());
+            UpdateItems(this.GetState().SelectGeneratedTexturesAndSkeletons(this));
 
             if (!asset.IsValid() || !assetMonitor)
                 return;
-
-            UpdateItems(this.GetState().SelectGeneratedTexturesAndSkeletons(this));
 
             m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, ImageFileUtilities.knownExtensions,
                 files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedTexturesAsync,

@@ -36,9 +36,6 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             SoundGeneratorWindow.Display(destFileName);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAudioClipResult, true, false));
-            AssetDatabase.Refresh();
-
-            AssetDatabase.ImportAsset(destFileName);
         });
         public static Creator<float> setPreviewSizeFactor => new($"{slice}/setPreviewSizeFactor");
         public static Creator<string> setMicrophoneName => new($"{slice}/setMicrophoneName");

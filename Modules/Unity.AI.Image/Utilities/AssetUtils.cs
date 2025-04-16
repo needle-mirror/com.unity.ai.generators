@@ -10,48 +10,58 @@ namespace Unity.AI.Image.Services.Utilities
     static class AssetUtils
     {
         public const string defaultNewAssetName = "New Texture";
+        public const string defaultNewAssetNameAlt = "New Sprite";
 
-        public static string CreateBlankTexture(string path, bool force = true)
+        static string CreateBlankTexture(string path, bool force, int width, int height)
         {
-            var texture = new Texture2D(1, 1, TextureFormat.ARGB32, false) {hideFlags = HideFlags.HideAndDontSave};
-            texture.SetPixel(0, 0, Color.clear);
-            var bytes = texture.EncodeToPNG();
-            if (bytes == null)
-                return string.Empty;
-            path = Path.ChangeExtension(path, ".png");
-            if (force || !File.Exists(path))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-                FileIO.WriteAllBytes(path, bytes);
-                AssetDatabase.ImportAsset(path);
-                AssetDatabase.Refresh();
-            }
-            return path;
-        }
-
-        public static string CreateBlankTexture(string path, int width, int height)
-        {
-            var blankTexture = new Texture2D(width, height, TextureFormat.ARGB32, false) {hideFlags = HideFlags.HideAndDontSave};
+            var texture = new Texture2D(width, height, TextureFormat.ARGB32, false) {hideFlags = HideFlags.HideAndDontSave};
             try
             {
+                // Fill texture with clear color
                 var clearColor = new Color(0, 0, 0, 0);
                 var pixels = new Color[width * height];
-                for (var i = 0; i < pixels.Length; i++)
-                    pixels[i] = clearColor;
+                Array.Fill(pixels, clearColor);
+                texture.SetPixels(pixels);
+                texture.Apply();
 
-                blankTexture.SetPixels(pixels);
-                blankTexture.Apply();
+                var bytes = texture.EncodeToPNG();
+                if (bytes == null)
+                    return string.Empty;
 
-                var pngData = blankTexture.EncodeToPNG();
-                FileIO.WriteAllBytes(path, pngData);
-
-                AssetDatabase.Refresh();
+                path = Path.ChangeExtension(path, ".png");
+                if (force || !File.Exists(path))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    FileIO.WriteAllBytes(path, bytes);
+                    AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                }
+                return path;
             }
             finally
             {
-                blankTexture.SafeDestroy();
+                texture.SafeDestroy();
             }
-            return path;
+        }
+
+        public static string CreateBlankTexture(string path, bool force = true) => CreateBlankTexture(path, force, 1, 1);
+
+        public static string CreateBlankSprite(string path, bool force = true)
+        {
+            const int size = 1024;
+            var texturePath = CreateBlankTexture(path, force, size, size);
+            if (string.IsNullOrEmpty(texturePath))
+                return string.Empty;
+
+            var textureImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+            if (textureImporter != null)
+            {
+                textureImporter.textureType = TextureImporterType.Sprite;
+                textureImporter.spriteImportMode = SpriteImportMode.Single;
+                textureImporter.spritePixelsPerUnit = size;
+                textureImporter.SaveAndReimport();
+            }
+
+            return texturePath;
         }
 
         static Texture2D CreateTexture(string name, bool force = true)
@@ -64,8 +74,24 @@ namespace Unity.AI.Image.Services.Utilities
                 path = CreateBlankTexture(path);
                 if (string.IsNullOrEmpty(path))
                     Debug.Log($"Failed to create texture file for '{path}'.");
-                AssetDatabase.ImportAsset(path);
-                AssetDatabase.Refresh();
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            }
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            Selection.activeObject = texture;
+            return texture;
+        }
+
+        static Texture2D CreateSprite(string name, bool force = true)
+        {
+            var basePath = AssetUtilities.GetSelectionPath();
+            var path = $"{basePath}/{name}.png";
+            if (force || !File.Exists(path))
+            {
+                path = AssetDatabase.GenerateUniqueAssetPath(path);
+                path = CreateBlankSprite(path);
+                if (string.IsNullOrEmpty(path))
+                    Debug.Log($"Failed to create sprite file for '{path}'.");
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
             var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             Selection.activeObject = texture;
@@ -73,5 +99,7 @@ namespace Unity.AI.Image.Services.Utilities
         }
 
         public static Texture2D CreateAndSelectBlankTexture(bool force = true) => CreateTexture(defaultNewAssetName, force);
+
+        public static Texture2D CreateAndSelectBlankSprite(bool force = true) => CreateSprite(defaultNewAssetNameAlt, force);
     }
 }

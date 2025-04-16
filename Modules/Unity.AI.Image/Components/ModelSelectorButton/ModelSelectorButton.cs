@@ -45,7 +45,7 @@ namespace Unity.AI.Image.Components
                 try
                 {
                     m_Button.SetEnabled(false);
-                    await this.GetStoreApi().Dispatch(GenerationSettingsActions.openSelectModelPanel, (this, this.GetState().SelectRefinementMode(this)));
+                    await this.GetStoreApi().Dispatch(GenerationSettingsActions.openSelectModelPanel, this);
                 }
                 finally
                 {
@@ -60,6 +60,15 @@ namespace Unity.AI.Image.Components
                     return;
                 await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
                 this.Dispatch(GenerationSettingsActions.setLastModelDiscoveryTime, Time.time);
+            });
+            this.Use(state => state.SelectShouldAutoAssignModel(this), payload =>
+            {
+                m_Button.SetEnabled(!payload.should);
+                if (!payload.should)
+                    return;
+                var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
+                if (!string.IsNullOrEmpty(autoAssignModel?.id))
+                    this.Dispatch(GenerationSettingsActions.setSelectedModelID, (payload.mode, autoAssignModel.id));
             });
         }
     }

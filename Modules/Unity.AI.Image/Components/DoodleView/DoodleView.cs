@@ -35,6 +35,7 @@ namespace Unity.AI.Image.Components
             var toolGroup = this.Q<ToggleButtonGroup>("toolGroup");
             var clearButton = this.Q<Button>("clearButton");
             var brushSettingsToolbar = this.Q<VisualElement>("brushSettingsToolbar");
+            var brushSizeLabel = this.Q<Label>("brushSizeLabel");
             var brushSizeSlider = this.Q<SliderInt>("brushSizeSlider");
             var brushColorField = this.Q<ColorField>("brushColorField");
             var saveButton = this.Q<Button>("saveButton");
@@ -88,16 +89,16 @@ namespace Unity.AI.Image.Components
                 switch (doodleTool)
                 {
                     case DoodleTool.Brush:
-                        m_DoodlePad.SetBrush( );
-                        brushSettingsToolbar.SetShown();
+                        m_DoodlePad.SetBrush();
+                        ShowToolbarWithSettings(true, true);
                         break;
                     case DoodleTool.Eraser:
                         m_DoodlePad.SetEraser();
-                        brushSettingsToolbar.SetShown();
+                        ShowToolbarWithSettings(false, true);
                         break;
                     case DoodleTool.Fill:
                         m_DoodlePad.SetBucketFill();
-                        brushSettingsToolbar.SetShown(false);
+                        ShowToolbarWithSettings(true, false);
                         break;
                     case DoodleTool.None:
                     default:
@@ -134,6 +135,15 @@ namespace Unity.AI.Image.Components
 
             this.UseAsset(SetAsset);
             this.Use(state => state.SelectSelectedGeneration( this), OnGenerationSelected);
+            return;
+
+            void ShowToolbarWithSettings(bool showColorField, bool showBrushSize)
+            {
+                brushSettingsToolbar.SetShown();
+                brushColorField.SetShown(showColorField);
+                brushSizeLabel.SetShown(showBrushSize);
+                brushSizeSlider.SetShown(showBrushSize);
+            }
         }
 
         void OnCanvasGeometryChanged(GeometryChangedEvent evt)

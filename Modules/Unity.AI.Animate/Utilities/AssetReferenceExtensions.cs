@@ -12,11 +12,6 @@ namespace Unity.AI.Animate.Services.Utilities
 {
     static class AssetReferenceExtensions
     {
-        public static Task<byte[]> GetFile(this AssetReference asset) => FileIO.ReadAllBytesAsync(asset.GetPath());
-
-        public static Stream GetFileStream(this AssetReference asset) =>
-            FileIO.OpenFileStream(asset.GetPath(), FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
-
         public static async Task<bool> ReplaceAsync(this AssetReference asset, AnimationClipResult generatedAnimationClip)
         {
             if (await generatedAnimationClip.CopyToAsync(asset))

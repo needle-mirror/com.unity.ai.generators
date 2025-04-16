@@ -1,4 +1,5 @@
 using System;
+using Unity.AI.Toolkit.Accounts.Services;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -33,6 +34,20 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
 
             Add(label);
             Add(chevron);
+
+            RegisterCallback<AttachToPanelEvent>(_ =>
+            {
+                Account.session.OnChange += Refresh;
+            });
+            RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                Account.session.OnChange -= Refresh;
+            });
+        }
+
+        void Refresh()
+        {
+            EnableInClassList("hide", !Account.settings.AiGeneratorsEnabled);
         }
     }
 }

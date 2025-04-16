@@ -26,31 +26,8 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static string GetMaterialName(this AssetReference asset) => Path.GetFileNameWithoutExtension(asset.GetPath());
 
-        public static Task<byte[]> GetFile(this AssetReference asset) => FileIO.ReadAllBytesAsync(asset.GetPath());
-
-        public static Stream GetFileStream(this AssetReference asset) =>
-            FileIO.OpenFileStream(asset.GetPath(), FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
-
-        public static Stream GetCompatibleImageStream(this AssetReference asset)
-        {
-            var candidateStream = asset.GetFileStream();
-            // Check if the reference image is in a format our PBR pipeline can process directly.
-            // Unity can load many texture formats internally (TGA, PSD, TIFF, etc.) that our remote
-            // generation pipeline doesn't support. If we detect an unsupported format, we'll convert
-            // the texture to PNG (guaranteed compatible) before proceeding with any resizing operations.
-            if (!ImageFileUtilities.IsRuntimeLoadSupported(candidateStream))
-            {
-                var referenceTexture = asset.GetObject<Texture2D>();
-                var readableTexture = ImageFileUtilities.MakeTextureReadable(referenceTexture);
-                var bytes = readableTexture.EncodeToPNG();
-                candidateStream.Dispose();
-                candidateStream = new MemoryStream(bytes);
-
-                if (readableTexture != referenceTexture)
-                    readableTexture.SafeDestroy();
-            }
-            return candidateStream;
-        }
+        public static async Task<Stream> GetCompatibleImageStreamAsync(this AssetReference asset) =>
+            asset.Exists() ? await ImageFileUtilities.GetCompatibleImageStreamAsync(new Uri(Path.GetFullPath(asset.GetPath()))) : null;
 
         public static async Task<bool> ReplaceAsync(this AssetReference asset, MaterialResult generatedMaterial, Dictionary<MapType, string> generatedMaterialMapping)
         {
@@ -115,8 +92,9 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static bool TryGetDefaultTexturePropertyName(this AssetReference asset, MapType mapType, out string texturePropertyName)
         {
+            texturePropertyName = null;
             var material = asset.GetObject<UnityEngine.Material>();
-            return material.TryGetDefaultTexturePropertyName(mapType, out texturePropertyName);
+            return material && material.TryGetDefaultTexturePropertyName(mapType, out texturePropertyName);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -10,9 +11,8 @@ namespace Unity.AI.Sound.Components
     {
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Sound/Components/SoundEnvelope/SoundEnvelopeZoomButton.uxml";
 
-        GenericDropdownMenu m_Menu;
         bool m_MenuHasDisabledItemsOnly;
-        readonly Button m_ZoomButton;
+        readonly ToolbarMenu m_ZoomMenu;
 
         public const float zoomFactor = 1.2f;
         float m_ZoomValue = 1;
@@ -27,19 +27,14 @@ namespace Unity.AI.Sound.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
-            m_ZoomButton = this.Q<Button>(classes: "zoom-button");
+            m_ZoomMenu = this.Q<ToolbarMenu>(classes: "zoom-button");
 
-            ;
-
-            m_Menu = new GenericDropdownMenu();
-            m_Menu.AddItem("Zoom in", false, () => ZoomOption(0));
-            m_Menu.AddItem("Zoom out", false, () => ZoomOption(1));
-            m_Menu.AddItem("Zoom to 50%", false, () => ZoomOption(2));
-            m_Menu.AddItem("Zoom to 100%", false, () => ZoomOption(3));
-            m_Menu.AddItem("Zoom to 200%", false, () => ZoomOption(4));
-            m_Menu.AddItem("Zoom to 400%", false, () => ZoomOption(5));
-
-            m_ZoomButton.clicked += () => m_Menu.DropDown(m_ZoomButton.worldBound, m_ZoomButton, false);
+            m_ZoomMenu.menu.AppendAction("Zoom in", (a) => ZoomOption(0));
+            m_ZoomMenu.menu.AppendAction("Zoom out", (a) => ZoomOption(1));
+            m_ZoomMenu.menu.AppendAction("Zoom to 50%", (a) => ZoomOption(2));
+            m_ZoomMenu.menu.AppendAction("Zoom to 100%", (a) => ZoomOption(3));
+            m_ZoomMenu.menu.AppendAction("Zoom to 200%", (a) => ZoomOption(4));
+            m_ZoomMenu.menu.AppendAction("Zoom to 400%", (a) => ZoomOption(5));
             return;
 
             void ZoomOption(int index)
@@ -66,7 +61,7 @@ namespace Unity.AI.Sound.Components
                         break;
                 }
 
-                m_ZoomButton.text = ZoomButtonLabelFormat;
+                m_ZoomMenu.text = ZoomButtonLabelFormat;
             }
         }
 
@@ -75,7 +70,7 @@ namespace Unity.AI.Sound.Components
         public void SetZoom(float zoomValue)
         {
             m_ZoomValue = Mathf.Clamp(zoomValue, 1 / 128f, 8f);
-            m_ZoomButton.text = ZoomButtonLabelFormat;
+            m_ZoomMenu.text = ZoomButtonLabelFormat;
             onZoomChanged?.Invoke(this.zoomValue);
         }
     }

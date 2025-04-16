@@ -1,18 +1,18 @@
 <!-- GenerateUI.uxml -->
-<UXML class="flex-grow-100pct" xmlns="UnityEngine.UIElements" xmlns:ui="Unity.AI.Sound.Components">
+<UXML class="flex-grow-100pct" xmlns="UnityEngine.UIElements" xmlns:ui="Unity.AI.Sound.Components" xmlns:editor="UnityEditor.UIElements">
     <Style src="../../../Unity.AI.Generators.UI/StyleSheets/FlexUtilities.uss" />
     <Style src="./SoundEnvelope.uss" />
     <VisualElement class="flex-grow bg-light">
         <VisualElement class="flex-grow bg-medium rounded-8px m-8">
-            <VisualElement class="flex-no-grow flex-no-shrink flex-row height-32px mt-4 pl-5">
-                <Button class="play-button m-2 p-4 size-24px bg-transparent border-none toolbar-play" />
-                <Button class="loop-button m-2 p-4 size-24px bg-transparent border-none toolbar-loop" />
-                <Button class="envelope-button m-2 p-4 size-24px bg-transparent border-none toolbar-envelope" />
-                <Button class="trim-button m-2 p-4 size-24px bg-transparent border-none toolbar-trim" />
+            <editor:Toolbar>
+                <editor:ToolbarButton class="play-button m-2 p-4 size-24px border-none toolbar-play" />
+                <editor:ToolbarToggle class="loop-button m-2 p-4 size-24px border-none toolbar-loop" />
+                <editor:ToolbarToggle class="envelope-button m-2 p-4 size-24px border-none toolbar-envelope" />
+                <editor:ToolbarToggle class="trim-button m-2 p-4 size-24px border-none toolbar-trim" />
                 <VisualElement class="flex-grow" />
-                <Button class="save-button m-2 p-4 size-24px bg-transparent border-none toolbar-save" />
+                <editor:ToolbarButton class="save-button m-2 p-4 size-24px border-none toolbar-save" />
                 <ui:SoundEnvelopeZoomButton />
-            </VisualElement>
+            </editor:Toolbar>
             <VisualElement class="flex-grow flex-shrink flex-row">
                 <Image class="waveform flex-grow flex-shrink" />
             </VisualElement>

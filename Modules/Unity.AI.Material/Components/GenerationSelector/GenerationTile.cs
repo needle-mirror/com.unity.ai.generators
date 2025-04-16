@@ -119,7 +119,6 @@ namespace Unity.AI.Material.Components
                 var asset = this.GetAsset();
                 var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
                 await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, materialResult, true, true));
-                AssetDatabase.Refresh();
             }, DropdownMenuAction.AlwaysEnabled);
 
             evt.menu.AppendAction("Refresh", _ =>

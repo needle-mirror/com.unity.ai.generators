@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Unity.AI.Generators.Asset;
 using UnityEditor;
 using UnityEngine;
@@ -292,7 +293,6 @@ namespace Unity.AI.Generators.UI.Utilities
                     newPath = moveDependenciesFunction(new (tempPath, newPath));
                 AssetDatabase.MoveAsset(tempPath, newPath);
             }
-            AssetDatabase.Refresh();
 
             var asset = AssetDatabase.LoadAssetAtPath<Object>(newPath);
             if (!asset)
@@ -310,7 +310,7 @@ namespace Unity.AI.Generators.UI.Utilities
             GeneratedAssetCache.instance.EnsureSaved();
         }
 
-        static void ClearGenericData()
+        static void ClearGenericData(bool deleteTempAsset = true)
         {
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.handlerType, null);
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.tempAssetPath, null);
@@ -319,6 +319,23 @@ namespace Unity.AI.Generators.UI.Utilities
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.cacheHit, null);
             DragAndDrop.SetGenericData(ExternalFileDragDropConstants.moveDepsFun, null);
 
+            if (!deleteTempAsset)
+                return;
+
+            CleanupDragFromExternalPath();
+        }
+
+        public static void EndDragFromExternalPath()
+        {
+            if (!tempAssetDragged)
+                return;
+
+            StopTracking();
+            ClearGenericData(false);
+        }
+
+        public static void CleanupDragFromExternalPath()
+        {
             AssetDatabase.DeleteAsset(k_TemporaryDragAndDropDirectory);
             if (!Directory.EnumerateFileSystemEntries(k_TemporaryDirectory).Any())
                 AssetDatabase.DeleteAsset(k_TemporaryDirectory);
@@ -362,7 +379,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 newPath = copyFunction(new (externalPath, newPath));
             else
                 File.Copy(externalPath, newPath);
-            AssetDatabase.Refresh();
+            AssetDatabase.ImportAsset(newPath, ImportAssetOptions.ForceUpdate);
 
             var asset = AssetDatabase.LoadAssetAtPath<Object>(newPath);
             if (!asset)

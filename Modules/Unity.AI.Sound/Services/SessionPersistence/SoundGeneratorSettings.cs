@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.AI.Sound.Services.SessionPersistence
 {
-    [FilePath("ProjectSettings/SoundGeneratorSettings.asset", FilePathAttribute.Location.PreferencesFolder)]
+    [FilePath("UserSettings/AI.Sound/SoundGeneratorSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     class SoundGeneratorSettings : ScriptableSingleton<SoundGeneratorSettings>
     {
         [SerializeField]

@@ -129,7 +129,7 @@ namespace Unity.AI.Sound.Components
 
             m_RecordButton.text = "Start Recording";
             EnableUI(true);
-            SaveAudioClipInWav(this.GetState().SelectSoundReferenceAsset(this));
+            await SaveAudioClipInWav(this.GetState().SelectSoundReferenceAsset(this));
         }
 
         void StopRecordingAudio()
@@ -178,7 +178,7 @@ namespace Unity.AI.Sound.Components
             m_AudioObjectField.SetEnabled(enable);
         }
 
-        void SaveAudioClipInWav(AssetReference assetReference)
+        async Task SaveAudioClipInWav(AssetReference assetReference)
         {
             if (!assetReference.IsValid())
             {
@@ -193,12 +193,9 @@ namespace Unity.AI.Sound.Components
                 return;
             }
 
-            var settings = new SoundEnvelopeSettings
-            {
+            await m_AudioClipRecorded.SaveAudioClipToWavAsync(assetPath, new SoundEnvelopeSettings {
                 endPosition = m_AudioClipRecorded.GetNormalizedPositionAtTime(m_TimeElapsedInMs / 1000f)
-            };
-
-            m_AudioClipRecorded.SaveAudioClipToWav(assetPath, settings);
+            });
             m_AudioClipRecorded = null;
 
             // Dispatch the same reference asset because the recording changed its content

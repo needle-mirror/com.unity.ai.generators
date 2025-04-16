@@ -50,6 +50,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
             }
 
             var asset = new AssetReference { guid = arg.asset.guid };
+            if (!asset.Exists())
+            {
+                var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new (arg.asset,
+                        new (false, AiResultErrorEnum.UnknownError, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                return;
+            }
+
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
             var generationSetting = arg.generationSetting;
 
@@ -257,7 +267,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 // main asset is only uploaded when refining
                 if (refineAsset)
                 {
-                    var mainAssetStream = UnsavedAssetStream(api.State, asset);
+                    var mainAssetStream = await UnsavedAssetStream(api.State, asset);
                     streamsToDispose.Add(mainAssetStream); // in use until FinalizeStoreAsset is called
                     var streamToStore = mainAssetStream;
 
@@ -281,10 +291,10 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
                         if (paletteImageReference.SelectImageReferenceIsValid())
                         {
-                            await using var paletteAsset = paletteImageReference.SelectImageReferenceStream();
+                            await using var paletteAsset = await paletteImageReference.SelectImageReferenceStream();
 
                             // 2x3 pixels expected from CreatePaletteApproximation
-                            await using var paletteApproximation = TextureUtils.CreatePaletteApproximation(paletteAsset);
+                            await using var paletteApproximation = await TextureUtils.CreatePaletteApproximation(paletteAsset);
                             if (!FinalizeStoreAsset(await assetComponent.StoreAssetWithResult(paletteApproximation, httpClientLease.client), out paletteAssetGuid))
                                 return;
                         }
@@ -316,7 +326,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         var inpaintMaskImageReference = imageReferences[refinementMode][ImageReferenceType.InPaintMaskImage];
                         if (inpaintMaskImageReference.SelectImageReferenceIsValid())
                         {
-                            await using var maskAsset = ImageFileUtilities.CheckImageSize(inpaintMaskImageReference.SelectImageReferenceStream());
+                            await using var maskAsset = ImageFileUtilities.CheckImageSize(await inpaintMaskImageReference.SelectImageReferenceStream());
                             if (!FinalizeStoreAsset(await assetComponent.StoreAssetWithResult(maskAsset, httpClientLease.client), out maskGuid))
                                 return;
                         }
@@ -365,7 +375,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             if (!imageReference.SelectImageReferenceIsValid())
                                 continue;
 
-                            var referenceAsset = ImageFileUtilities.CheckImageSize(imageReference.SelectImageReferenceStream());
+                            var referenceAsset = ImageFileUtilities.CheckImageSize(await imageReference.SelectImageReferenceStream());
                             streamsToDispose.Add(referenceAsset);
                             referenceAssetTasks.Add(imageReferenceType, assetComponent.StoreAssetWithResult(referenceAsset, httpClientLease.client));
                         }
@@ -640,10 +650,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             // auto-apply if blank or if RefinementMode
             if (generatedImages.Count > 0 && ((assetWasBlank && arg.replaceBlankAsset) || (arg.isRefinement && arg.replaceRefinementAsset)))
-            {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedImages[0], backupSuccess, !assetWasBlank));
-                AssetDatabase.Refresh();
-            }
 
             SetProgress(progress with { progress = 1f }, "Done.");
 
@@ -692,7 +699,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             }
         });
 
-        public static Stream UnsavedAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(state.SelectUnsavedAssetStreamWithFallback(asset));
+        public static async Task<Stream> UnsavedAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(await state.SelectUnsavedAssetStreamWithFallback(asset));
 
         static JobStatusSdkEnum s_LastJobStatus = JobStatusSdkEnum.None;
     }

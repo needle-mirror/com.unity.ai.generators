@@ -42,6 +42,16 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             }
 
             var asset = new AssetReference { guid = arg.asset.guid };
+            if (!asset.Exists())
+            {
+                var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new (arg.asset,
+                        new (false, AiResultErrorEnum.UnknownError, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                return;
+            }
+
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
             var generationSetting = arg.generationSetting;
 
@@ -157,7 +167,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 var referenceAudioGuid = Guid.Empty;
                 if (soundReference.asset.IsValid())
                 {
-                    await using var uploadStream = generationSetting.SelectReferenceAssetStream();
+                    await using var uploadStream = await generationSetting.SelectReferenceAssetStream();
                     var result = await assetComponent.StoreAssetWithResult(uploadStream, httpClientLease.client);
                     if (!result.Result.IsSuccessful)
                     {
@@ -406,10 +416,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             // auto-apply if blank or if RefinementMode
             if (generatedAudioClips.Count > 0 && (assetWasBlank || arg.autoApply))
-            {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedAudioClips[0], backupSuccess, !assetWasBlank));
-                AssetDatabase.Refresh();
-            }
 
             SetProgress(progress with { progress = 1f }, "Done.");
 

@@ -39,6 +39,7 @@ VisualElement { }
     border-top-width: 0;
     border-bottom-width: 0;
     border-radius: 0;
+    border-color: var(--unity-colors-button-border);
 }
 
 .canvas {

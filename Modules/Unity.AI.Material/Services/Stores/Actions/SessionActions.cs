@@ -41,7 +41,6 @@ namespace Unity.AI.Material.Services.Stores.Actions
             MaterialGeneratorWindow.Display(destFileName);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedMaterialResult, true, false));
-            AssetDatabase.Refresh();
         });
 
         public static readonly Func<(DragAndDropGenerationData data, IStoreApi api), AssetReference> promoteGenerationUnsafe = args =>
@@ -68,9 +67,8 @@ namespace Unity.AI.Material.Services.Stores.Actions
             {
                 await promotedMaterialResult.CopyToProject(promotedMaterialResult.GetName(), await originalMaterialResult.GetMetadata(), generativePath);
 
-                // unsafe because it forcibly overwrites the asset, only ok when we create a new asset (as here)
-                if (promotedAsset.Replace(promotedMaterialResult, args.api.State.SelectGeneratedMaterialMapping(args.data.asset)))
-                    AssetDatabase.Refresh();
+                // forcibly overwrites the asset, only ok when we create a new asset (as here)
+                promotedAsset.Replace(promotedMaterialResult, args.api.State.SelectGeneratedMaterialMapping(args.data.asset));
 
                 // set late because asset import clears the selection
                 args.api.Dispatch(GenerationResultsActions.setSelectedGeneration, new PromotedGenerationData(promotedAsset, promotedMaterialResult));

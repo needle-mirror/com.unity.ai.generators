@@ -19,9 +19,8 @@ namespace Unity.AI.Material.Services.Utilities
             Func<IState, VisualElement, AssetReference> selectImageReferenceAsset) where T: VisualElement, IImageReference
         {
             var objectField = element.Q<ObjectField>();
-            var objectFieldDisplayIcon = element.Q<Image>(className: "unity-object-field-display__icon");
 
-            objectFieldDisplayIcon.AddManipulator(new ScaleToFitImage());
+            objectField.AddManipulator(new ScaleToFitObjectFieldImage());
             objectField.RegisterValueChangedCallback(evt =>
                 element.Dispatch(setImageReferenceAsset, AssetReferenceExtensions.FromObject(evt.newValue as Texture)));
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -11,18 +12,19 @@ namespace Unity.AI.Generators.UI
 
         protected override void RegisterCallbacksOnTarget()
         {
-            target.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+            image.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
         }
 
         protected override void UnregisterCallbacksFromTarget()
         {
-            target.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+            image.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
         }
 
         void OnGeometryChanged(GeometryChangedEvent evt)
         {
-            var aspectRatio = texture ? texture.height / (float) texture.width : 1;
-            target.style.width = evt.newRect.height / aspectRatio;
+            if (!ImageFileUtilities.TryGetAspectRatio(texture, out var aspectRatio))
+                aspectRatio = texture ? texture.width / (float)texture.height : 1;
+            image.style.width = evt.newRect.height * aspectRatio;
         }
     }
 }

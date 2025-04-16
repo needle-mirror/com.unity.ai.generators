@@ -98,7 +98,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 return;
 
             File.Copy(path, newPath, overwrite: true);
-
+            Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             audioClipResult.uri = newUri;
 
             await FileIO.WriteAllTextAsync($"{audioClipResult.uri.GetLocalPath()}.json",
@@ -177,8 +177,8 @@ namespace Unity.AI.Sound.Services.Utilities
             endPosition = Mathf.Max(endPosition, Mathf.Clamp01(startPosition + minDuration));
             startPosition = Mathf.Min(startPosition, Mathf.Clamp01(endPosition - minDuration));
 
-            await using var fileStream = FileIO.OpenFileStream(audioClipResult.uri.GetLocalPath(), FileMode.Create);
-            audioClip.EncodeToWav(fileStream, audioSamples, audioClip.MakeDefaultEnvelope(startPosition, endPosition));
+            await using var fileStream = FileIO.OpenWriteAsync(audioClipResult.uri.GetLocalPath());
+            await audioClip.EncodeToWavAsync(fileStream, audioSamples, audioClip.MakeDefaultEnvelope(startPosition, endPosition));
 
             audioClip.SafeDestroy();
         }
@@ -191,11 +191,11 @@ namespace Unity.AI.Sound.Services.Utilities
             const int startPosition = 0;
             var endPosition = Mathf.Clamp01(startPosition + minDuration);
 
-            await using var fileStream = FileIO.OpenFileStream(audioClipResult.uri.GetLocalPath(), FileMode.Create);
+            await using var fileStream = FileIO.OpenWriteAsync(audioClipResult.uri.GetLocalPath());
             if (audioClip.TryGetSamples(out var audioSamples))
             {
                 var samples = audioClip.GetSampleRange(audioSamples, startPosition, endPosition);
-                AudioClipExtensions.EncodeToWav(samples, fileStream, audioClip.channels, audioClip.frequency);
+                await AudioClipExtensions.EncodeToWavAsync(samples, fileStream, audioClip.channels, audioClip.frequency);
             }
 
             audioClip.SafeDestroy();
@@ -224,21 +224,16 @@ namespace Unity.AI.Sound.Services.Utilities
                 throw new InvalidOperationException($"Cannot copy file with extension {sourceExtension} to {destExtension}");
 
             File.Copy(sourceFileName, destFileName, true);
+            Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
             return true;
         }
     }
 
     [Serializable]
-    record GenerationMetadata
+    record GenerationMetadata : GeneratedAssetMetadata
     {
-        public string asset;
-        public string fileName;
-        public string prompt;
-        public string negativePrompt;
-        public string model;
         public float duration = 10;
         public bool autoTrim = false;
         public bool hasReference = false;
-        public int customSeed = -1;
     }
 }

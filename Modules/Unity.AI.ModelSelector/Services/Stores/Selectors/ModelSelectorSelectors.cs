@@ -31,12 +31,12 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
         }
 
         public static bool SelectShouldAutoAssignModel(this IState state, IEnumerable<ModalityEnum> modalities, IEnumerable<OperationSubTypeEnum> operations) =>
-            state.SelectModels(modalities, operations) is { Count: 1 };
+            state.SelectModels(modalities, operations) is not { Count: > 1 };
 
         public static ModelSettings SelectAutoAssignModel(this IState state, IEnumerable<ModalityEnum> modalities, IEnumerable<OperationSubTypeEnum> operations)
         {
             var models = state.SelectModels(modalities, operations);
-            return models is { Count: 1 } ? models[0] : null;
+            return models is { Count: 1 } ? models[0] : k_InvalidModelSettings;
         }
 
         public static string SelectModel(IEnumerable<ModelSettings> models, OperationSubTypeEnum operatorSubType)

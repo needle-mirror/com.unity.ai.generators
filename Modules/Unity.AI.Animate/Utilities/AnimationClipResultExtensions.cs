@@ -91,13 +91,14 @@ namespace Unity.AI.Animate.Services.Utilities
             if (!File.Exists(path) || string.IsNullOrEmpty(cacheDirectory))
                 return;
 
-            Directory.CreateDirectory(cacheDirectory);
             var newPath = Path.Combine(cacheDirectory, fileName);
             var newUri = new Uri(Path.GetFullPath(newPath));
             if (newUri == animationClipResult.uri)
                 return;
 
+            Directory.CreateDirectory(cacheDirectory);
             File.Copy(path, newPath, overwrite: true);
+            Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             animationClipResult.uri = newUri;
 
             await FileIO.WriteAllTextAsync($"{animationClipResult.uri.GetLocalPath()}.json",
@@ -169,16 +170,16 @@ namespace Unity.AI.Animate.Services.Utilities
             if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
             {
                 var newClip = await generatedAnimationClip.AnimationClipFromResultAsync();
-                newClip.CopyTo(asset.GetObject<AnimationClip>());
-                AssetDatabase.SaveAssets();
+                var targetClip = asset.GetObject<AnimationClip>();
+                if (newClip.CopyTo(targetClip))
+                    AssetDatabase.SaveAssetIfDirty(targetClip);
             }
             else
             {
                 File.Copy(sourceFileName, destFileName, true);
-                AssetDatabase.ImportAsset(destFileName, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
-            AssetDatabase.Refresh();
             asset.EnableGenerationLabel();
 
             return true;
@@ -194,16 +195,16 @@ namespace Unity.AI.Animate.Services.Utilities
             if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
             {
                 var newClip = generatedAnimationClip.AnimationClipFromResult();
-                newClip.CopyTo(asset.GetObject<AnimationClip>());
-                AssetDatabase.SaveAssets();
+                var targetClip = asset.GetObject<AnimationClip>();
+                if (newClip.CopyTo(targetClip))
+                    AssetDatabase.SaveAssetIfDirty(targetClip);
             }
             else
             {
                 File.Copy(sourceFileName, destFileName, true);
-                AssetDatabase.ImportAsset(destFileName, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
-            AssetDatabase.Refresh();
             asset.EnableGenerationLabel();
 
             return true;
@@ -252,7 +253,6 @@ namespace Unity.AI.Animate.Services.Utilities
 
             AssetDatabase.WriteImportSettingsIfDirty(asset.GetPath());
             AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
-            AssetDatabase.Refresh();
 
             var subAssets = AssetDatabase.LoadAllAssetRepresentationsAtPath(asset.GetPath());
             var foundClip = subAssets.FirstOrDefault(obj => obj is AnimationClip) as AnimationClip;
@@ -270,13 +270,8 @@ namespace Unity.AI.Animate.Services.Utilities
     }
 
     [Serializable]
-    record GenerationMetadata
+    record GenerationMetadata : GeneratedAssetMetadata
     {
-        public string asset;
-        public string fileName;
-        public string prompt;
-        public string negativePrompt;
-        public string model;
-        public int customSeed = -1;
+        // No additional fields needed for Animation
     }
 }

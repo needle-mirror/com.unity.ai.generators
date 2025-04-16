@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.AI.Animate.Services.SessionPersistence
 {
-    [FilePath("ProjectSettings/AnimateGeneratorSettings.asset", FilePathAttribute.Location.PreferencesFolder)]
+    [FilePath("UserSettings/AI.Animate/AnimateGeneratorSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     class AnimateGeneratorSettings : ScriptableSingleton<AnimateGeneratorSettings>
     {
         [SerializeField]

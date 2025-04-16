@@ -38,7 +38,7 @@ namespace Unity.AI.ModelSelector.Services.Utilities
                 tileItem.tile.SetModel(model);
                 var isDisabled = isModelBroken != null && isModelBroken(model);
                 tileItem.tile.SetEnabled(!isDisabled);
-                tileItem.tile.tooltip = !tileItem.tile.enabledSelf ? "Temporarily not available for inpainting." : null;
+                tileItem.tile.tooltip = !tileItem.tile.enabledSelf ? "Temporarily not available." : null;
             };
             gridView.unbindItem = (element, i) =>
             {

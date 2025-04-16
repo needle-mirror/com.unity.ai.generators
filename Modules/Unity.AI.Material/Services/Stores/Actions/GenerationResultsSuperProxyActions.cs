@@ -48,6 +48,16 @@ namespace Unity.AI.Material.Services.Stores.Actions
             }
 
             var asset = new AssetReference { guid = arg.asset.guid };
+            if (!asset.Exists())
+            {
+                var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new (arg.asset,
+                        new (false, AiResultErrorEnum.UnknownError, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                return;
+            }
+
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
             var generationSetting = arg.generationSetting;
 
@@ -187,7 +197,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             value => SetProgress(progress with { progress = value }, "Sending request for upscale."),
                             1, progressTokenSource0.Token);
 
-                        await using var assetStream = ReferenceAssetStream(api.State, asset);
+                        await using var assetStream = await ReferenceAssetStream(api.State, asset);
                         var result = await assetComponent.StoreAssetWithResult(assetStream, httpClientLease.client);
                         if (!result.Result.IsSuccessful)
                         {
@@ -235,7 +245,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             value => SetProgress(progress with { progress = value }, "Sending request for pbr."),
                             1, progressTokenSource0.Token);
 
-                        await using var assetStream = PromptAssetStream(api.State, asset);
+                        await using var assetStream = await PromptAssetStream(api.State, asset);
                         var result = await assetComponent.StoreAssetWithResultPreservingStream(assetStream, httpClientLease.client);
                         if (!result.Result.IsSuccessful)
                         {
@@ -292,7 +302,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         var patternGuid = Guid.Empty;
                         if (patternImageReference.asset.IsValid())
                         {
-                            await using var patternStream = PatternAssetStream(api.State, asset);
+                            await using var patternStream = await PatternAssetStream(api.State, asset);
                             var result = await assetComponent.StoreAssetWithResult(patternStream, httpClientLease.client);
                             if (!result.Result.IsSuccessful)
                             {
@@ -565,10 +575,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             // auto-apply if blank or if it's a PBR
             if (generatedMaterials[0].IsValid() && (assetWasBlank || generatedMaterials[0].IsPbr() || arg.autoApply))
-            {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedMaterials[0], backupSuccess, !assetWasBlank));
-                AssetDatabase.Refresh();
-            }
 
             SetProgress(progress with { progress = 1f }, "Done.");
 
@@ -609,10 +616,10 @@ namespace Unity.AI.Material.Services.Stores.Actions
             }
         });
 
-        public static Stream ReferenceAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(state.SelectReferenceAssetStreamWithFallback(asset));
+        public static async Task<Stream> ReferenceAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(await state.SelectReferenceAssetStreamWithFallback(asset));
 
-        public static Stream PromptAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(state.SelectPromptAssetBytesWithFallback(asset));
+        public static async Task<Stream> PromptAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(await state.SelectPromptAssetBytesWithFallback(asset));
 
-        public static Stream PatternAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(state.SelectPatternImageReferenceAssetStream(asset));
+        public static async Task<Stream> PatternAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(await state.SelectPatternImageReferenceAssetStream(asset));
     }
 }

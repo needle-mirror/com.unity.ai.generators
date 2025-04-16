@@ -10,9 +10,16 @@ namespace Unity.AI.Image.Windows
         static void ObjectPickerBlankGenerationHook()
         {
             Toolkit.GenerationObjectPicker.RegisterTemplate<Texture2D>(
-                "Assets/AI Toolkit/Templates/!New Texture Asset from Generation....png",
+                "Texture",
                 AssetUtils.CreateBlankTexture,
                 "Assets/New Texture.png",
+                TextureGeneratorInspectorButton.OpenGenerationWindow
+            );
+
+            Toolkit.GenerationObjectPicker.RegisterTemplate<Sprite>(
+                "Sprite",
+                AssetUtils.CreateBlankSprite,
+                "Assets/New Sprite.png",
                 TextureGeneratorInspectorButton.OpenGenerationWindow
             );
         }

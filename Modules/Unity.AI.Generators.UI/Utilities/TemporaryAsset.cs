@@ -10,14 +10,13 @@ namespace Unity.AI.Generators.UI.Utilities
 {
     class TemporaryAsset : IDisposable
     {
+        static readonly Dictionary<string, int> k_ReferenceCount = new();
+
         public class Scope : IDisposable
         {
             public List<TemporaryAsset> assets { get; }
 
-            public Scope(IEnumerable<TemporaryAsset> assets)
-            {
-                this.assets = assets.ToList();
-            }
+            public Scope(IEnumerable<TemporaryAsset> assets) => this.assets = assets.ToList();
 
             public void Dispose()
             {
@@ -31,14 +30,25 @@ namespace Unity.AI.Generators.UI.Utilities
 
         public AssetReference asset { get; }
 
-        public string tempFolder { get; }
+        string tempFolder { get; }
 
         bool m_Disposed;
 
-        public TemporaryAsset(AssetReference asset, string tempFolder = "")
+        readonly bool m_Disposable;
+        readonly string m_AssetKey;
+
+        public TemporaryAsset(AssetReference asset, string tempFolder = "", bool persistent = false)
         {
             this.asset = asset;
             this.tempFolder = tempFolder;
+            m_Disposable = !persistent;
+            m_AssetKey = asset.GetPath();
+
+            if (!m_Disposable || string.IsNullOrEmpty(m_AssetKey))
+                return;
+
+            var count = k_ReferenceCount.GetValueOrDefault(m_AssetKey, 0);
+            k_ReferenceCount[m_AssetKey] = count + 1;
         }
 
         public void Dispose()
@@ -46,17 +56,38 @@ namespace Unity.AI.Generators.UI.Utilities
             if (m_Disposed)
                 return;
 
+            if (!m_Disposable)
+            {
+                m_Disposed = true;
+                return;
+            }
+
+            var shouldDelete = false;
+
+            if (!string.IsNullOrEmpty(m_AssetKey) && k_ReferenceCount.TryGetValue(m_AssetKey, out var count))
+            {
+                count--;
+                shouldDelete = count <= 0;
+                if (shouldDelete)
+                    k_ReferenceCount.Remove(m_AssetKey);
+                else
+                    k_ReferenceCount[m_AssetKey] = count;
+            }
+
             try
             {
-                if (AssetDatabase.IsValidFolder(tempFolder))
-                {
+                if (!shouldDelete)
+                    return;
+
+                if (!string.IsNullOrEmpty(tempFolder) && AssetDatabase.AssetPathExists(tempFolder))
                     AssetDatabase.DeleteAsset(tempFolder);
-                }
-                else if (File.Exists(asset.GetPath()))
+                else if (asset.Exists())
                 {
-                    File.Delete(asset.GetPath());
+                    if (AssetDatabase.AssetPathExists(asset.GetPath()))
+                        AssetDatabase.DeleteAsset(asset.GetPath());
+                    else
+                        File.Delete(asset.GetPath());
                 }
-                AssetDatabase.Refresh();
             }
             catch (Exception ex)
             {

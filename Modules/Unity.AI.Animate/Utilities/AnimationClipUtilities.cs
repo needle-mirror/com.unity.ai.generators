@@ -87,7 +87,7 @@ namespace Unity.AI.Animate.Services.Utilities
             }
         }
 
-        public static void CopyTo(this AnimationClip from, AnimationClip to)
+        public static bool CopyTo(this AnimationClip from, AnimationClip to)
         {
             var wasBlank = to.IsBlank();
             to.ClearCurves();
@@ -105,6 +105,9 @@ namespace Unity.AI.Animate.Services.Utilities
 
             if (wasBlank)
                 to.SetDefaultClipSettings();
+
+            EditorUtility.SetDirty(to);
+            return true;
         }
     }
 }

@@ -54,7 +54,7 @@ namespace Unity.AI.Image.Components
 
             m_ContextualMenu = new ContextualMenuManipulator(BuildContextualMenu);
             m_FailedContextualMenu = new ContextualMenuManipulator(BuildFailedContextualMenu);
-            m_DragManipulator = new DragExternalFileManipulator { newFileName = AssetUtils.defaultNewAssetName };
+            m_DragManipulator = new DragExternalFileManipulator();
 
             progress = this.Q<VisualElement>("progress");
             progress.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
@@ -99,14 +99,12 @@ namespace Unity.AI.Image.Components
                 var asset = this.GetAsset();
                 var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
                 await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, textureResult, false, false));
-                AssetDatabase.Refresh();
             }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction("Promote to current asset", async _ =>
             {
                 var asset = this.GetAsset();
                 var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
                 await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, textureResult, true, false));
-                AssetDatabase.Refresh();
             }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction("Promote to new asset", _ =>
             {
@@ -231,7 +229,6 @@ namespace Unity.AI.Image.Components
             textureResult = result;
 
             m_DragManipulator.externalFilePath = textureResult?.uri.GetLocalPath();
-            m_DragManipulator.newFileName = Path.GetFileNameWithoutExtension(this.GetAsset().GetPath());
 
             if (textureResult.IsFailed())
             {

@@ -51,12 +51,11 @@ namespace Unity.AI.Sound.Services.Utilities
             {
                 var textures = (BindingList<T>)gridView.itemsSource;
                 var values = indexes.ToList();
-                if (gridView.GetAsset() != null && values.Count > 0 && textures.Count > values[0] && textures[values[0]] != null && textures[values[0]] is not TextureSkeleton)
-                {
-                    var replaceAsset = replaceAssetOnSelect?.Invoke() ?? false;
-                    await gridView.Dispatch(GenerationResultsActions.selectGeneration, new(gridView.GetAsset(), textures[values[0]], replaceAsset, true));
-                    AssetDatabase.Refresh();
-                }
+                if (gridView.GetAsset() == null || values.Count <= 0 || textures.Count <= values[0] || textures[values[0]] == null ||
+                    textures[values[0]] is TextureSkeleton)
+                    return;
+                var replaceAsset = replaceAssetOnSelect?.Invoke() ?? false;
+                await gridView.Dispatch(GenerationResultsActions.selectGeneration, new(gridView.GetAsset(), textures[values[0]], replaceAsset, true));
             };
             gridView.itemsSource = new BindingList<T>();
         }

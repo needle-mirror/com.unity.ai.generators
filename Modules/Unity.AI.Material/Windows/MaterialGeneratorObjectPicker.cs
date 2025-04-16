@@ -11,7 +11,7 @@ namespace Unity.AI.Material.Windows
         static void ObjectPickerBlankGenerationHook()
         {
             Toolkit.GenerationObjectPicker.RegisterTemplate<UnityEngine.Material>(
-                "Assets/AI Toolkit/Templates/!New Material Asset from Generation....mat",
+                "Material",
                 AssetUtils.CreateBlankMaterial,
                 "Assets/New Material.mat",
                 MaterialGeneratorInspectorButton.OpenGenerationWindow

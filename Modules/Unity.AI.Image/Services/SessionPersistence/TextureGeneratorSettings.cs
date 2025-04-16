@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.AI.Image.Services.SessionPersistence
 {
-    [FilePath("ProjectSettings/TextureGeneratorSettings.asset", FilePathAttribute.Location.PreferencesFolder)]
+    [FilePath("UserSettings/AI.Image/TextureGeneratorSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     class TextureGeneratorSettings : ScriptableSingleton<TextureGeneratorSettings>
     {
         [SerializeField]

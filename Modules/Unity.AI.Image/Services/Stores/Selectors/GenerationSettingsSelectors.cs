@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
@@ -12,6 +14,8 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.ModelSelector.Services.Stores.Selectors;
+using Unity.AI.ModelSelector.Services.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -51,6 +55,33 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var model = ModelSelector.Services.Stores.Selectors.ModelSelectorSelectors.SelectModelSettings(state).FirstOrDefault(s => s.id == modelID);
             return model;
         }
+
+        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
+        {
+            var mode = state.SelectRefinementMode(asset);
+            var operations = mode switch
+            {
+                RefinementMode.Generation => new [] { OperationSubTypeEnum.TextPrompt },
+                RefinementMode.Upscale => new [] { OperationSubTypeEnum.Upscale },
+                RefinementMode.Pixelate => new [] { OperationSubTypeEnum.Pixelate },
+                RefinementMode.Recolor => new [] { OperationSubTypeEnum.RecolorReference },
+                RefinementMode.Inpaint => new [] { OperationSubTypeEnum.MaskReference },
+                _ => new [] { OperationSubTypeEnum.TextPrompt }
+            };
+            return operations.ToList();
+        }
+        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+
+        public static (RefinementMode mode, bool should) SelectShouldAutoAssignModel(this IState state, VisualElement element)
+        {
+            var mode = state.SelectRefinementMode(element);
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Image },
+                state.SelectRefinementOperations(element).ToArray()));
+        }
+
+        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
+            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Image },
+                state.SelectRefinementOperations(element).ToArray());
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
@@ -163,27 +194,23 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         }
         public static Timestamp SelectPaletteImageBytesTimeStamp(this IState state, VisualElement element) => state.SelectPaletteImageBytesTimeStamp(element.GetAsset());
 
-        public static Stream SelectPaletteImageStream(this GenerationSetting setting)
+        public static async Task<Stream> SelectPaletteImageStream(this GenerationSetting setting)
         {
             var paletteImageReference = setting.SelectImageReference(ImageReferenceType.PaletteImage);
-            return paletteImageReference.SelectImageReferenceStream();
+            return await paletteImageReference.SelectImageReferenceStream();
         }
-        public static byte[] SelectPaletteImageBytes(this IState state, VisualElement element)
+        public static async Task<Stream> SelectPaletteImageStream(this IState state, VisualElement element)
         {
             var setting = state.SelectGenerationSetting(element);
-            var paletteImageReference = setting.SelectImageReference(ImageReferenceType.PaletteImage);
-            var bytes = paletteImageReference.mode == ImageReferenceMode.Asset && paletteImageReference.asset.IsValid()
-                ? paletteImageReference.asset.GetFileSync() : paletteImageReference.doodle;
-            return bytes;
+            return await setting.SelectPaletteImageStream();
         }
 
         public static byte[] SelectUnsavedAssetBytes(this GenerationSetting setting) => setting.unsavedAssetBytes.data;
         public static byte[] SelectUnsavedAssetBytes(this IState state, VisualElement element) => state.SelectGenerationSetting(element).unsavedAssetBytes.data;
         public static UnsavedAssetBytesSettings SelectUnsavedAssetBytesSettings(this IState state, VisualElement element) => state.SelectGenerationSetting(element).unsavedAssetBytes;
 
-        public static Stream SelectUnsavedAssetStreamWithFallback(this IState state, VisualElement element) => state.SelectUnsavedAssetStreamWithFallback(element.GetAsset());
-
-        public static Stream SelectUnsavedAssetStreamWithFallback(this IState state, AssetReference asset)
+        public static async Task<Stream> SelectUnsavedAssetStreamWithFallback(this IState state, VisualElement element) => await state.SelectUnsavedAssetStreamWithFallback(element.GetAsset());
+        public static async Task<Stream> SelectUnsavedAssetStreamWithFallback(this IState state, AssetReference asset)
         {
             var currentSelection = state.SelectSelectedGeneration(asset);
             var generations = state.SelectGeneratedTextures(asset);
@@ -199,7 +226,31 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 return new MemoryStream(unsavedAssetBytes);
 
             // fallback to selection, or asset
-            return currentSelection.IsValid() ? currentSelection.GetFileStream() : asset.GetFileStream();
+            return currentSelection.IsValid() ? await currentSelection.GetCompatibleImageStreamAsync() : await asset.GetCompatibleImageStreamAsync();
+        }
+
+        public static Stream SelectUnsavedAssetBytesStream(this IState state, AssetReference asset)
+        {
+            var setting = state.SelectGenerationSetting(asset);
+            var unsavedAssetBytes = setting.SelectUnsavedAssetBytes();
+
+            // use unsaved asset bytes if available
+            return unsavedAssetBytes is { Length: > 0 } ? new MemoryStream(unsavedAssetBytes) : null;
+        }
+
+        public static async Task<RenderTexture> SelectBaseAssetPreviewTexture(this IState state, AssetReference asset, int sizeHint)
+        {
+            var currentSelection = state.SelectSelectedGeneration(asset);
+            var generations = state.SelectGeneratedTextures(asset);
+
+            // sanity check
+            if (!generations.Contains(currentSelection))
+                currentSelection = new();
+
+            // selection, or asset
+            return currentSelection.IsValid()
+                ? await TextureCache.GetPreview(currentSelection.uri, sizeHint)
+                : await TextureCache.GetPreview(asset.GetUri(), sizeHint);
         }
 
         public static Timestamp SelectBaseImageBytesTimestamp(this IState state, AssetReference asset)
@@ -223,6 +274,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 return new Timestamp(File.GetLastWriteTime(currentSelection.uri.AbsolutePath).ToUniversalTime().Ticks);
 
             // fallback to asset
+            if (!asset.IsValid())
+                return new(0);
+
             var path = Path.GetFullPath(asset.GetPath());
             return new Timestamp(File.GetLastWriteTime(path).ToUniversalTime().Ticks);
         }
@@ -242,10 +296,10 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             state.SelectGenerationSetting(element).SelectImageReference(type).SelectImageReferenceIsValid();
         public static bool SelectImageReferenceIsValid(this ImageReferenceSettings imageReference) => imageReference.isActive &&
             (imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid() || imageReference.mode == ImageReferenceMode.Doodle);
-        public static Stream SelectImageReferenceStream(this ImageReferenceSettings imageReference) =>
+        public static async Task<Stream> SelectImageReferenceStream(this ImageReferenceSettings imageReference) =>
             imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid()
-                ? imageReference.asset.GetCompatibleImageStream()
-                : new MemoryStream(imageReference.doodle);
+                ? await imageReference.asset.GetCompatibleImageStreamAsync()
+                : new MemoryStream(imageReference.doodle ?? Array.Empty<byte>());
         public static Dictionary<RefinementMode, Dictionary<ImageReferenceType, ImageReferenceSettings>> SelectImageReferencesByRefinement(this GenerationSetting setting)
         {
             var result = new Dictionary<RefinementMode, Dictionary<ImageReferenceType, ImageReferenceSettings>>();
@@ -386,7 +440,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
             var referencesBitMask = state.SelectActiveReferencesBitMask(element);
-            return new GenerationValidationSettings(asset, prompt, negativePrompt, model, variations, mode, referencesBitMask);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, referencesBitMask);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

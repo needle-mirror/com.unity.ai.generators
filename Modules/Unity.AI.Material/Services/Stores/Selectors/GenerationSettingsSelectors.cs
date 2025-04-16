@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
@@ -204,7 +205,10 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             {
                 var mappings = state.SelectGeneratedMaterialMapping(element);
                 var mapping = mappings[MapType.Delighted];
-                var material = element.GetAsset().GetObject<UnityEngine.Material>();
+                var asset = element.GetAsset();
+                if (!asset.Exists())
+                    return null;
+                var material = asset.GetObject<UnityEngine.Material>();
                 if (material.HasTexture(mapping))
                     return material.GetTexture(mapping) as Texture2D;
                 return null;
@@ -220,7 +224,7 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             return SelectBaseImageReferenceBackground(state, element);
         }
 
-        public static Stream SelectReferenceAssetStreamWithFallback(this IState state, AssetReference asset)
+        public static async Task<Stream> SelectReferenceAssetStreamWithFallback(this IState state, AssetReference asset)
         {
             var currentSelection = state.SelectSelectedGeneration(asset);
             var generations = state.SelectGeneratedMaterials(asset);
@@ -233,11 +237,11 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             // Fallback on asset
             Stream candidateStream;
             if (currentSelection.IsValid())
-                candidateStream = MaterialResultExtensions.GetPreview(currentSelection).GetFileStream();
+                candidateStream = FileIO.OpenReadAsync(MaterialResultExtensions.GetPreview(currentSelection).uri.GetLocalPath());
             else
             {
                 var referenceImage = asset.GetObject<UnityEngine.Material>().GetTexture(mappings[MapType.Delighted]);
-                candidateStream = AssetReferenceExtensions.FromObject(referenceImage).GetCompatibleImageStream();
+                candidateStream = await AssetReferenceExtensions.FromObject(referenceImage).GetCompatibleImageStreamAsync();
             }
 
             if (!ImageResizeUtilities.NeedsResize(candidateStream))
@@ -245,49 +249,49 @@ namespace Unity.AI.Material.Services.Stores.Selectors
 
             var resized = ImageResizeUtilities.ResizeForPbr(candidateStream);
             if (resized != candidateStream)
-                candidateStream.Dispose();
+                await candidateStream.DisposeAsync();
 
             return resized;
         }
 
-        public static Stream SelectPatternImageReferenceAssetStream(this IState state, AssetReference asset)
+        public static async Task<Stream> SelectPatternImageReferenceAssetStream(this IState state, AssetReference asset)
         {
             var patternImageReferenceAsset = state.SelectPatternImageReferenceAsset(asset);
             if (!patternImageReferenceAsset.IsValid())
                 return null;
 
-            var candidateStream = patternImageReferenceAsset.GetCompatibleImageStream();
+            var candidateStream = await patternImageReferenceAsset.GetCompatibleImageStreamAsync();
             if (!ImageResizeUtilities.NeedsResize(candidateStream, true))
                 return candidateStream;
 
             var resized = ImageResizeUtilities.ResizeForPbr(candidateStream, true);
             if (resized != candidateStream)
-                candidateStream.Dispose();
+                await candidateStream.DisposeAsync();
 
             return resized;
         }
 
-        public static Stream SelectPromptImageReferenceAssetStream(this IState state, AssetReference asset)
+        public static async Task<Stream> SelectPromptImageReferenceAssetStream(this IState state, AssetReference asset)
         {
             var promptImageReferenceAsset = state.SelectPromptImageReferenceAsset(asset);
             if (!promptImageReferenceAsset.IsValid())
                 return null;
 
-            var candidateStream = promptImageReferenceAsset.GetCompatibleImageStream();
+            var candidateStream = await promptImageReferenceAsset.GetCompatibleImageStreamAsync();
             if (!ImageResizeUtilities.NeedsResize(candidateStream))
                 return candidateStream;
 
             var resized = ImageResizeUtilities.ResizeForPbr(candidateStream);
             if (resized != candidateStream)
-                candidateStream.Dispose();
+                await candidateStream.DisposeAsync();
 
             return resized;
         }
 
-        public static Stream SelectPromptAssetBytesWithFallback(this IState state, AssetReference asset) =>
+        public static async Task<Stream> SelectPromptAssetBytesWithFallback(this IState state, AssetReference asset) =>
             state.SelectPromptImageReferenceAsset(asset).IsValid()
-                ? state.SelectPromptImageReferenceAssetStream(asset)
-                : state.SelectReferenceAssetStreamWithFallback(asset);
+                ? await state.SelectPromptImageReferenceAssetStream(asset)
+                : await state.SelectReferenceAssetStreamWithFallback(asset);
 
         public static bool SelectAssetExists(this IState state, AssetReference asset) => asset.Exists();
 
@@ -321,7 +325,7 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
             var referenceCount = state.SelectActiveReferencesCount(element);
-            return new GenerationValidationSettings(asset, prompt, negativePrompt, model, variations, mode, referenceCount);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, referenceCount);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

@@ -11,7 +11,7 @@ namespace Unity.AI.Animate.Windows
         static void ObjectPickerBlankGenerationHook()
         {
             Toolkit.GenerationObjectPicker.RegisterTemplate<AnimationClip>(
-                $"Assets/AI Toolkit/Templates/!New Animation Asset from Generation...{AssetUtils.defaultAssetExtension}",
+                "Animation",
                 AssetUtils.CreateBlankAnimation,
                 $"Assets/New Animation{AssetUtils.defaultAssetExtension}",
                 AnimateGeneratorInspectorButton.OpenGenerationWindow

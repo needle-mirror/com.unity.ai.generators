@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.AI.Material.Services.SessionPersistence
 {
-    [FilePath("ProjectSettings/MaterialGeneratorSettings.asset", FilePathAttribute.Location.PreferencesFolder)]
+    [FilePath("UserSettings/AI.Material/MaterialGeneratorSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     class MaterialGeneratorSettings : ScriptableSingleton<MaterialGeneratorSettings>
     {
         [SerializeField]

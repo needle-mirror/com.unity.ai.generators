@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.Collections;
 using UnityEngine;
@@ -37,7 +38,7 @@ namespace Unity.AI.Image.Services.Utilities
             }
         }
 
-        public static Stream CreatePaletteApproximation(Stream paletteAssetStream)
+        public static async Task<Stream> CreatePaletteApproximation(Stream paletteAssetStream)
         {
             if (paletteAssetStream == null || paletteAssetStream.Length == 0)
                 return paletteAssetStream;
@@ -46,7 +47,7 @@ namespace Unity.AI.Image.Services.Utilities
             var source = new Texture2D(2, 2) { hideFlags = HideFlags.HideAndDontSave };
             try
             {
-                var paletteAsset = paletteAssetStream.ReadFully();
+                var paletteAsset = await paletteAssetStream.ReadFullyAsync();
                 source.LoadImage(paletteAsset);
 
                 var resizedTexture = source.CloneTexture(k_ResizeSize, k_ResizeSize);

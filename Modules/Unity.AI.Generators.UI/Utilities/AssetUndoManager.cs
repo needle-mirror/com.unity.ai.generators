@@ -62,10 +62,12 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             foreach (var (assetPathToRestore, tempFilePathToRestore) in tempFilesToRestore)
             {
-                if (File.Exists(tempFilePathToRestore) && File.Exists(assetPathToRestore))
-                    File.Copy(tempFilePathToRestore, assetPathToRestore, overwrite: true);
+                if (!File.Exists(tempFilePathToRestore) || !File.Exists(assetPathToRestore))
+                    continue;
+
+                File.Copy(tempFilePathToRestore, assetPathToRestore, overwrite: true);
+                AssetReferenceExtensions.ImportAsset(assetPathToRestore);
             }
-            AssetDatabase.Refresh();
 
             try { m_OnRestoreAsset?.Invoke(assetToRestore, resultToRestore); }
             catch { /**/ }

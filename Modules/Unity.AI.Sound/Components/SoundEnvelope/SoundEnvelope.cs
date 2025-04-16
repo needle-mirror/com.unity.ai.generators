@@ -9,6 +9,7 @@ using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -23,11 +24,11 @@ namespace Unity.AI.Sound.Components
         readonly Label m_TimeRulerStart;
         readonly Label m_TimeRulerMid;
         readonly Label m_TimeRulerEnd;
-        readonly Button m_PlayButton;
-        readonly Button m_PointModeButton;
-        readonly Button m_MarkerModeButton;
+        readonly ToolbarButton m_PlayButton;
+        readonly ToolbarToggle m_PointModeButton;
+        readonly ToolbarToggle m_MarkerModeButton;
         readonly SoundEnvelopeZoomButton m_ZoomButton;
-        readonly Button m_LoopModeButton;
+        readonly ToolbarToggle m_LoopModeButton;
         readonly PlayManipulator m_PlayManipulator;
 
         RenderTexture m_CompositeTexture;
@@ -57,27 +58,34 @@ namespace Unity.AI.Sound.Components
             m_TimeRulerMid = this.Q<Label>(classes: "time-ruler-mid");
             m_TimeRulerEnd = this.Q<Label>(classes: "time-ruler-end");
 
-            m_LoopModeButton = this.Q<Button>(classes: "loop-button");
-            m_LoopModeButton.clickable = new Clickable(handler => ((VisualElement)handler.target).ToggleSelected());
-            m_PlayButton = this.Q<Button>(classes: "play-button");
-            m_PlayButton.clickable = m_PlayManipulator = new PlayManipulator(() => undoManager.envelopeSettings, () => m_Asset, () => m_LoopModeButton.IsSelected()) {
+            m_LoopModeButton = this.Q<ToolbarToggle>(classes: "loop-button");
+            m_LoopModeButton.RegisterValueChangedCallback(evt =>
+            {
+                m_LoopModeButton.SetSelected(evt.newValue);
+            });
+
+            m_PlayButton = this.Q<ToolbarButton>(classes: "play-button");
+            m_PlayButton.clickable = m_PlayManipulator =
+                new PlayManipulator(() => undoManager.envelopeSettings, () => m_Asset, () => m_LoopModeButton.value) {
                 timeUpdate = time => {
                     currentTime = time;
                     UpdateShaderProperties();
                 }
             };
-            var saveButton = this.Q<Button>(classes: "save-button");
+            var saveButton = this.Q<ToolbarButton>(classes: "save-button");
             saveButton.clickable = new Clickable(async () =>
             {
                 await Save();
                 SetAsset(this.GetAsset());
             });
             m_ZoomButton = this.Q<SoundEnvelopeZoomButton>();
-            m_PointModeButton = this.Q<Button>(classes: "envelope-button");
-            m_PointModeButton.clickable = new Clickable(ExclusiveClickHandler);
-            m_MarkerModeButton = this.Q<Button>(classes: "trim-button");
-            m_MarkerModeButton.clickable = new Clickable(ExclusiveClickHandler);
-            m_MarkerModeButton.SetSelected();
+            m_PointModeButton = this.Q<ToolbarToggle>(classes: "envelope-button");
+            m_PointModeButton.RegisterValueChangedCallback(ExclusiveClickHandler);
+
+            m_MarkerModeButton = this.Q<ToolbarToggle>(classes: "trim-button");
+            m_MarkerModeButton.RegisterValueChangedCallback(ExclusiveClickHandler);
+
+            m_MarkerModeButton.SetValueWithoutNotify(true);
             UpdateMarkerMode();
 
             this.UseAsset(SetAsset);
@@ -101,13 +109,15 @@ namespace Unity.AI.Sound.Components
             this.AddManipulator(new SoundEnvelopeManipulator());
             return;
 
-            void ExclusiveClickHandler(EventBase handler) {
-                var handlerTarget = (VisualElement)handler.target;
-                var wasSelected = handlerTarget.IsSelected();
-                m_PointModeButton.SetSelected(false);
-                m_MarkerModeButton.SetSelected(false);
-                if (!wasSelected)
-                    handlerTarget.ToggleSelected();
+            void ExclusiveClickHandler(EventBase handler)
+            {
+                var handlerTarget = (ToolbarToggle)handler.target;
+
+                if (handlerTarget == m_PointModeButton)
+                    m_MarkerModeButton.SetValueWithoutNotify(false);
+                else if (handlerTarget == m_MarkerModeButton)
+                    m_PointModeButton.SetValueWithoutNotify(false);
+
                 UpdateMarkerMode();
             }
         }
@@ -121,12 +131,12 @@ namespace Unity.AI.Sound.Components
             path = Path.ChangeExtension(path, ".wav");
 
             {
-                await using var fileStream = FileIO.OpenFileStream(path, FileMode.Create);
-                m_Asset.EncodeToWav(fileStream, undoManager.envelopeSettings);
+                await using var fileStream = FileIO.OpenWriteAsync(path);
+                await m_Asset.EncodeToWavAsync(fileStream, undoManager.envelopeSettings);
             }
 
             undoManager.envelopeSettings = new SoundEnvelopeSettings();
-            AssetDatabase.Refresh();
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
         }
 
         public void SaveOnClose()
@@ -222,7 +232,7 @@ namespace Unity.AI.Sound.Components
 
         void UpdateMarkerMode()
         {
-            undoManager.CurrentMarkerMode = m_PointModeButton.IsSelected() ? MarkerMode.Point : m_MarkerModeButton.IsSelected() ? MarkerMode.Marker : MarkerMode.None;
+            undoManager.CurrentMarkerMode = m_PointModeButton.value ? MarkerMode.Point : m_MarkerModeButton.value ? MarkerMode.Marker : MarkerMode.None;
             undoManager.SelectedPointIndex = undoManager.CurrentMarkerMode == MarkerMode.Point ? undoManager.SelectedPointIndex : -1;
 
             UpdateShaderProperties();

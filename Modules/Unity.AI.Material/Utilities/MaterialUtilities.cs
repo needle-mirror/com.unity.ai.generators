@@ -209,6 +209,8 @@ namespace Unity.AI.Material.Services.Utilities
                 if (to.HasTexture(propertyName))
                     to.SetTexture(propertyName, texture);
             }
+
+            EditorUtility.SetDirty(to);
         }
 
         public static bool CopyTo(this MaterialResult from, UnityEngine.Material to, Dictionary<MapType, string> generatedMaterialMapping)
@@ -255,10 +257,8 @@ namespace Unity.AI.Material.Services.Utilities
                 {
                     var extension = Path.GetExtension(sourceFilePath);
                     var destFilePath = Path.Combine(mapsPath, $"{materialProperty.TrimStart('_')}{extension}");
-                    var fileExists = File.Exists(destFilePath);
                     File.Copy(sourceFilePath, destFilePath, overwrite: true);
-                    if (!fileExists) // since we're only referring to the metadata it is safe to skip the forced import if the asset already exists
-                        AssetDatabase.ImportAsset(destFilePath);
+                    AssetDatabase.ImportAsset(destFilePath, ImportAssetOptions.ForceUpdate);
                     importedTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(destFilePath);
 
                     // each texture's AI tag
@@ -322,7 +322,8 @@ namespace Unity.AI.Material.Services.Utilities
                 to.DisableKeyword("_EMISSION");
             }
 
-            AssetDatabase.SaveAssets();
+            EditorUtility.SetDirty(to);
+
             return true;
         }
 

@@ -39,7 +39,7 @@
                 <!-- Generate Button -->
                 <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px border-top-1px">
                     <!-- Session Status Banner -->
-                    <aitk-account:SessionStatusBanner />
+                    <aitk-account:GeneratorsSessionStatusBanner />
                     <ui:GenerateButton text="Generate" quote-monitor="true" />
                 </VisualElement>
             </VisualElement>

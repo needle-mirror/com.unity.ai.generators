@@ -151,12 +151,10 @@ namespace Unity.AI.Material.Components
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
             m_GenerationFileSystemWatcher = null;
 
-            UpdateItems(new List<MaterialResult>());
+            UpdateItems(this.GetState().SelectGeneratedMaterialsAndSkeletons(this));
 
             if (!asset.IsValid() || !assetMonitor)
                 return;
-
-            UpdateItems(this.GetState().SelectGeneratedMaterialsAndSkeletons(this));
 
             m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset,
                 new[] { $"_{MapType.Preview}.png", $"_{MapType.Preview}.jpg", $"_{MapType.Preview}.exr", AssetUtils.defaultAssetExtension },

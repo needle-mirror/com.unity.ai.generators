@@ -178,7 +178,7 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
             var referenceCount = state.SelectActiveReferencesCount(element);
-            return new GenerationValidationSettings(asset, prompt, model, duration, variations, mode, referenceCount);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, model, duration, variations, mode, referenceCount);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

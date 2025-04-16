@@ -1067,6 +1067,7 @@ namespace Unity.AI.Generators.UI
             if (m_ItemsSource.Count == 0)
             {
                 ResetGridViewState();
+                ResizeScrollView();
                 return;
             }
 
@@ -1083,6 +1084,7 @@ namespace Unity.AI.Generators.UI
             if (m_ItemsSource.Count == 0)
             {
                 ResetGridViewState();
+                ResizeScrollView();
                 return;
             }
 

@@ -27,8 +27,6 @@ namespace Unity.AI.Sound.Components
         readonly Label m_PointsIndicator;
         CancellationTokenSource m_CancellationTokenSource;
 
-        static bool s_NonThreadedMutex;
-
         [UxmlAttribute]
         public string text
         {
@@ -44,7 +42,7 @@ namespace Unity.AI.Sound.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
-            this.AddManipulator(new SessionStatusTracker());
+            this.AddManipulator(new GeneratorsSessionStatusTracker());
 
             m_Button = this.Q<Button>();
             m_Label = this.Q<Label>();
@@ -55,23 +53,13 @@ namespace Unity.AI.Sound.Components
             this.Use(state => state.SelectGenerationAllowed(this), OnGenerationAllowedChanged);
             // ReSharper disable once AsyncVoidLambda
             this.UseAsset(async asset => {
-                // fixme: this is a not great solution to do work only once regardless of the number of GenerateButton components for this asset
-                if (s_NonThreadedMutex)
+                if (!quoteMonitor)
                     return;
-                s_NonThreadedMutex = true;
-                try
-                {
-                    await Task.Yield();
-                    await this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
-                }
-                finally
-                {
-                    s_NonThreadedMutex = false;
-                }
 
-                // fixme: this is a second bad way to do work only once regardless of the number of GenerateButton components for this asset
-                if (quoteMonitor)
-                    this.Use(state => state.SelectGenerationValidationSettings(this), OnGenerationValidationSettingsChanged);
+                this.Use(state => state.SelectGenerationValidationSettings(this), OnGenerationValidationSettingsChanged);
+
+                await Task.Yield();
+                await this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
             });
             this.Use(state => state.SelectGenerationValidationResult(this), OnGenerationValidationResultsChanged);
         }

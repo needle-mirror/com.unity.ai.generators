@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
@@ -139,7 +140,7 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
         public static bool SelectSoundReferenceIsValid(this IState state, VisualElement element) => state.SelectSoundReferenceAsset(element).IsValid();
         public static bool SelectOverwriteSoundReferenceAsset(this IState state, VisualElement element) => state.SelectGenerationSetting(element).soundReference.overwriteSoundReferenceAsset;
 
-        public static Stream SelectReferenceAssetStream(this GenerationSetting setting)
+        public static async Task<Stream> SelectReferenceAssetStream(this GenerationSetting setting)
         {
             var soundReference = setting.SelectSoundReference();
             if (!soundReference.asset.IsValid())
@@ -149,12 +150,12 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 
             // input sounds shorter than the training set duration are padded with silence, input sounds longer than the maximum duration are trimmed
             var referenceStream = new MemoryStream();
-            referenceClip.EncodeToWavUnclamped(referenceStream, 0, referenceClip.GetNormalizedPositionAtTimeUnclamped(setting.SelectTrainingSetDuration()));
+            await referenceClip.EncodeToWavUnclampedAsync(referenceStream, 0, referenceClip.GetNormalizedPositionAtTimeUnclamped(setting.SelectTrainingSetDuration()));
             referenceStream.Position = 0;
 
             return referenceStream;
         }
-        public static Stream SelectReferenceAssetStream(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).SelectReferenceAssetStream();
+        public static Task<Stream> SelectReferenceAssetStream(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).SelectReferenceAssetStream();
 
         public static bool SelectAssetExists(this IState state, AssetReference asset) => asset.Exists();
 
@@ -187,7 +188,7 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             var duration = settings.SelectRoundedFrameDuration();
             var variations = settings.SelectVariationCount();
             var referenceCount = state.SelectActiveReferencesCount(element);
-            return new GenerationValidationSettings(asset, prompt, negativePrompt, model, duration, variations, referenceCount);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, duration, variations, referenceCount);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

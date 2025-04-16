@@ -83,44 +83,18 @@ namespace Unity.AI.Sound.Services.Utilities
 
         public static float GetNormalizedPositionAtTimeUnclamped(this AudioClip audioClip, float time) => audioClip.length < Mathf.Epsilon ? -1f : time / audioClip.length;
 
-        public static void EncodeToWav(this AudioClip audioClip, Stream outputStream, SoundEnvelopeSettings envelopeSettings = null)
+        public static void CreateSilentAudioWavFile(Stream outputStream) => EncodeToWav(new[] { silentSample }, outputStream);
+
+        static void WriteWavHeader(BinaryWriter writer, int numSamples, int numChannels, int sampleRate, int bitsPerSample)
         {
-            if (!TryGetSamples(audioClip, out var audioSamples))
-                return;
-            envelopeSettings ??= new SoundEnvelopeSettings();
-            ApplyEnvelope(audioClip, audioSamples, envelopeSettings.controlPoints);
-            var samples = GetSampleRange(audioClip, audioSamples, envelopeSettings.startPosition, envelopeSettings.endPosition);
-            EncodeToWav(samples, outputStream, audioClip.channels, audioClip.frequency);
-        }
-
-        public static void EncodeToWav(this AudioClip audioClip, Stream outputStream, float[] audioSamples = null, SoundEnvelopeSettings envelopeSettings = null)
-        {
-            if (audioSamples == null && !audioClip.TryGetSamples(out audioSamples))
-                return;
-
-            envelopeSettings ??= new SoundEnvelopeSettings();
-            ApplyEnvelope(audioClip, audioSamples, envelopeSettings.controlPoints);
-
-            var samples = GetSampleRange(audioClip, audioSamples, envelopeSettings.startPosition, envelopeSettings.endPosition);
-            EncodeToWav(samples, outputStream, audioClip.channels, audioClip.frequency);
-        }
-
-        public static void EncodeToWav(IReadOnlyCollection<float> samples, Stream outputStream, int numChannels = 1, int sampleRate = 44100)
-        {
-            // Audio Specifications
-            const int bitsPerSample = 16; // Bits per sample
-            const int bytesPerSample = bitsPerSample / 8;
+            var bytesPerSample = bitsPerSample / 8;
             var blockAlign = numChannels * bytesPerSample;
             var byteRate = sampleRate * blockAlign;
-            var numSamples = samples.Count * numChannels;
             var dataChunkSize = numSamples * bytesPerSample;
             const int subChunk1Size = 16; // PCM header size for 'fmt ' chunk
             var subChunk2Size = dataChunkSize;
             var chunkSize = 4 + (8 + subChunk1Size) + (8 + subChunk2Size);
 
-            using var writer = new BinaryWriter(outputStream, System.Text.Encoding.ASCII, true);
-
-            // Write the WAV file header
             // RIFF header
             writer.Write(new[] { 'R', 'I', 'F', 'F' });
             writer.Write(chunkSize);
@@ -139,6 +113,16 @@ namespace Unity.AI.Sound.Services.Utilities
             // 'data' sub-chunk
             writer.Write(new[] { 'd', 'a', 't', 'a' });
             writer.Write(subChunk2Size);
+        }
+
+        static void EncodeToWav(IReadOnlyCollection<float> samples, Stream outputStream, int numChannels = 1, int sampleRate = 44100)
+        {
+            // Audio Specifications
+            const int bitsPerSample = 16; // Bits per sample
+            var numSamples = samples.Count * numChannels;
+
+            using var writer = new BinaryWriter(outputStream, System.Text.Encoding.ASCII, true);
+            WriteWavHeader(writer, numSamples, numChannels, sampleRate, bitsPerSample);
 
             // Write audio data
             foreach (var sample in samples)
@@ -147,9 +131,73 @@ namespace Unity.AI.Sound.Services.Utilities
             writer.Flush();
         }
 
-        internal const float silentSample = 0.0f;
+        public static async Task EncodeToWavAsync(this AudioClip audioClip, Stream outputStream, SoundEnvelopeSettings envelopeSettings = null)
+        {
+            if (!TryGetSamples(audioClip, out var audioSamples))
+                return;
+            envelopeSettings ??= new SoundEnvelopeSettings();
+            ApplyEnvelope(audioClip, audioSamples, envelopeSettings.controlPoints);
+            var samples = GetSampleRange(audioClip, audioSamples, envelopeSettings.startPosition, envelopeSettings.endPosition);
+            await EncodeToWavAsync(samples, outputStream, audioClip.channels, audioClip.frequency);
+        }
 
-        public static void EncodeToWavUnclamped(this AudioClip audioClip, Stream outputStream, float start = 0, float end = -1)
+        public static async Task EncodeToWavAsync(this AudioClip audioClip, Stream outputStream, float[] audioSamples = null, SoundEnvelopeSettings envelopeSettings = null)
+        {
+            if (audioSamples == null && !audioClip.TryGetSamples(out audioSamples))
+                return;
+
+            envelopeSettings ??= new SoundEnvelopeSettings();
+            ApplyEnvelope(audioClip, audioSamples, envelopeSettings.controlPoints);
+
+            var samples = GetSampleRange(audioClip, audioSamples, envelopeSettings.startPosition, envelopeSettings.endPosition);
+            await EncodeToWavAsync(samples, outputStream, audioClip.channels, audioClip.frequency);
+        }
+
+        public static async Task EncodeToWavAsync(IReadOnlyCollection<float> samples, Stream outputStream, int numChannels = 1, int sampleRate = 44100)
+        {
+            // Audio Specifications
+            const int bitsPerSample = 16; // Bits per sample
+            var numSamples = samples.Count * numChannels;
+
+            // Create a memory stream to write header data
+            using var memStream = new MemoryStream();
+            using (var writer = new BinaryWriter(memStream, System.Text.Encoding.ASCII, true))
+            {
+                WriteWavHeader(writer, numSamples, numChannels, sampleRate, bitsPerSample);
+            }
+
+            // Write header to output stream
+            memStream.Position = 0;
+            await memStream.CopyToAsync(outputStream);
+
+            // Write audio data
+            var buffer = new byte[4096];
+            var bufferPosition = 0;
+
+            foreach (var sample in samples)
+            {
+                var sampleValue = (short)(sample * short.MaxValue);
+
+                // Write bytes of the short value to buffer
+                buffer[bufferPosition++] = (byte)(sampleValue & 0xFF);
+                buffer[bufferPosition++] = (byte)((sampleValue >> 8) & 0xFF);
+
+                // If buffer is full, write it to stream
+                if (bufferPosition >= buffer.Length - 1) // Leave room for at least one more sample
+                {
+                    await outputStream.WriteAsync(buffer, 0, bufferPosition);
+                    bufferPosition = 0;
+                }
+            }
+
+            // Write any remaining data in the buffer
+            if (bufferPosition > 0)
+                await outputStream.WriteAsync(buffer, 0, bufferPosition);
+
+            await outputStream.FlushAsync();
+        }
+
+        public static async Task EncodeToWavUnclampedAsync(this AudioClip audioClip, Stream outputStream, float start = 0, float end = -1)
         {
             if (!audioClip.TryGetSamples(out var audioSamples))
                 return;
@@ -174,20 +222,21 @@ namespace Unity.AI.Sound.Services.Utilities
                     OffsetArrayInPlace(samples, (startSample - startSampleUnclamped) * audioClip.channels);
             }
 
-            EncodeToWav(samples, outputStream, audioClip.channels, audioClip.frequency);
+            await EncodeToWavAsync(samples, outputStream, audioClip.channels, audioClip.frequency);
         }
 
-        public static void SaveAudioClipToWav(this AudioClip audioClip, string assetPath, SoundEnvelopeSettings settings)
+        public static async Task SaveAudioClipToWavAsync(this AudioClip audioClip, string assetPath, SoundEnvelopeSettings settings)
         {
             settings ??= new SoundEnvelopeSettings();
             {
-                using var fileStream = FileIO.OpenFileStream(assetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                EncodeToWav(audioClip, fileStream, settings);
+                await using var fileStream = FileIO.OpenWriteAsync(assetPath);
+                await EncodeToWavAsync(audioClip, fileStream, settings);
             }
-            AssetDatabase.ImportAsset(assetPath);
-            AssetDatabase.Refresh();
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
             EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath));
         }
+
+        internal const float silentSample = 0.0f;
 
         static void OffsetArrayInPlace(IList<float> array, int offsetCount)
         {

@@ -81,7 +81,7 @@ namespace Unity.AI.Sound.Components
 
             m_ContextualMenu = new ContextualMenuManipulator(BuildContextualMenu);
             m_FailedContextualMenu = new ContextualMenuManipulator(BuildFailedContextualMenu);
-            m_DragManipulator = new DragExternalFileManipulator { newFileName = AssetUtils.defaultNewAssetName };
+            m_DragManipulator = new DragExternalFileManipulator();
 
             progress = this.Q<VisualElement>("progress");
             progress.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
@@ -125,7 +125,6 @@ namespace Unity.AI.Sound.Components
                     return;
                 var asset = this.GetAsset();
                 await this.Dispatch(GenerationResultsActions.selectGeneration, new(asset, audioClipResult, true, true));
-                AssetDatabase.Refresh();
             }, DropdownMenuAction.AlwaysEnabled);
             /*evt.menu.AppendAction("Play", async _ =>
             {
@@ -287,7 +286,6 @@ namespace Unity.AI.Sound.Components
             audioClipResult = result;
 
             m_DragManipulator.externalFilePath = audioClipResult?.uri.GetLocalPath();
-            m_DragManipulator.newFileName = Path.GetFileNameWithoutExtension(this.GetAsset().GetPath());
 
             if (audioClipResult.IsFailed())
             {

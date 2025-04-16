@@ -153,7 +153,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     assetUndoManager.BeginRecord(payload.asset);
                     if (await payload.asset.ReplaceAsync(payload.result, materialMapping))
                     {
-                        AssetDatabase.Refresh();
+                        AssetDatabase.ImportAsset(payload.asset.GetPath(), ImportAssetOptions.ForceUpdate);
                         api.Dispatch(setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(payload.asset, replaceWithoutConfirmation));
                         assetUndoManager.EndRecord(payload.asset, payload.result);
                         result = true;

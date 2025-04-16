@@ -11,7 +11,7 @@ namespace Unity.AI.Sound.Services.Utilities
     {
         public const string defaultNewAssetName = "New Audio Clip";
 
-        static void CreateSilentAudioWavFile(Stream outputStream) => AudioClipExtensions.EncodeToWav(new[] { AudioClipExtensions.silentSample }, outputStream);
+
 
         public static string CreateBlankAudioClip(string path, bool force = true)
         {
@@ -24,12 +24,11 @@ namespace Unity.AI.Sound.Services.Utilities
 
                 {
                     // Use direct-to-file stream approach instead of intermediate byte array
-                    using var fileStream = FileIO.OpenFileStream(path, FileMode.Create);
-                    CreateSilentAudioWavFile(fileStream);
+                    using var fileStream = FileIO.OpenWrite(path);
+                    AudioClipExtensions.CreateSilentAudioWavFile(fileStream);
                 }
 
-                AssetDatabase.ImportAsset(path);
-                AssetDatabase.Refresh();
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
             return path;
         }
@@ -58,8 +57,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 path = CreateBlankAudioClip(path);
                 if (string.IsNullOrEmpty(path))
                     Debug.Log($"Failed to create audio clip for '{path}'.");
-                AssetDatabase.ImportAsset(path);
-                AssetDatabase.Refresh();
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
             var audioClip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
             return audioClip;
@@ -75,8 +73,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 path = CreateBlankAudioClip(path);
                 if (string.IsNullOrEmpty(path))
                     Debug.Log($"Failed to create audio clip for '{path}'.");
-                AssetDatabase.ImportAsset(path);
-                AssetDatabase.Refresh();
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
             var audioClip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
             Selection.activeObject = audioClip;

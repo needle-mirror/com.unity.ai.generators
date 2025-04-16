@@ -64,12 +64,14 @@ namespace Unity.AI.Material.Services.Utilities
                 Assert.IsTrue(File.Exists(materialResult.uri.GetLocalPath()));
 
                 var fileName = Path.GetFileName(materialResult.uri.GetLocalPath());
-                var newUri = new Uri(Path.GetFullPath(Path.Combine(cacheDirectory, fileName)));
+                var newPath = Path.Combine(cacheDirectory, fileName);
+                var newUri = new Uri(Path.GetFullPath(newPath));
                 if (newUri == materialResult.uri)
                     return;
 
                 Directory.CreateDirectory(cacheDirectory);
                 File.Copy(materialResult.uri.GetLocalPath(), newUri.GetLocalPath(), true);
+                Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
                 materialResult.uri = newUri;
 
                 await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
@@ -187,17 +189,16 @@ namespace Unity.AI.Material.Services.Utilities
             var destFileName = asset.GetPath();
             if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
             {
-                generatedMaterial.CopyTo(asset.GetObject<UnityEngine.Material>(), generatedMaterialMapping);
-                AssetDatabase.SaveAssets();
+                var destMaterial = asset.GetObject<UnityEngine.Material>();
+                if (generatedMaterial.CopyTo(destMaterial, generatedMaterialMapping))
+                    AssetDatabase.SaveAssetIfDirty(destMaterial);
             }
             else
             {
                 File.Copy(sourceFileName, destFileName, true);
-                AssetDatabase.ImportAsset(destFileName, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
-
-            AssetDatabase.Refresh();
             asset.EnableGenerationLabel();
 
             return Task.FromResult(true);
@@ -269,17 +270,16 @@ namespace Unity.AI.Material.Services.Utilities
             var destFileName = asset.GetPath();
             if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
             {
-                generatedMaterial.CopyTo(asset.GetObject<UnityEngine.Material>(), generatedMaterialMapping);
-                AssetDatabase.SaveAssets();
+                var destMaterial = asset.GetObject<UnityEngine.Material>();
+                if (generatedMaterial.CopyTo(destMaterial, generatedMaterialMapping))
+                    AssetDatabase.SaveAssetIfDirty(destMaterial);
             }
             else
             {
                 File.Copy(sourceFileName, destFileName, true);
-                AssetDatabase.ImportAsset(destFileName, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
-
-            AssetDatabase.Refresh();
             asset.EnableGenerationLabel();
 
             return true;
@@ -439,14 +439,8 @@ namespace Unity.AI.Material.Services.Utilities
     }
 
     [Serializable]
-    record GenerationMetadata
+    record GenerationMetadata : GeneratedAssetMetadata
     {
-        public string asset;
-        public string fileName;
-        public string prompt;
-        public string negativePrompt;
-        public string model;
-        public int customSeed = -1;
         public string refinementMode;
     }
 }

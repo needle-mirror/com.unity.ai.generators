@@ -55,7 +55,7 @@ namespace Unity.AI.Image.Services.Stores.States
         public ImageReferenceSettings(float strength, bool isActive = false) { this.strength = strength; this.isActive = isActive; }
         public float strength = 0.25f;
         public AssetReference asset = new();
-        public byte[] doodle;
+        public byte[] doodle = Array.Empty<byte>();
         public long doodleTimestamp;
         public ImageReferenceMode mode = ImageReferenceMode.Asset;
         public bool isActive;
