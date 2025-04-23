@@ -15,8 +15,8 @@
 
 .pbr-upper-left-label {
     position: absolute;
-    left: 2px;
-    top: 2px;
+    left: 4px;
+    top: 4px;
     width: auto;
     height: auto;
     transform-origin: center;

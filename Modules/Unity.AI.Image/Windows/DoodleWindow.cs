@@ -186,6 +186,7 @@ namespace Unity.AI.Image.Windows
         }
 
         [Shortcut("DoodleWindow/Tools: Clear Doodle", typeof(DoodleWindow), KeyCode.Backspace, ShortcutModifiers.Action)]
+        [Shortcut("DoodleWindow/Tools: Clear Doodle-Windows", typeof(DoodleWindow), KeyCode.Delete)]
         static void ClearDoodle(ShortcutArguments args)
         {
             var window = args.context as DoodleWindow;

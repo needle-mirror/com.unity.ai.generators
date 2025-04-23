@@ -78,6 +78,16 @@ namespace Unity.AI.Image.Services.Utilities
                     e.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (e.type, null));
                 }
             });
+
+            objectField.RegisterCallback<KeyDownEvent>(evt =>
+            {
+                if ((evt.keyCode == KeyCode.Backspace && evt.actionKey) || evt.keyCode == KeyCode.Delete)
+                {
+                    var isClear = e.GetState().SelectImageReferenceIsClear(e, e.type);
+                    if (!isClear) Clear();
+                }
+            });
+
             strengthSlider?.RegisterValueChangedCallback(evt => {
                 e.Dispatch(GenerationSettingsActions.setImageReferenceStrength, new (e.type, e.invertStrength ? 1 - evt.newValue / 100.0f : evt.newValue / 100.0f));
             });
