@@ -3,7 +3,6 @@ using System.IO;
 using Unity.AI.Generators.Asset;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
 namespace Unity.AI.Material.Services.Utilities
@@ -13,9 +12,13 @@ namespace Unity.AI.Material.Services.Utilities
         public const string defaultNewAssetName = "New Material";
         public const string defaultAssetExtension = ".mat";
 
-        public static string CreateBlankMaterial(string path, bool force = true)
+        public static string CreateBlankMaterial(string path, bool force = true) => CreateBlankMaterial(path, null, force);
+
+        static string CreateBlankMaterial(string path, Shader defaultShader = null, bool force = true)
         {
-            var defaultShader = GraphicsSettings.defaultRenderPipeline ? GraphicsSettings.defaultRenderPipeline.defaultShader : Shader.Find("Standard");
+            if (!defaultShader)
+                defaultShader = MaterialUtilities.GetDefaultMaterial().shader;
+
             var newMaterial = new UnityEngine.Material(defaultShader);
             var assetPath = AssetDatabase.GenerateUniqueAssetPath(path);
             AssetDatabase.CreateAsset(newMaterial, assetPath);
@@ -24,12 +27,17 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static UnityEngine.Material CreateAndSelectBlankMaterial(bool force = true)
         {
+            var newAssetName = defaultNewAssetName;
+            var defaultShader = Selection.activeObject as Shader;
+            if (defaultShader)
+                newAssetName = Path.GetFileNameWithoutExtension(defaultShader.name);
+
             var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{defaultNewAssetName}{defaultAssetExtension}";
+            var path = $"{basePath}/{newAssetName}{defaultAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);
-                path = CreateBlankMaterial(path);
+                path = CreateBlankMaterial(path, defaultShader);
                 if (string.IsNullOrEmpty(path))
                     Debug.Log($"Failed to create material for '{path}'.");
                 AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);

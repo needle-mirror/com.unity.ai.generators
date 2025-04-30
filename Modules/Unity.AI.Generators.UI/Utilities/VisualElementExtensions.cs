@@ -16,6 +16,12 @@ namespace Unity.AI.Generators.UI.Utilities
         public static void ToggleSelected(this VisualElement element) => element.ToggleInClassList("is-selected");
         public static void SetShown(this VisualElement element, bool show = true) => element.EnableInClassList("hide", !show);
 
+        public static void SafeCloneTree(this VisualTreeAsset tree, VisualElement element)
+        {
+            try { tree.CloneTree(element); }
+            catch (Exception e) { Debug.LogException(e); }
+        }
+
         public static void Click(this VisualElement button)
         {
             using (var mouseDownEvent = MakeMouseEvent(EventType.MouseDown, button.layout.center))

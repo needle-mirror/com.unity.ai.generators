@@ -84,7 +84,11 @@ namespace Unity.AI.Generators.UI.Utilities
             {
                 var existingGuid = AssetDatabase.AssetPathToGUID(projectRelativePath);
                 if (!string.IsNullOrEmpty(existingGuid))
-                    return new TemporaryAsset(new AssetReference { guid = existingGuid }, "", true);
+                {
+                    var assetReference = new AssetReference { guid = existingGuid };
+                    if (assetReference.IsImported())
+                        return new TemporaryAsset(assetReference, "", true);
+                }
             }
 
             var normalizedPath = Path.GetFullPath(fileName);
@@ -119,7 +123,7 @@ namespace Unity.AI.Generators.UI.Utilities
             var destFileName = Path.Combine(tempFolder, Path.GetFileName(fileName));
             try
             {
-                File.Copy(fileName, destFileName, true);
+                await FileIO.CopyFileAsync(fileName, destFileName, true);
             }
             catch (Exception ex)
             {
@@ -161,8 +165,9 @@ namespace Unity.AI.Generators.UI.Utilities
             if (TryGetProjectAssetsRelativePath(fileName, out var projectRelativePath))
             {
                 var existingGuid = AssetDatabase.AssetPathToGUID(projectRelativePath);
-                if (!string.IsNullOrEmpty(existingGuid))
-                    return new TemporaryAsset(new AssetReference { guid = existingGuid }, "", true);
+                var assetReference = new AssetReference { guid = existingGuid };
+                if (assetReference.IsImported())
+                    return new TemporaryAsset(assetReference, "", true);
             }
 
             var tempFolder = $"{k_ToolkitTemp}/{Guid.NewGuid():N}";
@@ -171,7 +176,7 @@ namespace Unity.AI.Generators.UI.Utilities
             var destFileName = Path.Combine(tempFolder, Path.GetFileName(fileName));
             try
             {
-                File.Copy(fileName, destFileName, true);
+                FileIO.CopyFile(fileName, destFileName, true);
             }
             catch (Exception ex)
             {
@@ -192,8 +197,9 @@ namespace Unity.AI.Generators.UI.Utilities
             if (TryGetProjectAssetsRelativePath(fileName, out var projectRelativePath))
             {
                 var existingGuid = AssetDatabase.AssetPathToGUID(projectRelativePath);
-                if (!string.IsNullOrEmpty(existingGuid))
-                    return new TemporaryAsset(new AssetReference { guid = existingGuid }, "", true);
+                var assetReference = new AssetReference { guid = existingGuid };
+                if (assetReference.IsImported())
+                    return new TemporaryAsset(assetReference, "", true);
             }
 
             var normalizedPath = Path.GetFullPath(fileName);
@@ -264,8 +270,9 @@ namespace Unity.AI.Generators.UI.Utilities
             if (TryGetProjectAssetsRelativePath(fileName, out var projectRelativePath))
             {
                 var existingGuid = AssetDatabase.AssetPathToGUID(projectRelativePath);
-                if (!string.IsNullOrEmpty(existingGuid))
-                    return new TemporaryAsset(new AssetReference { guid = existingGuid }, "", true);
+                var assetReference = new AssetReference { guid = existingGuid };
+                if (assetReference.IsImported())
+                    return new TemporaryAsset(assetReference, "", true);
             }
 
             var tempFolder = $"{k_ToolkitTemp}/{Guid.NewGuid():N}";
@@ -295,8 +302,9 @@ namespace Unity.AI.Generators.UI.Utilities
             if (TryGetProjectAssetsRelativePath(fileName, out var projectRelativePath))
             {
                 var existingGuid = AssetDatabase.AssetPathToGUID(projectRelativePath);
-                if (!string.IsNullOrEmpty(existingGuid))
-                    return new TemporaryAsset(new AssetReference { guid = existingGuid }, "", true);
+                var assetReference = new AssetReference { guid = existingGuid };
+                if (assetReference.IsImported())
+                    return new TemporaryAsset(assetReference, "", true);
             }
 
             var normalizedPath = Path.GetFullPath(fileName);
@@ -367,8 +375,9 @@ namespace Unity.AI.Generators.UI.Utilities
             if (TryGetProjectAssetsRelativePath(fileName, out var projectRelativePath))
             {
                 var existingGuid = AssetDatabase.AssetPathToGUID(projectRelativePath);
-                if (!string.IsNullOrEmpty(existingGuid))
-                    return new TemporaryAsset(new AssetReference { guid = existingGuid }, "", true);
+                var assetReference = new AssetReference { guid = existingGuid };
+                if (assetReference.IsImported())
+                    return new TemporaryAsset(assetReference, "", true);
             }
 
             var tempFolder = $"{k_ToolkitTemp}/{Guid.NewGuid():N}";

@@ -19,7 +19,7 @@ namespace Unity.AI.Material.Services.Utilities
 
             var destinationFile = Path.Combine(tempFolder, guid);
             destinationFile = Path.ChangeExtension(destinationFile, Path.GetExtension(sourceFile));
-            File.Copy(sourceFile, destinationFile, true);
+            FileIO.CopyFile(sourceFile, destinationFile, true);
 
             var fileUri = new Uri(destinationFile);
             return fileUri.AbsoluteUri;

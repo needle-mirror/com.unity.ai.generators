@@ -1,7 +1,7 @@
-﻿using System;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AI.Generators.Asset
 {
@@ -10,14 +10,26 @@ namespace Unity.AI.Generators.Asset
     {
         public static string GetSelectionPath()
         {
+            if (!Selection.activeObject)
+                return ProjectWindowUtilWrapper.GetActiveFolderPath();
             var assetSelectionPath = AssetDatabase.GetAssetPath(Selection.activeObject);
-            var isFolder = false;
-            if (!string.IsNullOrEmpty(assetSelectionPath))
-                isFolder = File.GetAttributes(assetSelectionPath).HasFlag(FileAttributes.Directory);
-            var path = ProjectWindowUtilWrapper.GetActiveFolderPath();
-            if (isFolder)
-                path = assetSelectionPath;
+            if (string.IsNullOrEmpty(assetSelectionPath))
+                return ProjectWindowUtilWrapper.GetActiveFolderPath();
+            var isFolder = File.GetAttributes(assetSelectionPath).HasFlag(FileAttributes.Directory);
+            var path = !isFolder ? GetAssetFolder(Selection.activeObject) : assetSelectionPath;
             return path;
+        }
+
+        // very useful when displaying the project view under one-column layout
+        static string GetAssetFolder(Object asset)
+        {
+            var assetPath = AssetDatabase.GetAssetPath(asset);
+            if (!string.IsNullOrEmpty(assetPath))
+            {
+                var folderPath = Path.GetDirectoryName(assetPath);
+                return folderPath;
+            }
+            return null;
         }
     }
 }

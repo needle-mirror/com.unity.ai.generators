@@ -2,6 +2,7 @@
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -15,12 +16,13 @@ namespace Unity.AI.Material.Components
         public MaterialPropertyAutodetectButton()
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
-            tree.CloneTree(this);
+            tree.SafeCloneTree(this);
 
             AddToClassList("material-property-autodetect");
-            
-            this.Q<Button>().clickable = new Clickable(() =>
-                this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, this.GetAsset()));
+
+            var button = this.Q<Button>();
+            if (button != null)
+                button.clickable = new Clickable(() => this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, this.GetAsset()));
         }
     }
 }

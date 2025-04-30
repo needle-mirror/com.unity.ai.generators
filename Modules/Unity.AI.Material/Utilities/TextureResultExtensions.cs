@@ -39,7 +39,7 @@ namespace Unity.AI.Material.Services.Utilities
             if (newUri == textureResult.uri)
                 return;
 
-            File.Copy(path, newPath, overwrite: true);
+            FileIO.CopyFile(path, newPath, overwrite: true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
         }

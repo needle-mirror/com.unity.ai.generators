@@ -257,7 +257,7 @@ namespace Unity.AI.Material.Services.Utilities
                 {
                     var extension = Path.GetExtension(sourceFilePath);
                     var destFilePath = Path.Combine(mapsPath, $"{materialProperty.TrimStart('_')}{extension}");
-                    File.Copy(sourceFilePath, destFilePath, overwrite: true);
+                    FileIO.CopyFile(sourceFilePath, destFilePath, overwrite: true);
                     AssetDatabase.ImportAsset(destFilePath, ImportAssetOptions.ForceUpdate);
                     importedTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(destFilePath);
 

@@ -15,6 +15,12 @@
     "precompiledReferences": [],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.generators",
+            "expression": "[0,1.0.0)",
+            "define": "UNITY_AI_GENERATED_ASSETS_FOLDER_FIX"
+        }
+    ],
     "noEngineReferences": false
 }

@@ -36,8 +36,9 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 
         public static string SelectSelectedModelID(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).selectedModelID;
 
-        public static bool SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Sound }, null);
+        public static (bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
+            (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Sound }, null),
+                timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
             ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Sound }, null);
 

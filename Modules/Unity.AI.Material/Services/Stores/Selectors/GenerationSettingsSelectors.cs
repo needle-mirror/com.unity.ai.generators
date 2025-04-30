@@ -60,11 +60,11 @@ namespace Unity.AI.Material.Services.Stores.Selectors
         }
         public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
-        public static (RefinementMode mode, bool should) SelectShouldAutoAssignModel(this IState state, VisualElement element)
+        public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var mode = state.SelectRefinementMode(element);
             return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Texture2d },
-                state.SelectRefinementOperations(element).ToArray()));
+                state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>

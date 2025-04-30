@@ -11,7 +11,11 @@ namespace Unity.AI.Animate.Services.Utilities
         static AvatarPreviewRenderUtility s_AvatarPreviewRenderUtility;
 
         [InitializeOnLoadMethod]
-        static void InitializeOnLoad() => AssemblyReloadEvents.beforeAssemblyReload += Cleanup;
+        static void InitializeOnLoad() 
+        { 
+            AssemblyReloadEvents.beforeAssemblyReload += Cleanup;
+            EditorApplication.quitting += Cleanup;
+        }
 
         static void Cleanup()
         {

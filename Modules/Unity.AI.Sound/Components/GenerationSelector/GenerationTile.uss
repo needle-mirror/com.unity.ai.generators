@@ -34,6 +34,10 @@
     -unity-background-scale-mode: scale-to-fit;
 }
 
+.image-stretch-to-fill {
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
 .image-scale-initial {
     -unity-background-scale-mode: initial;
     background-position: center;

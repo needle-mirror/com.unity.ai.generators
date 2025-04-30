@@ -8,7 +8,6 @@ namespace Unity.AI.Animate.Services.Stores.States
     record GenerationSetting
     {
         public SerializableDictionary<RefinementMode, ModelSelection> selectedModels = new();
-        public float lastModelDiscoveryTime = 0;
         public string prompt = "";
         public string negativePrompt = "";
         public int variationCount = 1;

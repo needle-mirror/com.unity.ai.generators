@@ -97,7 +97,7 @@ namespace Unity.AI.Sound.Services.Utilities
             if (newUri == audioClipResult.uri)
                 return;
 
-            File.Copy(path, newPath, overwrite: true);
+            await FileIO.CopyFileAsync(path, newPath, overwrite: true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             audioClipResult.uri = newUri;
 
@@ -223,7 +223,7 @@ namespace Unity.AI.Sound.Services.Utilities
             if (destExtension != sourceExtension)
                 throw new InvalidOperationException($"Cannot copy file with extension {sourceExtension} to {destExtension}");
 
-            File.Copy(sourceFileName, destFileName, true);
+            FileIO.CopyFile(sourceFileName, destFileName, true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
             return true;
         }

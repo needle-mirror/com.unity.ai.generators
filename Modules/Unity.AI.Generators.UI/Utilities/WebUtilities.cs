@@ -10,6 +10,23 @@ namespace Unity.AI.Generators.UI.Utilities
 {
     static class WebUtilities
     {
+        [MenuItem(k_InternalMenu + "AI Toolkit/Internals/Log Cloud Project Info")]
+        static void ShowProjectInfo()
+        {
+            var traceID = "None";
+            try { traceID = Selection.activeObject ? AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(Selection.activeObject)) : traceID; }
+            catch { /* Ignored */ }
+
+            Debug.Log($"User ID: {CloudProjectSettings.userId}\n" +
+                $"User Name: {CloudProjectSettings.userName}\n" +
+                $"Organization Key: {CloudProjectSettings.organizationKey}\n" +
+                $"Organization ID: {CloudProjectSettings.organizationId}\n" +
+                $"Organization Name: {CloudProjectSettings.organizationName}\n" +
+                $"Cloud Project ID: {CloudProjectSettings.projectId}\n" +
+                $"Cloud Project Name: {CloudProjectSettings.projectName}\n" +
+                $"(selected) Asset ID (trace ID): {traceID}");
+        }
+
         static readonly Dictionary<AssetReference, TaskCompletionSource<bool>> k_AssetCancellationDict = new();
 
         public static async Task<bool> WaitForCloudProjectSettings(AssetReference asset)

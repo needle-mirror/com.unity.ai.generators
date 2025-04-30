@@ -20,6 +20,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
 
         public static IEnumerable<ModelSettings> SelectPartnersModels(this IState state) => state.SelectModelSettings().Where(s => s.provider != ProviderEnum.Unity);
 
+        public static long SelectLastModelDiscoveryTimestamp(this IState state) => state.SelectModels().settings.lastModelDiscoveryTimestamp;
+
         public static string SelectRecolorModel(this IState state)
         {
             var modelId = SelectModel(state.SelectUnityModels(), OperationSubTypeEnum.RecolorReference);

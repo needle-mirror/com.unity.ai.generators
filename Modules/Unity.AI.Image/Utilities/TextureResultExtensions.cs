@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
@@ -41,7 +42,7 @@ namespace Unity.AI.Image.Services.Utilities
             if (newUri == textureResult.uri)
                 return;
 
-            File.Copy(path, newPath, overwrite: true);
+            await FileIO.CopyFileAsync(path, newPath, overwrite: true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
 
@@ -178,7 +179,8 @@ namespace Unity.AI.Image.Services.Utilities
                 await FileIO.WriteAllBytesAsync(destFileName, convertedStream);
             }
             else
-                File.Copy(sourceFileName, destFileName, true);
+                await FileIO.CopyFileAsync(sourceFileName, destFileName, overwrite: true);
+
             Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
             return true;
         }

@@ -9,10 +9,22 @@ namespace Unity.AI.Generators.Asset
 {
     static class AssetReferenceExtensions
     {
-        internal static string GetGeneratedAssetsRoot() => "Generated Assets";
+        internal static string GetGeneratedAssetsRoot() => "GeneratedAssets";
         public static string GetGeneratedAssetsPath(string assetGuid) => Path.Combine(GetGeneratedAssetsRoot(), assetGuid);
         public static string GetGeneratedAssetsPath(this AssetReference asset) => GetGeneratedAssetsPath(asset.GetGuid());
 
+#if UNITY_AI_GENERATED_ASSETS_FOLDER_FIX
+        [InitializeOnLoadMethod]
+        static void FixGeneratedAssetsFolderOnLoad()
+        {
+            if (Application.isBatchMode)
+                return;
+
+            FolderIO.TryMergeAndAlwaysDeleteFolder(k_GeneratedAssetsRootDeprecated, GetGeneratedAssetsRoot());
+        }
+
+        const string k_GeneratedAssetsRootDeprecated = "Generated Assets";
+#endif
         public static string GetPath(this AssetReference asset) => !asset.IsValid() ? string.Empty : AssetDatabase.GUIDToAssetPath(asset.guid);
 
         public static string GetGuid(this AssetReference asset) => asset.guid;
@@ -27,6 +39,8 @@ namespace Unity.AI.Generators.Asset
             return !string.IsNullOrEmpty(path) && File.Exists(path);
         }
 
+        public static bool IsImported(this AssetReference asset) => asset.IsValid() && AssetDatabase.LoadMainAssetAtPath(asset.GetPath());
+
         public static void EnableGenerationLabel(this AssetReference asset)
         {
             var actual = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(asset.GetPath());
@@ -40,6 +54,7 @@ namespace Unity.AI.Generators.Asset
                 return;
             labelList.Add(Legal.UnityAIGeneratedLabel);
             AssetDatabase.SetLabels(asset, labelList.ToArray());
+            AssetDatabase.Refresh(); // Force refresh to ensure the label is applied, this is done very sparingly
         }
 
         public static bool FixObjectName(this AssetReference asset)

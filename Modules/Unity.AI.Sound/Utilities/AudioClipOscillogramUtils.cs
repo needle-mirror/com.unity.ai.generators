@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.Mathematics;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AI.Sound.Services.Utilities
@@ -10,8 +12,8 @@ namespace Unity.AI.Sound.Services.Utilities
     {
         const int k_MakeCacheEntriesPerAudioClip = 10;
 
-        record CacheKey(AudioClip audioClip, float length, int width, float zoomScale, float panOffset);
-        
+        record CacheKey(AudioClip audioClip, float length, int width, float zoomScale, float panOffset, long timestamp);
+
         static readonly Dictionary<CacheKey, Texture2D> k_Cache = new();
 
         class CacheLruData
@@ -23,6 +25,27 @@ namespace Unity.AI.Sound.Services.Utilities
         static readonly Dictionary<AudioClip, CacheLruData> k_CacheLruLookup = new();
 
         /// <summary>
+        /// Gets the last modified UTC time for an AudioClip as ticks.
+        /// </summary>
+        /// <param name="audioClip">The AudioClip to check.</param>
+        /// <returns>The last modified time in UTC ticks.</returns>
+        static long GetLastModifiedUtcTime(AudioClip audioClip)
+        {
+            if (!audioClip)
+                return 0;
+
+            var assetPath = AssetDatabase.GetAssetPath(audioClip);
+            if (string.IsNullOrEmpty(assetPath))
+                return 0;
+
+            var path = Path.GetFullPath(assetPath);
+            if (!File.Exists(path))
+                return 0;
+
+            return new FileInfo(path).LastWriteTimeUtc.Ticks;
+        }
+
+        /// <summary>
         /// Generates a texture representing the oscillogram of the audio clip samples for the given range and scale.
         /// </summary>
         /// <param name="audioClip">The audio clip to generate the oscillogram for.</param>
@@ -32,7 +55,7 @@ namespace Unity.AI.Sound.Services.Utilities
         /// <param name="onAboutToBeDestroyed">Notification of Texture2D that is about to be removed</param>
         /// <returns>A 1-D Texture2D representing the oscillogram of the audio clip samples.</returns>
         public static Texture2D MakeSampleReference(
-            this AudioClip audioClip, 
+            this AudioClip audioClip,
             int width,
             float zoomScale = 1f,
             float panOffset = 0f,
@@ -40,7 +63,10 @@ namespace Unity.AI.Sound.Services.Utilities
         {
             width = Mathf.Clamp(Mathf.NextPowerOfTwo(width), 1, SystemInfo.maxTextureSize);
 
-            var cacheKey = new CacheKey(audioClip, audioClip.length, width, zoomScale, panOffset);
+            // Get current timestamp for the audio clip
+            long currentTimestamp = GetLastModifiedUtcTime(audioClip);
+
+            var cacheKey = new CacheKey(audioClip, audioClip.length, width, zoomScale, panOffset, currentTimestamp);
 
             CacheLruData cacheLruData;
 
@@ -57,11 +83,46 @@ namespace Unity.AI.Sound.Services.Utilities
                 }
                 return referenceTexture;
             }
-            
+
+            // Check if we need to invalidate cache entries for this audio clip due to timestamp change
+            if (k_CacheLruLookup.TryGetValue(audioClip, out cacheLruData))
+            {
+                var nodesToRemove = new List<CacheKey>();
+                foreach (var existingKey in cacheLruData.order)
+                {
+                    if (existingKey.timestamp != currentTimestamp)
+                    {
+                        // Found stale cache entry - add to removal list
+                        nodesToRemove.Add(existingKey);
+                    }
+                }
+
+                // Remove all stale cache entries
+                foreach (var keyToRemove in nodesToRemove)
+                {
+                    if (k_Cache.TryGetValue(keyToRemove, out var textureToRemove))
+                    {
+                        try { onAboutToBeDestroyed?.Invoke(textureToRemove); }
+                        catch { /* ignored */ }
+
+                        if (textureToRemove != null)
+                            textureToRemove.SafeDestroy();
+
+                        k_Cache.Remove(keyToRemove);
+                    }
+
+                    if (cacheLruData.nodes.TryGetValue(keyToRemove, out var nodeToRemove))
+                    {
+                        cacheLruData.order.Remove(nodeToRemove);
+                        cacheLruData.nodes.Remove(keyToRemove);
+                    }
+                }
+            }
+
             // Cache miss; generate new texture
             if (!audioClip.TryGetSamples(out var samples))
                 return null;
-            
+
             // Sanitize pan offset
             const float epsilon = 0.001f;
             panOffset = Mathf.Clamp(panOffset, -(zoomScale + 1) / 2 + epsilon, (zoomScale + 1) / 2 - epsilon);

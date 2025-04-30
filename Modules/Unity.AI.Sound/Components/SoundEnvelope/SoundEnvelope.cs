@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Unity.AI.Sound.Services.Stores.States;
@@ -17,6 +18,8 @@ namespace Unity.AI.Sound.Components
 {
     class SoundEnvelope : VisualElement
     {
+        static readonly HashSet<SoundEnvelope> k_SoundEnvelopeEditors = new();
+
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Sound/Components/SoundEnvelope/SoundEnvelope.uxml";
 
         AudioClip m_Asset;
@@ -98,8 +101,10 @@ namespace Unity.AI.Sound.Components
             };
 
             RegisterCallback<GeometryChangedEvent>(_ => UpdateShaderProperties());
+            RegisterCallback<AttachToPanelEvent>(_ => k_SoundEnvelopeEditors.Add(this));
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
+                k_SoundEnvelopeEditors.Remove(this);
                 if (m_WaveformTexture)
                     RenderTexture.ReleaseTemporary(m_WaveformTexture);
                 if (m_CompositeTexture)
@@ -127,16 +132,25 @@ namespace Unity.AI.Sound.Components
             if (undoManager.envelopeSettings == new SoundEnvelopeSettings())
                 return;
 
-            var path = AssetDatabase.GetAssetPath(m_Asset);
-            path = Path.ChangeExtension(path, ".wav");
-
+            try
             {
-                await using var fileStream = FileIO.OpenWriteAsync(path);
-                await m_Asset.EncodeToWavAsync(fileStream, undoManager.envelopeSettings);
-            }
+                var path = AssetDatabase.GetAssetPath(m_Asset);
+                path = Path.ChangeExtension(path, ".wav");
 
-            undoManager.envelopeSettings = new SoundEnvelopeSettings();
-            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                EditorUtility.DisplayProgressBar("Saving Audio", "Writing audio data to file...", 0.1f);
+                {
+                    await using var fileStream = FileIO.OpenWriteAsync(path);
+                    await m_Asset.EncodeToWavAsync(fileStream, undoManager.envelopeSettings);
+                }
+
+                EditorUtility.DisplayProgressBar("Saving Audio", "Re-importing asset...", 0.8f);
+                undoManager.envelopeSettings = new SoundEnvelopeSettings();
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
         }
 
         public void SaveOnClose()
@@ -236,6 +250,29 @@ namespace Unity.AI.Sound.Components
             undoManager.SelectedPointIndex = undoManager.CurrentMarkerMode == MarkerMode.Point ? undoManager.SelectedPointIndex : -1;
 
             UpdateShaderProperties();
+        }
+
+        class AssetReferenceReimportMonitor : AssetPostprocessor
+        {
+            static void OnPostprocessAllAssets(
+                string[] importedAssets,
+                string[] deletedAssets,
+                string[] movedAssets,
+                string[] movedFromAssetPaths)
+            {
+                foreach (var editor in k_SoundEnvelopeEditors)
+                {
+                    if (editor == null || !editor.GetAsset().IsValid())
+                        continue;
+                    foreach (var path in importedAssets)
+                    {
+                        if (string.IsNullOrEmpty(path))
+                            continue;
+                        if (editor.GetAsset().GetPath() == path)
+                            editor.SetAsset(editor.GetAsset());
+                    }
+                }
+            }
         }
     }
 }

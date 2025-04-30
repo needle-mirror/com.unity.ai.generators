@@ -16,15 +16,15 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                     .Add(ModelSelectorActions.setEnvironment, (state, payload) => state.settings.environment = payload)
                     .Add(ModelSelectorActions.setLastSelectedModelID, (state, payload) => state.lastSelectedModelID = payload)
                     .Add(ModelSelectorActions.setLastSelectedModality, (state, payload) => state.lastSelectedModality = payload)
-                    .Add(ModelSelectorActions.setLastOperationSubTypes, (state, payload) => state.lastSelectedOperations = payload),
+                    .Add(ModelSelectorActions.setLastOperationSubTypes, (state, payload) => state.lastSelectedOperations = payload)
+                    .Add(ModelSelectorActions.setLastModelDiscoveryTimestamp, (state, payload) => state.settings.lastModelDiscoveryTimestamp = payload),
                 extraReducers => extraReducers
                     .AddCase(ModelSelectorActions.init).With((_, payload) => payload.payload.modelSelectorSlice with { }),
-                state => state with
-                {
-                    settings = state.settings with
-                    {
+                state => state with {
+                    settings = state.settings with {
                         models = state.settings.models,
-                        environment = state.settings.environment
+                        environment = state.settings.environment,
+                        lastModelDiscoveryTimestamp = state.settings.lastModelDiscoveryTimestamp
                     },
                     lastSelectedModelID = state.lastSelectedModelID,
                     lastSelectedModality = state.lastSelectedModality,

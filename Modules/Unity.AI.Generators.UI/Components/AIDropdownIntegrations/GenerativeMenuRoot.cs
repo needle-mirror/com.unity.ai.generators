@@ -15,7 +15,7 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
         public GenerativeMenuRoot()
         {
             styleSheets.Add(AssetDatabase.LoadAssetAtPath<StyleSheet>("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Components/AIDropdownIntegrations/AIDropdownIntegration.uss"));
-            var label = new Label("Open Generator");
+            var label = new Label("Generate new");
             AddToClassList("label-button");
             AddToClassList("text-menu-item");
             AddToClassList("text-menu-item-row");

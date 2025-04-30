@@ -65,7 +65,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (!File.Exists(tempFilePathToRestore) || !File.Exists(assetPathToRestore))
                     continue;
 
-                File.Copy(tempFilePathToRestore, assetPathToRestore, overwrite: true);
+                FileIO.CopyFile(tempFilePathToRestore, assetPathToRestore, overwrite: true);
                 AssetReferenceExtensions.ImportAsset(assetPathToRestore);
             }
 
@@ -78,7 +78,7 @@ namespace Unity.AI.Generators.UI.Utilities
             if (!File.Exists(tempFilePath))
                 return;
             // update the previous file in case there were external edits
-            File.Copy(assetReference.GetPath(), tempFilePath, overwrite: true);
+            FileIO.CopyFile(assetReference.GetPath(), tempFilePath, overwrite: true);
         }
 
         public void EndRecord(AssetReference assetReference, T result, bool force = false)
@@ -95,7 +95,7 @@ namespace Unity.AI.Generators.UI.Utilities
             tempFilePaths.Clear();
             tempFilePaths.Add(asset.GetPath(), tempFilePath);
             m_AllTempFilePaths.Add(tempFilePath);
-            File.Copy(asset.GetPath(), tempFilePath, overwrite: true);
+            FileIO.CopyFile(asset.GetPath(), tempFilePath, overwrite: true);
 
             selectedResult = Clone(result);
 

@@ -1,3 +1,4 @@
+using System;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.SessionPersistence;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
@@ -34,9 +35,13 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             finally
             {
                 s_FetchingBool = false;
+
+                api.api.Dispatch(setLastModelDiscoveryTimestamp, DateTime.UtcNow.Ticks);
             }
         });
 
         static bool s_FetchingBool = false;
+
+        public static Creator<long> setLastModelDiscoveryTimestamp => new($"{slice}/setLastModelDiscoveryTimestamp");
     }
 }

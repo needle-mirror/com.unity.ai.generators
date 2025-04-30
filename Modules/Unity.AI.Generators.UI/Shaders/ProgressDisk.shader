@@ -5,8 +5,8 @@
         _MainTex ("Dummy Texture (Used for Aspect Ratio)", 2D) = "white" {} // Needed for _TexelSize
         _StartValue ("Start Value", Range(0, 1)) = 0         // Start value from 0 to 1 (fraction of circle)
         _Value ("Value", Range(0, 1)) = 1                    // End value from 0 to 1 (fraction of circle)
-        _InnerRadius ("Inner Radius", Range(0, 1)) = 0.35    // Inner radius (0 to 1, where 1 is half the height)
-        _OuterRadius ("Outer Radius", Range(0, 1)) = 0.45    // Outer radius (0 to 1, where 1 is half the height)
+        _InnerRadius ("Inner Radius", Range(0, 1)) = 0.55    // Inner radius (0 to 1, where 1 is half the height)
+        _OuterRadius ("Outer Radius", Range(0, 1)) = 0.65    // Outer radius (0 to 1, where 1 is half the height)
         _BackgroundColor ("Background Color", Color) = (0,0,0,0) // Background color (can be transparent)
         _Color ("Disk Color", Color) = (0.5,0.5,0.5,1)       // Disk segment color (alpha is used)
     }

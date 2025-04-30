@@ -97,7 +97,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 return;
 
             Directory.CreateDirectory(cacheDirectory);
-            File.Copy(path, newPath, overwrite: true);
+            await FileIO.CopyFileAsync(path, newPath, overwrite: true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             animationClipResult.uri = newUri;
 
@@ -176,7 +176,7 @@ namespace Unity.AI.Animate.Services.Utilities
             }
             else
             {
-                File.Copy(sourceFileName, destFileName, true);
+                await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
                 AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
@@ -201,7 +201,7 @@ namespace Unity.AI.Animate.Services.Utilities
             }
             else
             {
-                File.Copy(sourceFileName, destFileName, true);
+                FileIO.CopyFile(sourceFileName, destFileName, true);
                 AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }

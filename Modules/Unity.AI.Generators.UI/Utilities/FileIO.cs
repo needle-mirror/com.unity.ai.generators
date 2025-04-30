@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -25,6 +26,38 @@ namespace Unity.AI.Generators.UI.Utilities
 
     static class FileIO
     {
+        /// <summary>
+        /// FileStream wrapper that logs creation and disposal with lock information
+        /// </summary>
+        class InstrumentedFileStream : FileStream
+        {
+#if LOG_TRACE
+            readonly string m_Path;
+            readonly bool m_LikelyCausesLock;
+#endif
+            public InstrumentedFileStream(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize, FileOptions options)
+                : base(path, mode, access, share, bufferSize, options)
+            {
+#if LOG_TRACE
+                m_Path = path;
+                // Write access without share write, or exclusive access (FileShare.None) likely causes locks
+                m_LikelyCausesLock = (access == FileAccess.Write || access == FileAccess.ReadWrite || share == FileShare.None);
+
+                Debug.Log($"FileStream opened: {m_Path} (Lock potential: {(m_LikelyCausesLock ? "High" : "Low")})");
+#endif
+            }
+#if LOG_TRACE
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    Debug.Log($"FileStream disposed: {m_Path} (Lock potential: {(m_LikelyCausesLock ? "High" : "Low")})");
+                }
+                base.Dispose(disposing);
+            }
+#endif
+        }
+
         public static bool AreFilesIdentical(string path1, string path2) => AreFilesIdentical(new(path1, path2));
         public static bool AreFilesIdentical(FileComparisonOptions options)
         {
@@ -550,11 +583,95 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
+        public static void CopyFile(string sourceFileName, string destFileName, bool overwrite)
+        {
+            try
+            {
+                File.Copy(sourceFileName, destFileName, overwrite);
+            }
+            catch (Exception originalException)
+            {
+                // Handle Path.GetFullPath errors, access issues, etc.
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
+                    sourceFileName.StartsWith(k_ExtendedPathPrefix) ||
+                    destFileName.StartsWith(k_ExtendedPathPrefix))
+                    throw;
+
+                try
+                {
+                    // Apply extended path prefix for Windows long paths
+                    var extendedSourcePath = GetFullPathWithExtendedPrefix(sourceFileName);
+                    var extendedDestPath = GetFullPathWithExtendedPrefix(destFileName);
+
+                    // Only retry if paths were actually changed
+                    if (extendedSourcePath == sourceFileName && extendedDestPath == destFileName)
+                        throw;
+
+                    File.Copy(extendedSourcePath, extendedDestPath, overwrite);
+                }
+                catch (Exception)
+                {
+                    throw originalException;
+                }
+            }
+        }
+
+        public static async Task CopyFileAsync(string sourceFileName, string destFileName, bool overwrite,
+            int timeoutSeconds = 5, int retryDelayMs = 100)
+        {
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            var token = timeoutCts.Token;
+
+            // First try standard paths
+            if (!await TryCopyWithRetryAsync(sourceFileName, destFileName, overwrite, token, retryDelayMs))
+            {
+                // If that fails and we're on Windows, try with extended paths
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                    !sourceFileName.StartsWith(k_ExtendedPathPrefix) &&
+                    !destFileName.StartsWith(k_ExtendedPathPrefix))
+                {
+                    var extendedSourcePath = GetFullPathWithExtendedPrefix(sourceFileName);
+                    var extendedDestPath = GetFullPathWithExtendedPrefix(destFileName);
+
+                    // Only retry if paths were actually changed
+                    if (extendedSourcePath != sourceFileName || extendedDestPath != destFileName)
+                    {
+                        await TryCopyWithRetryAsync(extendedSourcePath, extendedDestPath, overwrite, token, retryDelayMs);
+                    }
+                }
+            }
+        }
+
+        static async Task<bool> TryCopyWithRetryAsync(string sourceFileName, string destFileName, bool overwrite, CancellationToken token, int retryDelayMs)
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        File.Copy(sourceFileName, destFileName, overwrite);
+                        return true;
+                    }
+                    catch (IOException)
+                    {
+                        try { await Task.Delay(retryDelayMs, token); } // Back off briefly before retry
+                        catch (OperationCanceledException) { break; } // Exit loop on cancellation during delay
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
+            return false;
+        }
+
         static FileStream OpenFileStreamInternal(string path, FileMode fileMode, FileAccess fileAccess, FileShare fileShare, int bufferSize, FileOptions options)
         {
             try
             {
-                return new FileStream(path, fileMode, fileAccess, fileShare, bufferSize, options);
+                return new InstrumentedFileStream(path, fileMode, fileAccess, fileShare, bufferSize, options);
             }
             catch (Exception originalException)
             {
@@ -573,7 +690,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     if (extendedPath == path) // No change needed
                         throw;
 
-                    return new FileStream(extendedPath, fileMode, fileAccess, fileShare, bufferSize, options);
+                    return new InstrumentedFileStream(extendedPath, fileMode, fileAccess, fileShare, bufferSize, options);
                 }
                 catch (Exception)
                 {

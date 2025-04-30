@@ -61,8 +61,9 @@ namespace Unity.AI.Sound.Components
                 await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
                 this.Dispatch(GenerationSettingsActions.setLastModelDiscoveryTime, Time.time);
             });
-            this.Use(state => state.SelectShouldAutoAssignModel(this), should =>
+            this.Use(state => state.SelectShouldAutoAssignModel(this), payload =>
             {
+                var (should, _) = payload;
                 m_Button.SetEnabled(!should);
                 if (!should)
                     return;

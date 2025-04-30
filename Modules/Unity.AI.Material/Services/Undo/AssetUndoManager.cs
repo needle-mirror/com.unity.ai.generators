@@ -52,7 +52,7 @@ namespace Unity.AI.Material.Services.Undo
                 // Back up the map.
                 var tempDepPath = UndoUtilities.GetTempFileName();
                 tempFilePaths[dependencyPath] = tempDepPath;
-                File.Copy(dependencyPath, tempDepPath, overwrite: true);
+                FileIO.CopyFile(dependencyPath, tempDepPath, overwrite: true);
             }
         }
     }

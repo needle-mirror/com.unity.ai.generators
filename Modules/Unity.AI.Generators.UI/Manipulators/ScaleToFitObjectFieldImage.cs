@@ -79,8 +79,14 @@ namespace Unity.AI.Generators.UI
             {
                 foreach (var manipulator in k_Manipulators)
                 {
+                    if (manipulator.m_TargetImage == null)
+                        continue;
+                    if (!manipulator.m_TargetImage.image)
+                        continue;
                     foreach (var path in importedAssets)
                     {
+                        if (string.IsNullOrEmpty(path))
+                            continue;
                         if (AssetDatabase.GetAssetPath(manipulator.m_TargetImage.image) == path)
                             manipulator.UpdateImageScaling();
                     }

@@ -9,5 +9,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
     {
         public List<ModelSettings> models = new();
         public string environment = "";
+        public long lastModelDiscoveryTimestamp = 0;
     }
 }

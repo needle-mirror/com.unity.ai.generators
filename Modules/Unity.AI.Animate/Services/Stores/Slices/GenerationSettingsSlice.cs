@@ -24,7 +24,6 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                     },
                     reducers => reducers
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
-                        .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
                         .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt = payload)
                         .Add(GenerationSettingsActions.setNegativePrompt, (state, payload) => state.negativePrompt = payload)
@@ -47,7 +46,6 @@ namespace Unity.AI.Animate.Services.Stores.Slices
             state => state with {
                 generationSettings = new SerializableDictionary<AssetReference, GenerationSetting>(
                     state.generationSettings.ToDictionary(kvp => kvp.Key, entry => entry.Value with {
-                        lastModelDiscoveryTime = entry.Value.lastModelDiscoveryTime,
                         selectedModels = new SerializableDictionary<RefinementMode, ModelSelection>(
                             entry.Value.selectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
                                 modelID = kvp.Value.modelID

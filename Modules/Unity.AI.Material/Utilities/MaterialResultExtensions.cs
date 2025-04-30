@@ -70,7 +70,7 @@ namespace Unity.AI.Material.Services.Utilities
                     return;
 
                 Directory.CreateDirectory(cacheDirectory);
-                File.Copy(materialResult.uri.GetLocalPath(), newUri.GetLocalPath(), true);
+                await FileIO.CopyFileAsync(materialResult.uri.GetLocalPath(), newUri.GetLocalPath(), true);
                 Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
                 materialResult.uri = newUri;
 
@@ -180,11 +180,11 @@ namespace Unity.AI.Material.Services.Utilities
             return FileIO.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
         }
 
-        public static Task<bool> CopyToAsync(this MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> generatedMaterialMapping)
+        public static async Task<bool> CopyToAsync(this MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> generatedMaterialMapping)
         {
             var sourceFileName = generatedMaterial.uri.GetLocalPath();
             if (!File.Exists(sourceFileName))
-                return Task.FromResult(false);
+                return false;
 
             var destFileName = asset.GetPath();
             if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
@@ -195,13 +195,13 @@ namespace Unity.AI.Material.Services.Utilities
             }
             else
             {
-                File.Copy(sourceFileName, destFileName, true);
+                await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
                 AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
             asset.EnableGenerationLabel();
 
-            return Task.FromResult(true);
+            return true;
         }
 
         public static bool AreMapsIdentical(this MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> materialMapping)
@@ -276,7 +276,7 @@ namespace Unity.AI.Material.Services.Utilities
             }
             else
             {
-                File.Copy(sourceFileName, destFileName, true);
+                FileIO.CopyFile(sourceFileName, destFileName, true);
                 AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }

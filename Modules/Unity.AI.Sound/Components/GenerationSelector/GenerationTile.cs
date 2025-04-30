@@ -9,7 +9,6 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
@@ -261,7 +260,8 @@ namespace Unity.AI.Sound.Components
             if (!rt)
                 return;
 
-            image.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
+            image.EnableInClassList("image-stretch-to-fill", !audioClipResult.IsFailed() && (resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height));
+            image.EnableInClassList("image-scale-to-fit", audioClipResult.IsFailed() && (resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height));
             image.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
         }
 

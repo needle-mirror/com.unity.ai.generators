@@ -6,6 +6,7 @@ using System.Threading;
 using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.GenerativeModels.Responses;
+using Unity.AI.Generators.Redux;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
