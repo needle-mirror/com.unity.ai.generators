@@ -62,14 +62,21 @@ namespace Unity.AI.Material.Services.Stores.Selectors
 
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
+            var modalities = GenerationSettingsActions.spriteModelsAsMaterialModelsEnabled
+                ? new [] { ModalityEnum.Texture2d, ModalityEnum.Image }
+                : new [] { ModalityEnum.Texture2d };
             var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Texture2d },
-                state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, modalities, state.SelectRefinementOperations(element).ToArray()),
+                timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
-        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Texture2d },
-                state.SelectRefinementOperations(element).ToArray());
+        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element)
+        {
+            var modalities = GenerationSettingsActions.spriteModelsAsMaterialModelsEnabled
+                ? new [] { ModalityEnum.Texture2d, ModalityEnum.Image }
+                : new [] { ModalityEnum.Texture2d };
+            return ModelSelectorSelectors.SelectAutoAssignModel(state, modalities, state.SelectRefinementOperations(element).ToArray());
+        }
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
@@ -193,7 +200,7 @@ namespace Unity.AI.Material.Services.Stores.Selectors
                 {
                     var mappings = state.SelectGeneratedMaterialMapping(element);
                     var mapping = mappings[MapType.Delighted];
-                    var material = currentSelection.GetTemporary();
+                    var material = currentSelection.GetTemporary(state);
                     if (material.HasTexture(mapping))
                         return material.GetTexture(mapping) as Texture2D;
                     return null;
@@ -208,8 +215,8 @@ namespace Unity.AI.Material.Services.Stores.Selectors
                 var asset = element.GetAsset();
                 if (!asset.Exists())
                     return null;
-                var material = asset.GetObject<UnityEngine.Material>();
-                if (material.HasTexture(mapping))
+                var material = asset.GetMaterialAdapter();
+                if (material.IsValid && material.HasTexture(mapping))
                     return material.GetTexture(mapping) as Texture2D;
                 return null;
             }
@@ -240,7 +247,7 @@ namespace Unity.AI.Material.Services.Stores.Selectors
                 candidateStream = FileIO.OpenReadAsync(MaterialResultExtensions.GetPreview(currentSelection).uri.GetLocalPath());
             else
             {
-                var referenceImage = asset.GetObject<UnityEngine.Material>().GetTexture(mappings[MapType.Delighted]);
+                var referenceImage = asset.GetMaterialAdapter().GetTexture(mappings[MapType.Delighted]);
                 candidateStream = await AssetReferenceExtensions.FromObject(referenceImage).GetCompatibleImageStreamAsync();
             }
 

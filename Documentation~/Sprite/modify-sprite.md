@@ -65,6 +65,8 @@ Use the **Inpaint** tab to refine specific areas of the sprite with masking. You
    > [!NOTE]  
    > Don't leave the **Prompt** field blank.
    
+    ![Inpaint tab with fields to mask the sprite](../images/Inpaint.png)
+
 1. In the **Inpaint Mask** field, select the **Paint Brush** tool.
 
    The **Doodle** window opens. 

@@ -17,7 +17,7 @@ Use the following topics to get started with Sprite Generator.
 
 | Topic | Description |
 | ----- | ----------- |
-| [Generate sprite asset with a prompt]((xref:generate-sprite)) | Generate sprites with text-based prompt. |
+| [Generate sprite asset with a prompt](xref:generate-sprite) | Generate sprites with text-based prompt. |
 | [Generate window](xref:generate-window-sprite) | Learn about the different options available on the **Generate** window. |
 | [Generate sprite from reference images](xref:reference-sprite) | Generate sprites from a reference image. |
 | [Manage generated sprites](xref:manage-sprite) | Learn to use the **Generations** panel to manage your generated sprites. |

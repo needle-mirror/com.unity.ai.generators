@@ -63,7 +63,7 @@ namespace Unity.AI.Animate.Services.Utilities
             AnimationUtility.SetAnimationClipSettings(clip, clipSettings);
 
             EditorUtility.SetDirty(clip);
-            AssetDatabase.SaveAssetIfDirty(clip);
+            clip.SafeCall(AssetDatabase.SaveAssetIfDirty);
         }
 
         public static AnimationClip CreateAndSelectBlankAnimation(bool force = true)

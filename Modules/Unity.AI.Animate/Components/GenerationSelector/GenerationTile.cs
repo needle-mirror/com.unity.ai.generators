@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
@@ -237,6 +238,9 @@ namespace Unity.AI.Animate.Components
 
             if (width is <= 0 or float.NaN)
                 return;
+
+            if (animationClipResult.IsValid() && !AnimationClipCache.Peek(animationClipResult.uri))
+                await Task.Yield();
 
             var animationClip = await animationClipResult.GetAnimationClip();
             if (animationClip == null)

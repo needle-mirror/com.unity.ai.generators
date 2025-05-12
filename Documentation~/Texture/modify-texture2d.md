@@ -27,6 +27,9 @@ Use the **Upscale** tab to increase the resolution of the generated image withou
 Use the **Pixelate** tab to convert the image into a pixel art style.
 
 1. In the **Generate** window, select the **Pixelate** tab.
+
+    ![Pixelate tab showing the fields to adjust](../images/pixelate.png)
+
 1. Adjust the following settings:
    
    | Setting | Description | 
@@ -34,7 +37,8 @@ Use the **Pixelate** tab to convert the image into a pixel art style.
    | **Size** | Defines the pixel size. |
    | **Keep Image Size** | Retains the original image size. |
    | **Sampling Size** | Sets the number of neighboring pixels to sample. |
-   | **Pixelate Mode** | Selects how the pixelation is applied.<br><br>The following options are available:<br> * **Centroid**: Averages the color of pixels within a grid cell based on their center point. It creates a smooth and balanced pixelation effect.<br> * **Contrast**: Enhances the contrast between adjacent pixels to clearly define the edges.<br>* **Bicubic**: Uses bicubic interpolation to calculate pixel values. The resulting effect is smoother and more natural.<br>* **Nearest**: Assigns the color of the nearest pixel. It produces a sharper pixelation effect.<br> * **Center**: Uses the color of the pixel at the center of each grid cell. It results in a consistent and uniform appearance.<br> * **Outline Thickness**: Adjusts the thickness of the pixel outline. |
+   | **Pixelate Mode** | Selects how the pixelation is applied.<br><br>The following options are available:<br> * **Centroid**: Averages the color of pixels within a grid cell based on their center point. It creates a smooth and balanced pixelation effect.<br> * **Contrast**: Enhances the contrast between adjacent pixels to clearly define the edges.<br>* **Bicubic**: Uses bicubic interpolation to calculate pixel values. The resulting effect is smoother and more natural.<br>* **Nearest**: Assigns the color of the nearest pixel. It produces a sharper pixelation effect.<br> * **Center**: Uses the color of the pixel at the center of each grid cell. It results in a consistent and uniform appearance.| 
+   | **Outline Thickness** | Adjusts the thickness of the pixel outline. |
 1. Select **Pixelate**.
 
 ## Recolor

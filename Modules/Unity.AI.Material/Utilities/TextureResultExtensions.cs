@@ -3,10 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AI.Material.Services.Utilities

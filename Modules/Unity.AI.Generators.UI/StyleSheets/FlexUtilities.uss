@@ -178,6 +178,11 @@
 }
 
 /* Size */
+.size-12px {
+    height: 12px;
+    width: 12px;
+}
+
 .size-16px {
     height: 16px;
     width: 16px;
@@ -318,6 +323,10 @@
 
 .mb-12 {
     margin-bottom: 12px;
+}
+
+.ml-5 {
+    margin-left: 5px;
 }
 
 .m-0-2 {

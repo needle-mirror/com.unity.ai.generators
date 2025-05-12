@@ -10,12 +10,11 @@ namespace Unity.AI.Sound.Services.Utilities
     static class AssetUtils
     {
         public const string defaultNewAssetName = "New Audio Clip";
-
-
+        public const string defaultAssetExtension = ".wav";
 
         public static string CreateBlankAudioClip(string path, bool force = true)
         {
-            path = Path.ChangeExtension(path, ".wav");
+            path = Path.ChangeExtension(path, defaultAssetExtension);
             if (force || !File.Exists(path))
             {
                 var directory = Path.GetDirectoryName(path);
@@ -50,7 +49,7 @@ namespace Unity.AI.Sound.Services.Utilities
 
             var assetName = Path.GetFileNameWithoutExtension(assetReference.GetPath());
 
-            var path = $"{basePath}/{assetName}{nameSuffix}.wav";
+            var path = $"{basePath}/{assetName}{nameSuffix}{defaultAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);
@@ -66,7 +65,7 @@ namespace Unity.AI.Sound.Services.Utilities
         public static AudioClip CreateAndSelectBlankAudioClip(bool force = true)
         {
             var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{defaultNewAssetName}.wav";
+            var path = $"{basePath}/{defaultNewAssetName}{defaultAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);

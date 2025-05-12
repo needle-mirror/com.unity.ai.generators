@@ -20,5 +20,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public ImmutableArray<OperationSubTypeEnum[]> operationCombinations = Array.Empty<OperationSubTypeEnum[]>();
         public int[] nativeResolution = {1024, 1024};
         public ImmutableArray<int[]> imageSizes = new[]{ new[]{1024, 1024} };
+        public string baseModelId;
+        public bool isFavorite;
     }
 }

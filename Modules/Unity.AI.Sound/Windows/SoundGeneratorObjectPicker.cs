@@ -10,7 +10,7 @@ namespace Unity.AI.Sound.Windows
         static void ObjectPickerBlankGenerationHook()
         {
             Toolkit.GenerationObjectPicker.RegisterTemplate<AudioClip>(
-                "Audio",
+                "AudioClip",
                 AssetUtils.CreateBlankAudioClip,
                 "Assets/New Audio Clip.wav",
                 SoundGeneratorInspectorButton.OpenGenerationWindow

@@ -5,13 +5,13 @@
     <VisualElement class="flex-grow bg-light">
         <VisualElement class="flex-grow bg-medium rounded-8px m-8">
             <editor:Toolbar>
-                <editor:ToolbarButton class="play-button m-2 p-4 size-24px border-none toolbar-play" />
-                <editor:ToolbarToggle class="loop-button m-2 p-4 size-24px border-none toolbar-loop" />
-                <editor:ToolbarToggle class="envelope-button m-2 p-4 size-24px border-none toolbar-envelope" />
-                <editor:ToolbarToggle class="trim-button m-2 p-4 size-24px border-none toolbar-trim" />
+                <editor:ToolbarButton class="play-button m-2 p-4 size-24px border-none toolbar-play" tooltip="Play/Stop"/>
+                <editor:ToolbarToggle class="loop-button m-2 p-4 size-24px border-none toolbar-loop" tooltip="Loop on/off"/>
+                <editor:ToolbarToggle class="envelope-button m-2 p-4 size-24px border-none toolbar-envelope" tooltip="Edit sound envelope"/>
+                <editor:ToolbarToggle class="trim-button m-2 p-4 size-24px border-none toolbar-trim" tooltip="Trim sound"/>
                 <VisualElement class="flex-grow" />
-                <editor:ToolbarButton class="save-button m-2 p-4 size-24px border-none toolbar-save" />
-                <ui:SoundEnvelopeZoomButton />
+                <editor:ToolbarButton class="save-button m-2 p-4 size-24px border-none toolbar-save" tooltip="Save"/>
+                <ui:SoundEnvelopeZoomButton tooltip="Zoom"/>
             </editor:Toolbar>
             <VisualElement class="flex-grow flex-shrink flex-row">
                 <Image class="waveform flex-grow flex-shrink" />

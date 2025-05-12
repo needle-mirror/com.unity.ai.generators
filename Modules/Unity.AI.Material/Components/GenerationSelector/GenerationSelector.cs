@@ -157,7 +157,7 @@ namespace Unity.AI.Material.Components
                 return;
 
             m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset,
-                new[] { $"_{MapType.Preview}.png", $"_{MapType.Preview}.jpg", $"_{MapType.Preview}.exr", AssetUtils.defaultAssetExtension },
+                new[] { $"_{MapType.Preview}.png", $"_{MapType.Preview}.jpg", $"_{MapType.Preview}.exr", AssetUtils.materialExtension, AssetUtils.terrainLayerExtension },
                 files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedMaterialsAsync,
                     new(asset, files.Select(MaterialResult.FromPath).ToList())));
             this.AddManipulator(m_GenerationFileSystemWatcher);

@@ -9,4 +9,5 @@
     height: 16px;
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
+    display: none;
 }

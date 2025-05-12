@@ -15,7 +15,6 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
-using Unity.AI.ModelSelector.Services.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -401,7 +400,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         }
 
         /// <summary>
-        /// Returns a bit mask representing active reference types with valid content.
+        /// Returns a bit mask representing active reference types.
         /// Each bit position corresponds to the integer value of the ImageReferenceType enum.
         /// </summary>
         public static int SelectActiveReferencesBitMask(this IState state, AssetReference asset)
@@ -415,7 +414,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 if (typeValue >= 32)
                     throw new InvalidOperationException($"ImageReferenceType value {typeValue} ({type}) exceeds the maximum bit position (31) " + "that can be stored in an Int32. Consider using a long (64-bit) instead.");
                 var imageReference = generationSetting.SelectImageReference(type);
-                var isActiveReference = imageReference.isActive;
+                var isActiveReference = imageReference.SelectImageReferenceIsActive();
                 if (isActiveReference)
                     bitMask |= 1 << typeValue;
             }
@@ -423,6 +422,30 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return bitMask;
         }
         public static int SelectActiveReferencesBitMask(this IState state, VisualElement element) => state.SelectActiveReferencesBitMask(element.GetAsset());
+
+        /// <summary>
+        /// Returns a bit mask representing valid reference types with valid content.
+        /// Each bit position corresponds to the integer value of the ImageReferenceType enum.
+        /// </summary>
+        public static int SelectValidReferencesBitMask(this IState state, AssetReference asset)
+        {
+            var bitMask = 0;
+            var generationSetting = state.SelectGenerationSetting(asset);
+
+            foreach (ImageReferenceType type in typeof(ImageReferenceType).GetEnumValues())
+            {
+                var typeValue = (int)type;
+                if (typeValue >= 32)
+                    throw new InvalidOperationException($"ImageReferenceType value {typeValue} ({type}) exceeds the maximum bit position (31) " + "that can be stored in an Int32. Consider using a long (64-bit) instead.");
+                var imageReference = generationSetting.SelectImageReference(type);
+                var isValidReference = imageReference.SelectImageReferenceIsValid();
+                if (isValidReference)
+                    bitMask |= 1 << typeValue;
+            }
+
+            return bitMask;
+        }
+        public static int SelectValidReferencesBitMask(this IState state, VisualElement element) => state.SelectValidReferencesBitMask(element.GetAsset());
 
         public static string SelectPendingPing(this IState state, VisualElement element) => state.SelectGenerationSetting(element).pendingPing;
 
@@ -439,8 +462,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var model = state.SelectSelectedModelID(asset);
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
-            var referencesBitMask = state.SelectActiveReferencesBitMask(element);
-            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, referencesBitMask);
+            var activeReferencesBitMask = state.SelectActiveReferencesBitMask(element);
+            var validReferencesBitMask = state.SelectValidReferencesBitMask(element);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, activeReferencesBitMask, validReferencesBitMask);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

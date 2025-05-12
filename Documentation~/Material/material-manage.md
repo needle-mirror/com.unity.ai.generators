@@ -27,6 +27,10 @@ To manage material, follow these steps:
    | **Use** | Copies only the selected settings to the **Generation** area. |
    | **Copy** | Copies the settings and applies them to generate a new material. | 
 
+## Unityai label
+
+[!include[](../snippets/unityai-label.md)]
+
 ## Additional resources
 
 * [Generate material with a prompt](xref:material-generate-prompt)

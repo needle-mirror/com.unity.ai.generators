@@ -23,9 +23,3 @@ UpscalePanel {
     min-width: 280px;
     max-width: 280px;
 }
-
-.image-reference {
-    padding: 8px 12px 8px 9px;
-    border-top-color: #141414;
-    border-top-width: 1px;
-}

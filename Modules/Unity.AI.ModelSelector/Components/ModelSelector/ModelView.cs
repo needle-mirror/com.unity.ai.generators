@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.Generators.Redux;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
@@ -25,6 +26,10 @@ namespace Unity.AI.ModelSelector.Components
         string m_SelectedModelId;
         TabView m_TabView;
         VisualElement m_TagsElement;
+        VisualElement m_ModelsElement;
+        VisualElement m_ModelsContainer;
+        VisualElement m_BaseModelsElement;
+        VisualElement m_BaseModelsContainer;
         VisualElement m_TagsContainer;
         VisualElement m_SourcesElement;
         VisualElement m_SourcesContainer;
@@ -41,7 +46,7 @@ namespace Unity.AI.ModelSelector.Components
         IVisualElementScheduledItem m_DelayedSearch;
         DetailsModelTitleCard m_ModelDetailsCard;
         GridView m_ModelDetailsGrid;
-        ModalityEnum m_SelectedModality = ModalityEnum.None;
+        ModalityEnum[] m_SelectedModalities = Array.Empty<ModalityEnum>();
         OperationSubTypeEnum[] m_SelectedOperations = Array.Empty<OperationSubTypeEnum>();
 
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.ModelSelector/Components/ModelSelector/ModelView.uxml";
@@ -66,17 +71,25 @@ namespace Unity.AI.ModelSelector.Components
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
 
             InitUI();
-            OnSearch();
 
             this.UseArray(ModelSelectorSelectors.SelectModelSettings, OnModelsChanged);
-            this.Use(state => state.SelectLastSelectedModality(), OnModalitySelected);
+            this.UseArray(state => state.SelectLastSelectedModalities(), OnModalitiesSelected);
             this.UseArray(state => state.SelectLastSelectedOperations(), OnOperationsSelected);
             this.Use(state => state.SelectLastSelectedModelID(), OnModelSelected);
+            this.UseStore(OnStoreReady);
         }
 
-        void OnModalitySelected(ModalityEnum modality)
+        void OnStoreReady(Store store)
         {
-            m_SelectedModality = modality;
+            if (store == null)
+                return;
+
+            OnSearch();
+        }
+
+        void OnModalitiesSelected(IEnumerable<ModalityEnum> modalities)
+        {
+            m_SelectedModalities = modalities.ToArray();
             RefreshFilters();
             OnSearch();
         }
@@ -94,6 +107,8 @@ namespace Unity.AI.ModelSelector.Components
             ShowSources();
             ShowOperationTypes();
             ShowTags();
+            ShowMisc();
+            ShowBaseModels();
         }
 
         bool IsModelBroken(ModelSettings model) => false;
@@ -112,6 +127,10 @@ namespace Unity.AI.ModelSelector.Components
             m_TabView = this.Q<TabView>();
             m_TagsElement = this.Q<VisualElement>(className: "tags");
             m_TagsContainer = this.Q<VisualElement>(className: "tags-container");
+            m_ModelsElement = this.Q<VisualElement>(className: "misc");
+            m_ModelsContainer = this.Q<VisualElement>(className: "misc-container");
+            m_BaseModelsElement = this.Q<VisualElement>(className: "base-models");
+            m_BaseModelsContainer = this.Q<VisualElement>(className: "base-models-container");
             m_SourcesElement = this.Q<VisualElement>(className: "sources");
             m_SourcesContainer = this.Q<VisualElement>(className: "sources-container");
             m_ModalitiesElement = this.Q<VisualElement>(className: "modalities");
@@ -174,20 +193,20 @@ namespace Unity.AI.ModelSelector.Components
             {
                 var modalityElement = new Toggle { label = modality.GetModalityName(), name = modality.ToString() };
                 modalityElement.AddToClassList("tag");
-                if (modality == m_SelectedModality)
+                if (m_SelectedModalities.Contains(modality))
                 {
                     modalityElement.SetValueWithoutNotify(true);
                     modalityElement.SetEnabled(false);
                 }
                 else
                 {
-                    modalityElement.EnableInClassList("hide", true);
+                    modalityElement.SetShown(false);
                 }
                 modalityElement.RegisterValueChangedCallback(OnModalityFilterSelectionChanged);
                 m_ModalitiesElement.Add(modalityElement);
             }
 
-            m_ModalitiesContainer.EnableInClassList("hide", true);
+            m_ModalitiesContainer.SetShown(Unsupported.IsDeveloperMode());
         }
 
         void ShowSources()
@@ -195,12 +214,6 @@ namespace Unity.AI.ModelSelector.Components
             // Display only sources from selected modalities
             var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
                 .Where(t => t.value).Select(t => t.name).ToList();
-
-            if (selectedModalities.Count <= 0)
-            {
-                m_SourcesElement.AddToClassList("hide");
-                return;
-            }
 
             var sources = m_Models.Where(m => selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
                 .Select(model => model.provider.ToString()).Distinct().OrderBy(s => s).ToList();
@@ -215,7 +228,7 @@ namespace Unity.AI.ModelSelector.Components
                 m_SourcesElement.Add(sourceElement);
             }
 
-            m_SourcesContainer.EnableInClassList("hide", !Unsupported.IsDeveloperMode());
+            m_SourcesContainer.SetShown(Unsupported.IsDeveloperMode());
         }
 
         void ShowTags()
@@ -223,12 +236,6 @@ namespace Unity.AI.ModelSelector.Components
             // Display only tags from selected modalities
             var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
                 .Where(t => t.value).Select(t => t.name).ToList();
-
-            if (selectedModalities.Count <= 0)
-            {
-                m_TagsElement.AddToClassList("hide");
-                return;
-            }
 
             var tags = m_Models.Where(m => selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
                 .SelectMany(model => model.tags).Distinct().OrderBy(s => s).ToList();
@@ -243,7 +250,84 @@ namespace Unity.AI.ModelSelector.Components
                 m_TagsElement.Add(tagElement);
             }
 
-            m_TagsContainer.EnableInClassList("hide", !tags.Any());
+            m_TagsContainer.SetShown(tags.Any());
+        }
+
+        void ShowMisc()
+        {
+            var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
+                .Where(t => t.value).Select(t => t.name).ToList();
+
+            m_ModelsElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
+            m_ModelsElement.Clear();
+
+            var availableMisc = new HashSet<MiscModelEnum>();
+            var baseModels = new HashSet<string>();
+            foreach (var model in m_Models)
+            {
+                if (!selectedModalities.Contains(model.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
+                    continue;
+
+                if (model.operations.Contains(OperationSubTypeEnum.StyleTraining))
+                    baseModels.Add(model.id);
+            }
+            foreach (var model in m_Models)
+            {
+                if (!selectedModalities.Contains(model.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
+                    continue;
+
+                availableMisc.Add(!string.IsNullOrEmpty(model.baseModelId) && baseModels.Contains(model.baseModelId) ? MiscModelEnum.Custom : MiscModelEnum.Default);
+                if (model.isFavorite)
+                    availableMisc.Add(MiscModelEnum.Favorites);
+            }
+            foreach (var misc in Enum.GetValues(typeof(MiscModelEnum)))
+            {
+                var miscElement = new Toggle { name = misc.ToString(), label = misc.ToString().AddSpaceBeforeCapitalLetters() };
+                miscElement.SetEnabled(availableMisc.Contains((MiscModelEnum)misc));
+                if (!miscElement.enabledSelf)
+                    miscElement.tooltip = "There is no model available for this filter.";
+                miscElement.RegisterValueChangedCallback(OnFilterSelectionChanged);
+                m_ModelsElement.Add(miscElement);
+            }
+        }
+
+        void ShowBaseModels()
+        {
+            var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
+                .Where(t => t.value).Select(t => t.name).ToList();
+
+            m_BaseModelsElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
+            m_BaseModelsElement.Clear();
+
+            var availableBaseModels = new HashSet<string>();
+
+            // Base Models work only for Image Modality (StyleTraining Operation)
+            if (selectedModalities.Contains(nameof(ModalityEnum.Image), StringComparer.InvariantCultureIgnoreCase))
+            {
+
+                foreach (var model in m_Models)
+                {
+                    if (!selectedModalities.Contains(model.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
+                        continue;
+
+                    if (model.operations.Contains(OperationSubTypeEnum.StyleTraining) && availableBaseModels.Add(model.id))
+                    {
+                        var baseModelElement = new Toggle
+                        {
+                            name = model.id,
+                            label = model.name.AddSpaceBeforeCapitalLetters(),
+                            tooltip = model.description
+                        };
+                        baseModelElement.SetEnabled(m_Models.Any(m =>
+                            selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase) &&
+                            m.baseModelId == model.id));
+                        baseModelElement.RegisterValueChangedCallback(OnFilterSelectionChanged);
+                        m_BaseModelsElement.Add(baseModelElement);
+                    }
+                }
+            }
+
+            m_BaseModelsContainer.SetShown(availableBaseModels.Any());
         }
 
         void ShowOperationTypes()
@@ -260,14 +344,14 @@ namespace Unity.AI.ModelSelector.Components
                 }
                 else
                 {
-                    operationElement.EnableInClassList("hide", true);
+                    operationElement.SetShown(false);
                 }
                 operationElement.AddToClassList("operation");
                 operationElement.RegisterValueChangedCallback(OnFilterSelectionChanged);
                 m_OperationsElement.Add(operationElement);
             }
 
-            m_OperationsContainer.EnableInClassList("hide", !Unsupported.IsDeveloperMode());
+            m_OperationsContainer.SetShown(Unsupported.IsDeveloperMode());
         }
 
         void OnKeyDown(KeyDownEvent evt)
@@ -283,6 +367,8 @@ namespace Unity.AI.ModelSelector.Components
             ShowSources();
             ShowOperationTypes();
             ShowTags();
+            ShowMisc();
+            ShowBaseModels();
             OnFilterSelectionChanged(evt);
         }
 
@@ -309,8 +395,8 @@ namespace Unity.AI.ModelSelector.Components
                 m_SelectedModelId
             );
 
-            m_GridView.EnableInClassList("hide", m_FilteredModels.Count == 0);
-            m_SearchResultsText.EnableInClassList("hide", m_FilteredModels.Count > 0);
+            m_GridView.SetShown(m_FilteredModels.Count > 0);
+            m_SearchResultsText.SetShown(m_FilteredModels.Count == 0);
         }
 
         void SelectModel(ModelSettings model)
@@ -351,9 +437,34 @@ namespace Unity.AI.ModelSelector.Components
                 .Select(t => (ProviderEnum)Enum.Parse(typeof(ProviderEnum), t.name))
                 .ToList();
 
-            var sortDescending = m_SortOrder.value == 1;
+            var selectedMiscModels = m_ModelsElement.Query<Toggle>().ToList()
+                .Where(t => t.value)
+                .Select(t => (MiscModelEnum)Enum.Parse(typeof(MiscModelEnum), t.name))
+                .ToList();
 
-            return ModelSelectorSelectors.SelectModels(filteredModels, selectedModalities, selectedOperations, selectedSources, selectedTags, searchText, sortDescending);
+            var selectedBaseModels = m_BaseModelsElement.Query<Toggle>().ToList()
+                .Where(t => t.value)
+                .ToDictionary(t => t.name, t => t.label);
+
+            var sortMode = m_SortOrder.value switch
+            {
+                0 => SortMode.RecentlyUsed,
+                1 => SortMode.Popularity,
+                2 => SortMode.Name,
+                _ => SortMode.NameDescending
+            };
+
+            var lastUsedRanking = this.GetState().SelectLastUsedRanking();
+            var popularityRanking = this.GetState().SelectPopularityRanking();
+
+            return ModelSelectorSelectors.SelectModels(
+                filteredModels,
+                lastUsedRanking,
+                popularityRanking,
+                selectedModalities, selectedOperations, selectedSources,
+                selectedMiscModels,
+                selectedBaseModels,
+                selectedTags, searchText, sortMode);
         }
     }
 }

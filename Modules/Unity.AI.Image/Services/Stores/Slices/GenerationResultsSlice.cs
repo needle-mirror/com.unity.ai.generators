@@ -50,6 +50,7 @@ namespace Unity.AI.Image.Services.Stores.Slices
                 .Add(GenerationResultsActions.setSelectedGeneration, (state, payload) => state.generationResults.Ensure(payload.asset).selectedGeneration = payload.result with {})
                 .Add(GenerationResultsActions.setAssetUndoManager, (state, payload) => state.generationResults.Ensure(payload.asset).assetUndoManager = payload.undoManager)
                 .Add(GenerationResultsActions.setReplaceWithoutConfirmation, (state, payload) => state.generationResults.Ensure(payload.asset).replaceWithoutConfirmation = payload.withoutConfirmation)
+                .Add(GenerationResultsActions.setPromoteNewAssetPostAction, (state, payload) => state.generationResults.Ensure(payload.asset).promoteNewAssetPostAction = payload.postPromoteAction)
                 .Add(GenerationResultsActions.setGeneratedResultVisibleCount, (state, payload) => {
                     var results = state.generationResults.Ensure(payload.asset);
                     results.generatedResultSelectorSettings.Ensure(payload.elementID).itemCountHint = payload.count;
@@ -74,6 +75,7 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         selectedGeneration = entry.Value.selectedGeneration with {},
                         assetUndoManager = entry.Value.assetUndoManager,
                         replaceWithoutConfirmation = entry.Value.replaceWithoutConfirmation,
+                        promoteNewAssetPostAction = entry.Value.promoteNewAssetPostAction,
                         generatedResultSelectorSettings = new SerializableDictionary<string, GeneratedResultSelectorSettings>(
                             entry.Value.generatedResultSelectorSettings.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
                                 itemCountHint = kvp.Value.itemCountHint

@@ -13,17 +13,17 @@
                 <!-- Refinement Mode Tabs -->
                 <ui:RefinementModeTabView class="bg-light">
                     <!-- Generate Tab -->
-                    <Tab label="Generate" />
+                    <Tab label="Generate" tooltip="Generate an image based on a text prompt."/>
                     <!-- Remove BG Tab -->
-                    <Tab label="Remove BG" />
+                    <Tab label="Remove BG" tooltip="Remove the background elements from the Base Image."/>
                     <!-- Upscale Tab -->
-                    <Tab label="Upscale" />
+                    <Tab label="Upscale" tooltip="Increase the resolution of the Base Image without losing detail."/>
                     <!-- Pixelate Tab -->
-                    <Tab label="Pixelate" />
+                    <Tab label="Pixelate" tooltip="Convert the Base Image into a pixel art style."/>
                     <!-- Recolor Tab -->
-                    <Tab label="Recolor" />
+                    <Tab label="Recolor" tooltip="Recolor the Base Image based on a color palette."/>
                     <!-- Inpainting Tab -->
-                    <Tab label="Inpaint" />
+                    <Tab label="Inpaint" tooltip="Refine specific areas of the Base Image with masking."/>
                     <uipanel:AIPanel class="border-color-dark border-top-1px" />
                 </ui:RefinementModeTabView>
             </VisualElement>

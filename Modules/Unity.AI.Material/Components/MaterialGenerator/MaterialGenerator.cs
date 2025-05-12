@@ -42,7 +42,7 @@ namespace Unity.AI.Material.Components
         void SetAsset(AssetReference asset)
         {
             if (this.GetState().SelectGeneratedMaterialMappingIsNone(asset))
-                this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, this.GetAsset());
+                this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, new(this.GetAsset()));
         }
     }
 }

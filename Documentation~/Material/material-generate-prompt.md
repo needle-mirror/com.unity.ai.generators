@@ -4,7 +4,7 @@ uid: material-generate-prompt
 
 # Generate material with a prompt
 
-Use the Material Generator to generate a new material using a text-based prompt and refine it using reference images and material properties.
+Use Material Generator to generate a new material using a text-based prompt and refine it using reference images and material properties.
 
 To generate a new material, follow these steps:
 
@@ -21,9 +21,13 @@ To generate a new material, follow these steps:
 
    For example, `No scratches or dirt`.
 
+   For more information on negative prompts, refer to [Remove unwanted elements with negative prompts](xref:negative-prompt).
+
 1. Use the **Materials** slider to set the number of variations of the material to generate.
 1. Enable **Custom Seed** to generate consistent results.
 1. Enter a seed number or let the tool generate one automatically.
+
+    For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).
 1. (Optional) In the **Pattern Reference** field, do the following:
    1. Select the browse icon to open the **Select Texture 2D** window.
    2. Select a reference image to guide the pattern or control net.
@@ -33,6 +37,9 @@ To generate a new material, follow these steps:
 1. Select **Generate** to create the material.
 
 The generated material appears in the **Generations** panel. Hover over a material to view details like the model used and prompt settings.
+
+> [!NOTE]
+> Material Generator stores the generated material maps in the `/GeneratedAssets` folder located at the root of your project. These assets remain in that folder until you remove them manually.
 
 ## Work with generated material
 
@@ -49,3 +56,4 @@ You can apply the material to your objects in the **Scene** view.
 
 * [Use the PBR tab](xref:material-pbr)
 * [Use the Upscale tab](xref:material-upscale)
+* [Use custom seed to generate consistent sprites](xref:custom-seed)

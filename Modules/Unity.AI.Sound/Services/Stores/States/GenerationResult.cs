@@ -21,7 +21,7 @@ namespace Unity.AI.Sound.Services.Stores.States
         public AssetUndoManager assetUndoManager;
         public bool replaceWithoutConfirmation;
         public SerializableDictionary<string, GeneratedResultSelectorSettings> generatedResultSelectorSettings = new();
-        public GenerationValidationResult generationValidation = new(false, AiResultErrorEnum.UnknownError, 1, new List<GenerationFeedbackData>());
+        public GenerationValidationResult generationValidation = new(false, AiResultErrorEnum.Unknown, 1, new List<GenerationFeedbackData>());
     }
 
     [Serializable]

@@ -2,7 +2,7 @@
         xmlns="UnityEngine.UIElements"
         xmlns:editorui="UnityEditor.UIElements"
         xmlns:ui="Unity.AI.Image.Components">
-    <Style src="./ImageReference.uss" tooltip="Useful to condition the output image using a line art or sketches." />
+    <Style src="./ImageReference.uss" />
     <VisualElement class="image-reference border-color-dark border-top-1px p-8-7-8-8">
         <editorui:Template src="./ImageReferenceHeader.uxml" name="ImageReferenceHeader" />
         <editorui:Template src="./ImageReferenceObjectField.uxml" name="ImageReferenceObjectField" />
@@ -10,7 +10,7 @@
         <editorui:Template src="./ImageReferenceStrength.uxml" name="ImageReferenceStrength" />
 
         <Instance template="ImageReferenceHeader">
-            <AttributeOverrides element-name="header-title" text="Line Art Reference" />
+            <AttributeOverrides element-name="header-title" text="Line Art Reference"  tooltip="Guides the generated image using line art or sketches." />
         </Instance>
         <Instance template="ImageReferenceObjectField" class="p-4-2"/>
         <Instance template="ImageReferenceStrength" />

@@ -25,6 +25,10 @@ The **Generation Data** window lets you view and reuse settings used to create a
 | **Use** | Copies only the selected settings to the **Generation** area. |
 | **Copy** | Copies the settings and applies them to generate a new sound. |
 
+## Unityai label
+
+[!include[](../snippets/unityai-label.md)]
+
 ## Additional resources
 
 * [Generate sound assets with a prompt](xref:sound-prompt)

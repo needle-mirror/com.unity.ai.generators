@@ -13,7 +13,7 @@
                 </VisualElement>
                 <!-- Refinement Mode Tabs -->
                 <ui:RefinementModeTabView>
-                    <Tab label="Text to Motion" class="border-color-dark border-top-1px">
+                    <Tab label="Text to Motion" class="border-color-dark border-top-1px" tooltip="Generate an animation based on a text prompt.">
                         <ScrollView>
                             <!-- Model Selector Row -->
                             <VisualElement class="flex-row items-center flex-no-shrink p-8-7-8-12 border-color-dark border-bottom-1px">
@@ -38,7 +38,7 @@
                             <ui:GenerateButton text="Generate" quote-monitor="true" />
                         </VisualElement>
                     </Tab>
-                    <Tab label="Video to Motion" class="border-color-dark border-top-1px">
+                    <Tab label="Video to Motion" class="border-color-dark border-top-1px" tooltip="Generate an animation based on a video.">
                         <ScrollView>
                             <!-- Model Selector Row -->
                             <VisualElement class="flex-row items-center flex-no-shrink p-8-7-8-12 border-color-dark border-bottom-1px">

@@ -1,10 +1,11 @@
-﻿#define AI_TK_MATERIAL_EMISSIVE_DEFAULT
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Material.Services.Stores.Selectors;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -21,13 +22,13 @@ namespace Unity.AI.Material.Services.Utilities
 
         record CacheKey(string url);
 
-        static readonly Dictionary<CacheKey, UnityEngine.Material> k_Cache = new();
+        static readonly Dictionary<CacheKey, IMaterialAdapter> k_Cache = new();
 
         public const string mapsFolderSuffix = "_Generated Maps";
 
-        public static bool IsBlank(this UnityEngine.Material material)
+        public static bool IsBlank(this IMaterialAdapter material)
         {
-            if (!material)
+            if (!material.AsObject)
                 return true;
 
             var texturePropertyNames = material.GetTexturePropertyNames();
@@ -41,30 +42,32 @@ namespace Unity.AI.Material.Services.Utilities
             return true;
         }
 
-        public static string GetMapsPath(this UnityEngine.Material material) => AssetReferenceExtensions.GetMapsPath(AssetDatabase.GetAssetPath(material));
+        public static string GetMapsPath(this UnityEngine.Object material) => AssetReferenceExtensions.GetMapsPath(AssetDatabase.GetAssetPath(material));
 
-        public static UnityEngine.Material GetTemporary(this MaterialResult result)
+        public static IMaterialAdapter GetTemporary(this MaterialResult result, IState state)
         {
             if (result.IsMat())
             {
                 var cacheKey = new CacheKey(result.uri.GetLocalPath());
-                if (k_Cache.TryGetValue(cacheKey, out var material) && material)
+                if (k_Cache.TryGetValue(cacheKey, out var material) && material.IsValid)
                     return material;
 
                 material = result.ImportMaterialTemporarily();
+                if (!typeof(UnityEngine.Material).IsAssignableFrom(material.AsObject.GetType()))
+                    material = GetTemporaryMaterialFromMaterialAdapter(material, state);
 
                 k_Cache[cacheKey] = material;
                 return material;
             }
 
             result.Sanitize();
-            return GetTemporaryMaterialFromTextures(result.textures);
+            return GetTemporaryMaterialFromTextures(result.textures, state);
         }
 
-        public static UnityEngine.Material GetTemporaryMaterialFromTextures(this IDictionary<MapType, TextureResult> textures)
+        public static IMaterialAdapter GetTemporaryMaterialFromTextures(this IDictionary<MapType, TextureResult> textures, IState state)
         {
             var material = GetDefaultMaterial(textures.Count == 1);
-            var generatedMaterialMapping = material.GetDefaultGeneratedMaterialMapping();
+            var generatedMaterialMapping = MaterialAdapterFactory.Create(material).GetDefaultGeneratedMaterialMapping(state);
 
             // since we don't go through the asset importer (unlike CopyTo(...)) we need to manually set/unset some properties
 
@@ -142,7 +145,97 @@ namespace Unity.AI.Material.Services.Utilities
                 }
             }
 
-            return material;
+            return MaterialAdapterFactory.Create(material);
+        }
+
+        public static IMaterialAdapter GetTemporaryMaterialFromMaterialAdapter(this IMaterialAdapter source, IState state)
+        {
+            if (source is MaterialAdapter)
+                return source; // Already a material adapter, no conversion needed
+
+            if (!source.IsValid)
+                return MaterialAdapterFactory.Create(GetDefaultMaterial());
+
+            // Create a default material that will receive the textures
+            var material = GetDefaultMaterial();
+            var generatedMaterialMapping = MaterialAdapterFactory.Create(material).GetDefaultGeneratedMaterialMapping(state);
+
+            // Initialize material with default settings
+            // all RPs
+            foreach (var mapping in generatedMaterialMapping)
+                material.SetTexture(mapping.Value, null);
+            if (material.HasColor("_BaseColor"))
+                material.SetColor("_BaseColor", Color.white);
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+
+            // builtin and urp
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_EMISSION");
+            if (material.HasColor("_EmissionColor"))
+                material.SetColor("_EmissionColor", Color.black);
+
+            // hdrp
+            material.DisableKeyword("_EMISSIVE_COLOR_MAP");
+            material.DisableKeyword("_NORMALMAP");
+            material.DisableKeyword("_MASKMAP");
+            material.DisableKeyword("_HEIGHTMAP");
+            if (material.HasFloat("_EmissiveExposureWeight"))
+                material.SetFloat("_EmissiveExposureWeight", 1.0f);
+
+            // Copy textures from source to the appropriate material properties
+            var texturePropertyNames = source.GetTexturePropertyNames();
+            foreach (var propertyName in texturePropertyNames)
+            {
+                var texture = source.GetTexture(propertyName);
+                if (texture == null)
+                    continue;
+
+                // Map TerrainLayer properties to standard material properties
+                MapType mapType;
+                switch (propertyName)
+                {
+                    case "_Diffuse":
+                        mapType = MapType.Delighted;
+                        break;
+                    case "_NormalMap":
+                        mapType = MapType.Normal;
+                        break;
+                    case "_MaskMap":
+                        mapType = MapType.MaskMap;
+                        break;
+                    default:
+                        continue; // Skip unknown property
+                }
+
+                if (!generatedMaterialMapping.TryGetValue(mapType, out var materialProperty))
+                    continue;
+                if (!material.HasTexture(materialProperty))
+                    continue;
+
+                // Apply texture and enable related keywords
+                switch (mapType)
+                {
+                    case MapType.Delighted:
+                        material.EnableKeyword("_ALPHATEST_ON");
+                        if (material.HasColor("_BaseColor"))
+                            material.SetColor("_BaseColor", Color.white);
+                        material.SetTexture(materialProperty, texture);
+                        break;
+                    case MapType.Normal:
+                        material.EnableKeyword("_NORMALMAP");
+                        material.SetTexture(materialProperty, texture);
+                        break;
+                    case MapType.MaskMap:
+                        material.EnableKeyword("_MASKMAP");
+                        material.SetTexture(materialProperty, texture);
+                        break;
+                    default:
+                        material.SetTexture(materialProperty, texture);
+                        break;
+                }
+            }
+
+            return MaterialAdapterFactory.Create(material);
         }
 
         public static UnityEngine.Material GetDefaultMaterial(bool unlit = false)
@@ -213,11 +306,11 @@ namespace Unity.AI.Material.Services.Utilities
             EditorUtility.SetDirty(to);
         }
 
-        public static bool CopyTo(this MaterialResult from, UnityEngine.Material to, Dictionary<MapType, string> generatedMaterialMapping)
+        public static bool CopyTo(this MaterialResult from, IMaterialAdapter to, IState state, Dictionary<MapType, string> generatedMaterialMapping)
         {
             from.Sanitize();
 
-            var mapsPath = to.GetMapsPath();
+            var mapsPath = to.AsObject.GetMapsPath();
             if (!AssetDatabase.IsValidFolder(mapsPath))
             {
                 mapsPath = AssetDatabase.GUIDToAssetPath(AssetDatabase.CreateFolder(Path.GetDirectoryName(mapsPath), Path.GetFileName(mapsPath)));
@@ -229,7 +322,7 @@ namespace Unity.AI.Material.Services.Utilities
             }
 
             // the material's AI tag
-            to.EnableGenerationLabel();
+            to.AsObject.EnableGenerationLabel();
 
             // clear
             foreach (var mapping in generatedMaterialMapping)
@@ -286,48 +379,57 @@ namespace Unity.AI.Material.Services.Utilities
                 to.SetTexture(materialProperty, importedTexture);
             }
 
-            // when we set our map and the related color is black, set it to white
-            if (to.TryGetDefaultTexturePropertyName(MapType.Delighted, out var delightedPropertyName) &&
-                generatedMaterialMapping.ContainsValue(delightedPropertyName) && to.HasTexture(delightedPropertyName) && to.GetTexture(delightedPropertyName))
+            if (to.AsObject is UnityEngine.Material materialTo)
             {
-                if (to.HasColor("_BaseColor") && to.GetColor("_BaseColor") == Color.black)
-                    to.SetColor("_BaseColor", Color.white);
-            }
-            // if we are not setting our map and the material doesn't have a map in that property, set the color to black if it was fully white
-            else if (generatedMaterialMapping.ContainsValue(delightedPropertyName) && to.HasTexture(delightedPropertyName) && !to.GetTexture(delightedPropertyName))
-            {
-                if (to.HasColor("_BaseColor") && to.GetColor("_BaseColor") == Color.white)
-                    to.SetColor("_BaseColor", Color.black);
+                // when we set our map and the related color is black, set it to white
+                var (foundDelighted, delightedPropertyName) = state.GetTexturePropertyName(to, MapType.Delighted);
+                if (foundDelighted && generatedMaterialMapping.ContainsValue(delightedPropertyName) && to.HasTexture(delightedPropertyName) &&
+                    to.GetTexture(delightedPropertyName))
+                {
+                    if (materialTo.HasColor("_BaseColor") && materialTo.GetColor("_BaseColor") == Color.black)
+                        materialTo.SetColor("_BaseColor", Color.white);
+                }
+
+                // if we are not setting our map and the material doesn't have a map in that property, set the color to black if it was fully white
+                else if (generatedMaterialMapping.ContainsValue(delightedPropertyName) && to.HasTexture(delightedPropertyName) &&
+                         !to.GetTexture(delightedPropertyName))
+                {
+                    if (materialTo.HasColor("_BaseColor") && materialTo.GetColor("_BaseColor") == Color.white)
+                        materialTo.SetColor("_BaseColor", Color.black);
+                }
+
+                // when we set our map and the related color is black, set it to white
+                var (foundEmission, emissionPropertyName) = state.GetTexturePropertyName(to, MapType.Emission);
+                if (foundEmission && generatedMaterialMapping.ContainsValue(emissionPropertyName) && to.HasTexture(emissionPropertyName) &&
+                    to.GetTexture(emissionPropertyName))
+                {
+                    materialTo.EnableKeyword("_EMISSION");
+                    materialTo.globalIlluminationFlags = MaterialGlobalIlluminationFlags.BakedEmissive;
+                    if (materialTo.HasColor("_EmissionColor") && materialTo.GetColor("_EmissionColor") == Color.black)
+                        materialTo.SetColor("_EmissionColor", Color.white);
+                    if (materialTo.HasFloat("_EmissiveExposureWeight"))
+                        materialTo.SetFloat("_EmissiveExposureWeight", 0.5f);
+                }
+
+                // if we are not setting our map and the material doesn't have a map in that property, set the color to black if it was fully white
+                else if (generatedMaterialMapping.ContainsValue(emissionPropertyName) && to.HasTexture(emissionPropertyName) &&
+                         !to.GetTexture(emissionPropertyName))
+                {
+                    if (materialTo.HasColor("_EmissionColor") && materialTo.GetColor("_EmissionColor") == Color.white)
+                        materialTo.SetColor("_EmissionColor", Color.black);
+                    if (materialTo.HasFloat("_EmissiveExposureWeight"))
+                        materialTo.SetFloat("_EmissiveExposureWeight", 1.0f);
+                    materialTo.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+                    materialTo.DisableKeyword("_EMISSION");
+                }
             }
 
-            // when we set our map and the related color is black, set it to white
-            if (to.TryGetDefaultTexturePropertyName(MapType.Emission, out var emissionPropertyName) &&
-                generatedMaterialMapping.ContainsValue(emissionPropertyName) && to.HasTexture(emissionPropertyName) && to.GetTexture(emissionPropertyName))
-            {
-                to.EnableKeyword("_EMISSION");
-                to.globalIlluminationFlags = MaterialGlobalIlluminationFlags.BakedEmissive;
-                if (to.HasColor("_EmissionColor") && to.GetColor("_EmissionColor") == Color.black)
-                    to.SetColor("_EmissionColor", Color.white);
-                if (to.HasFloat("_EmissiveExposureWeight"))
-                    to.SetFloat("_EmissiveExposureWeight", 0.5f);
-            }
-            // if we are not setting our map and the material doesn't have a map in that property, set the color to black if it was fully white
-            else if (generatedMaterialMapping.ContainsValue(emissionPropertyName) && to.HasTexture(emissionPropertyName) && !to.GetTexture(emissionPropertyName))
-            {
-                if (to.HasColor("_EmissionColor") && to.GetColor("_EmissionColor") == Color.white)
-                    to.SetColor("_EmissionColor", Color.black);
-                if (to.HasFloat("_EmissiveExposureWeight"))
-                    to.SetFloat("_EmissiveExposureWeight", 1.0f);
-                to.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
-                to.DisableKeyword("_EMISSION");
-            }
-
-            EditorUtility.SetDirty(to);
+            EditorUtility.SetDirty(to.AsObject);
 
             return true;
         }
 
-        public static Dictionary<MapType, string> GetDefaultGeneratedMaterialMapping(this UnityEngine.Material material)
+        public static Dictionary<MapType, string> GetDefaultGeneratedMaterialMapping(this IMaterialAdapter material, IState state)
         {
             var mapping = new Dictionary<MapType, string>();
             foreach (MapType mapType in Enum.GetValues(typeof(MapType)))
@@ -335,174 +437,11 @@ namespace Unity.AI.Material.Services.Utilities
                 if (mapType == MapType.Preview)
                     continue;
 
-                if (material.TryGetDefaultTexturePropertyName(mapType, out var texturePropertyName))
+                var (found, texturePropertyName) = state.GetTexturePropertyName(material, mapType);
+                if (found)
                     mapping[mapType] = texturePropertyName;
             }
             return mapping;
-        }
-
-        public static bool TryGetDefaultTexturePropertyName(this UnityEngine.Material material, MapType mapType, out string texturePropertyName)
-        {
-            switch (mapType)
-            {
-                case MapType.Preview:
-                    // No texture property to return for Preview
-                    break;
-
-                case MapType.Height:
-                    // Universal Render Pipeline/Lit, Standard
-                    if (material.HasTexture("_ParallaxMap"))
-                    {
-                        texturePropertyName = "_ParallaxMap";
-                        return true;
-                    }
-                    // HDRP/Lit
-                    if (material.HasTexture("_HeightMap"))
-                    {
-                        texturePropertyName = "_HeightMap";
-                        return true;
-                    }
-                    break;
-
-                case MapType.Normal:
-                    // Universal Render Pipeline/Lit, Standard
-                    if (material.HasTexture("_BumpMap"))
-                    {
-                        texturePropertyName = "_BumpMap";
-                        return true;
-                    }
-                    // HDRP/Lit
-                    if (material.HasTexture("_NormalMap"))
-                    {
-                        texturePropertyName = "_NormalMap";
-                        return true;
-                    }
-                    break;
-
-                case MapType.Emission:
-#if AI_TK_MATERIAL_EMISSIVE_DEFAULT
-                    // Universal Render Pipeline/Lit, Standard
-                    if (material.HasTexture("_EmissionMap"))
-                    {
-                        texturePropertyName = "_EmissionMap";
-                        return true;
-                    }
-                    // HDRP/Lit
-                    if (material.HasTexture("_EmissiveColorMap"))
-                    {
-                        texturePropertyName = "_EmissiveColorMap";
-                        return true;
-                    }
-#endif
-                    break;
-
-                case MapType.Metallic:
-                    // Muse
-                    if (material.HasTexture("_MetallicMap"))
-                    {
-                        texturePropertyName = "_MetallicMap";
-                        return true;
-                    }
-
-                    break;
-
-                case MapType.Roughness:
-                    // Muse
-                    if (material.HasTexture("_RoughnessMap"))
-                    {
-                        texturePropertyName = "_RoughnessMap";
-                        return true;
-                    }
-
-                    break;
-
-                case MapType.Delighted: // Albedo
-                    // Muse
-                    if (material.HasTexture("_AlbedoMap"))
-                    {
-                        texturePropertyName = "_AlbedoMap";
-                        return true;
-                    }
-
-                    // Universal Render Pipeline/Lit, Universal Render Pipeline/Unlit
-                    if (material.HasTexture("_BaseMap"))
-                    {
-                        texturePropertyName = "_BaseMap";
-                        return true;
-                    }
-                    // HDRP/Lit
-                    if (material.HasTexture("_BaseColorMap"))
-                    {
-                        texturePropertyName = "_BaseColorMap";
-                        return true;
-                    }
-                    // HDRP/Unlit
-                    if (material.HasTexture("_UnlitColorMap"))
-                    {
-                        texturePropertyName = "_UnlitColorMap";
-                        return true;
-                    }
-                    // Unlit/Texture, Standard
-                    if (material.HasTexture("_MainTex"))
-                    {
-                        texturePropertyName = "_MainTex";
-                        return true;
-                    }
-                    break;
-
-                case MapType.Occlusion:
-                    // Muse
-                    if (material.HasTexture("_AmbientOcclusionMap"))
-                    {
-                        texturePropertyName = "_AmbientOcclusionMap";
-                        return true;
-                    }
-
-                    // Universal Render Pipeline/Lit, Standard
-                    if (material.HasTexture("_OcclusionMap"))
-                    {
-                        texturePropertyName = "_OcclusionMap";
-                        return true;
-                    }
-                    break;
-
-                case MapType.MaskMap:
-                    // HDRP/Lit
-                    if (material.HasTexture("_MaskMap"))
-                    {
-                        texturePropertyName = "_MaskMap";
-                        return true;
-                    }
-                    break;
-
-                case MapType.Smoothness:
-                    // Muse
-                    if (material.HasTexture("_SmoothnessMap"))
-                    {
-                        texturePropertyName = "_SmoothnessMap";
-                        return true;
-                    }
-
-                    break;
-
-                case MapType.MetallicSmoothness:
-                    break;
-
-                case MapType.NonMetallicSmoothness:
-                    // Universal Render Pipeline/Lit, Standard
-                    if (material.HasTexture("_MetallicGlossMap"))
-                    {
-                        texturePropertyName = "_MetallicGlossMap";
-                        return true;
-                    }
-                    break;
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(mapType), mapType, null);
-            }
-
-            texturePropertyName = null;
-            return false;
         }
     }
 }

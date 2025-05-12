@@ -29,6 +29,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Payloads
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);
     record SelectGenerationData(AssetReference asset, MaterialResult result, bool replaceAsset, bool askForConfirmation) : AsssetContext(asset);
     record PromotedGenerationData(AssetReference asset, MaterialResult result) : AsssetContext(asset);
+    record AutodetectMaterialMappingData(AssetReference asset, bool force = false) : AsssetContext(asset);
     record DragAndDropGenerationData(AssetReference asset, MaterialResult result, string newAssetPath) : PromotedGenerationData(asset, result);
     record DragAndDropFinalizeData(AssetReference asset, string tempNewAssetPath, string newAssetPath) : AsssetContext(asset);
     record GenerationMaterialMappingData(AssetReference asset, MapType mapType, string materialProperty) : AsssetContext(asset);

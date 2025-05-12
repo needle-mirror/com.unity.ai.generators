@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Unity.AI.Toolkit.Compliance;
 using UnityEditor;
 using UnityEngine;
@@ -55,6 +56,28 @@ namespace Unity.AI.Generators.Asset
             labelList.Add(Legal.UnityAIGeneratedLabel);
             AssetDatabase.SetLabels(asset, labelList.ToArray());
             AssetDatabase.Refresh(); // Force refresh to ensure the label is applied, this is done very sparingly
+
+            if (Selection.activeObject != asset || asset is not AudioClip)
+                return;
+
+            _ = RefreshInspector();
+            return;
+
+            async Task RefreshInspector()
+            {
+                if (Selection.activeObject != asset)
+                    return;
+
+                try
+                {
+                    Selection.activeObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets"); // null doesn't apparently force a refresh
+                    await Task.Yield();
+                }
+                finally
+                {
+                    Selection.activeObject = asset;
+                }
+            }
         }
 
         public static bool FixObjectName(this AssetReference asset)
@@ -74,8 +97,14 @@ namespace Unity.AI.Generators.Asset
 
             asset.name = desiredName;
             EditorUtility.SetDirty(asset);
-            AssetDatabase.SaveAssetIfDirty(asset);
+            asset.SafeCall(AssetDatabase.SaveAssetIfDirty);
             return true;
+        }
+
+        public static void SafeCall(this UnityEngine.Object asset, Action<UnityEngine.Object> action)
+        {
+            try { action?.Invoke(asset); }
+            catch { /* ignored */ }
         }
 
         public static bool TryGetProjectAssetsRelativePath(string path, out string projectPath)

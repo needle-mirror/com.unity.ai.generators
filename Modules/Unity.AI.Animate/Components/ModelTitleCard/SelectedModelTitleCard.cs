@@ -60,7 +60,11 @@ namespace Unity.AI.Animate.Components
         void Paste(DropdownMenuAction menuItem)
         {
             var modelIdBuffer = EditorGUIUtility.systemCopyBuffer;
-            this.Dispatch(GenerationSettingsActions.setSelectedModelID, (this.GetState().SelectRefinementMode(this), modelIdBuffer));
+            var models = this.GetState().SelectModelSettings();
+            var pastedModel = models.FirstOrDefault(m => m.id == modelIdBuffer);
+
+            if (pastedModel.IsValid())
+                this.Dispatch(GenerationSettingsActions.setSelectedModelID, (this.GetState().SelectRefinementMode(this), modelIdBuffer));
         }
     }
 }

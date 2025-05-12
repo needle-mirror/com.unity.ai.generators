@@ -24,6 +24,11 @@ namespace Unity.AI.Generators.UI.Utilities
                 $"Organization Name: {CloudProjectSettings.organizationName}\n" +
                 $"Cloud Project ID: {CloudProjectSettings.projectId}\n" +
                 $"Cloud Project Name: {CloudProjectSettings.projectName}\n" +
+                $"AI_Toolkit_Account_Environment: {EditorPrefs.GetString("AI_Toolkit_Account_Environment")}\n" +
+                $"AI_Toolkit_Animate_Environment: {EditorPrefs.GetString("AI_Toolkit_Animate_Environment")}\n" +
+                $"AI_Toolkit_Image_Environment: {EditorPrefs.GetString("AI_Toolkit_Image_Environment")}\n" +
+                $"AI_Toolkit_Material_Environment: {EditorPrefs.GetString("AI_Toolkit_Material_Environment")}\n" +
+                $"AI_Toolkit_Sound_Environment: {EditorPrefs.GetString("AI_Toolkit_Sound_Environment")}\n" +
                 $"(selected) Asset ID (trace ID): {traceID}");
         }
 

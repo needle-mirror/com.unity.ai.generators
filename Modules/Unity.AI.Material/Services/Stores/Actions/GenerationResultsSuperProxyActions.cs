@@ -5,8 +5,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AiEditorToolsSdk;
+using AiEditorToolsSdk.Components.Asset.Responses;
 using AiEditorToolsSdk.Components.Common.Enums;
-using AiEditorToolsSdk.Components.Common.Responses;
+using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
@@ -42,7 +43,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
                     new (arg.asset,
-                        new (false, AiResultErrorEnum.UnknownError, 0,
+                        new (false, AiResultErrorEnum.Unknown, 0,
                             messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                 return;
             }
@@ -53,7 +54,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 var messages = new[] { $"Error reason is 'Invalid Asset'." };
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
                     new (arg.asset,
-                        new (false, AiResultErrorEnum.UnknownError, 0,
+                        new (false, AiResultErrorEnum.Unknown, 0,
                             messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                 return;
             }
@@ -135,7 +136,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
                 new(arg.asset,
                     new(quoteResults.Result.IsSuccessful,
-                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.UnknownError,
+                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
                         quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
         });
 
@@ -198,17 +199,14 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             1, progressTokenSource0.Token);
 
                         await using var assetStream = await ReferenceAssetStream(api.State, asset);
-                        var result = await assetComponent.StoreAssetWithResult(assetStream, httpClientLease.client);
-                        if (!result.Result.IsSuccessful)
+                        if (!FinalizeStoreAsset(await assetComponent.StoreAssetWithResult(assetStream, httpClientLease.client), out var assetGuid))
                         {
                             AbortCleanup(materialGenerations);
-                            LogFailedResult(result.Result.Error);
 
                             // we can simply return without throwing or additional logging because the error is already logged
                             return;
                         }
 
-                        var assetGuid = result.Result.Value.AssetId;
                         materialGenerations = new List<Dictionary<MapType, Guid>>
                             { new() { [MapType.Preview] = assetGuid } };
 
@@ -219,7 +217,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         if (!upscaleResults.Batch.IsSuccessful)
                         {
                             AbortCleanup(materialGenerations);
-                            LogFailedResult(upscaleResults.Batch.Error);
+                            LogFailedBatchResult(upscaleResults);
 
                             // we can simply return without throwing or additional logging because the error is already logged
                             return;
@@ -268,7 +266,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         if (!pbrResults.Batch.IsSuccessful)
                         {
                             AbortCleanup(materialGenerations);
-                            LogFailedResult(pbrResults.Batch.Error);
+                            LogFailedBatchResult(pbrResults);
 
                             // we can simply return without throwing or additional logging because the error is already logged
                             return;
@@ -303,17 +301,13 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         if (patternImageReference.asset.IsValid())
                         {
                             await using var patternStream = await PatternAssetStream(api.State, asset);
-                            var result = await assetComponent.StoreAssetWithResult(patternStream, httpClientLease.client);
-                            if (!result.Result.IsSuccessful)
+                            if (!FinalizeStoreAsset(await assetComponent.StoreAssetWithResult(patternStream, httpClientLease.client), out patternGuid))
                             {
                                 AbortCleanup(materialGenerations);
-                                LogFailedResult(result.Result.Error);
 
                                 // we can simply return without throwing or additional logging because the error is already logged
                                 return;
                             }
-
-                            patternGuid = result.Result.Value.AssetId;
                         }
 
                         var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, seed)
@@ -325,7 +319,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         if (!generateResults.Batch.IsSuccessful)
                         {
                             AbortCleanup(materialGenerations);
-                            LogFailedResult(generateResults.Batch.Error);
+                            LogFailedBatchResult(generateResults);
 
                             // we can simply return without throwing or additional logging because the error is already logged
                             return;
@@ -400,6 +394,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 }
             }
 
+            void LogFailedBatchResult<T>(BatchOperationResult<T> results) where T : class
+            {
+                LogFailedResult(results.Batch.Error);
+                Debug.Log($"Trace Id {results.SdkTraceId} => {results.W3CTraceId}");
+            }
+
             void LogFailedResult(AiOperationFailedResult result)
             {
                 api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
@@ -411,6 +411,25 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     Debug.Log(message);
                     api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
                 }
+            }
+
+            bool FinalizeStoreAsset(OperationResult<BlobAssetResult> assetResults, out Guid assetGuid)
+            {
+                assetGuid = Guid.Empty;
+                if (!assetResults.Result.IsSuccessful)
+                {
+                    LogFailedResult(assetResults.Result.Error);
+                    Debug.Log($"Trace Id {assetResults.SdkTraceId} => {assetResults.W3CTraceId}");
+
+                    // caller can simply return without throwing or additional logging because the error is already logged and we rely on 'finally' statements for cleanup
+                    return false;
+                }
+                assetGuid = assetResults.Result.Value.AssetId;
+                if (LoggerUtilities.sdkLogLevel == 0)
+                    return true;
+                if (assetResults.Result.Value.Ttl.HasValue)
+                    Debug.Log($"Asset {assetGuid} has ttl {assetResults.Result.Value.Ttl}");
+                return true;
             }
 
             void ReenableGenerateButton() => api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
@@ -470,10 +489,10 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         if (result.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
                             return TextureResult.FromUrl(result.Result.Value.AssetUrl.Url);
 
-                        var failedResult = result.Result.IsSuccessful /* simulated */
-                            ? new AiOperationFailedResult(AiResultErrorEnum.UnknownError, new List<string> { "Simulated server timeout" })
-                            : result.Result.Error;
-                        LogFailedDownload(failedResult);
+                        if (result.Result.IsSuccessful)
+                            LogFailedDownload(new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
+                        else
+                            LogFailedDownloadResult(result);
                         throw new HandledFailureException();
                     }));
                 await Task.WhenAll(urlTasks.Values.SelectMany(kvp => kvp.Values));
@@ -575,7 +594,11 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             // auto-apply if blank or if it's a PBR
             if (generatedMaterials[0].IsValid() && (assetWasBlank || generatedMaterials[0].IsPbr() || arg.autoApply))
+            {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedMaterials[0], backupSuccess, !assetWasBlank));
+                if (assetWasBlank)
+                    api.Dispatch(GenerationResultsActions.setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(arg.asset, true));
+            }
 
             SetProgress(progress with { progress = 1f }, "Done.");
 
@@ -601,6 +624,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     Debug.Log(message);
                     api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
                 }
+            }
+
+            void LogFailedDownloadResult<T>(OperationResult<T> result) where T : class
+            {
+                LogFailedDownload(result.Result.Error);
+                Debug.Log($"Trace Id {result.SdkTraceId} => {result.W3CTraceId}");
             }
 
             void LogFailedDownload(AiOperationFailedResult result)

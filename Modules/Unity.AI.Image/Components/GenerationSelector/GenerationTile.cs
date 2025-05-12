@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Generators.Redux.Thunks;
@@ -54,7 +54,7 @@ namespace Unity.AI.Image.Components
 
             m_ContextualMenu = new ContextualMenuManipulator(BuildContextualMenu);
             m_FailedContextualMenu = new ContextualMenuManipulator(BuildFailedContextualMenu);
-            m_DragManipulator = new DragExternalFileManipulator();
+            m_DragManipulator = new DragExternalFileManipulator { newFileName = AssetUtils.defaultNewAssetName };
 
             progress = this.Q<VisualElement>("progress");
             progress.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
@@ -229,6 +229,7 @@ namespace Unity.AI.Image.Components
             textureResult = result;
 
             m_DragManipulator.externalFilePath = textureResult?.uri.GetLocalPath();
+            m_DragManipulator.newFileName = Path.GetFileNameWithoutExtension(this.GetAsset().GetPath());
 
             if (textureResult.IsFailed())
             {

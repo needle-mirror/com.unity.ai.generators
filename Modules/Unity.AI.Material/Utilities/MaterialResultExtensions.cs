@@ -45,8 +45,7 @@ namespace Unity.AI.Material.Services.Utilities
 
             Sanitize(materialResult);
 
-            var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
-            return AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase);
+            return AssetUtils.supportedExtensions.Contains(Path.GetExtension(materialResult.uri.GetLocalPath()).ToLowerInvariant());
         }
 
         public static async Task CopyToProject(this MaterialResult materialResult, string generatedMaterialName, GenerationMetadata generationMetadata, string cacheDirectory)
@@ -58,7 +57,7 @@ namespace Unity.AI.Material.Services.Utilities
                 return;
 
             var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
-            if (AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
+            if (AssetUtils.supportedExtensions.Contains(extension.ToLowerInvariant()))
             {
                 // already a local .mat!
                 Assert.IsTrue(File.Exists(materialResult.uri.GetLocalPath()));
@@ -180,37 +179,13 @@ namespace Unity.AI.Material.Services.Utilities
             return FileIO.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
         }
 
-        public static async Task<bool> CopyToAsync(this MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> generatedMaterialMapping)
-        {
-            var sourceFileName = generatedMaterial.uri.GetLocalPath();
-            if (!File.Exists(sourceFileName))
-                return false;
-
-            var destFileName = asset.GetPath();
-            if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
-            {
-                var destMaterial = asset.GetObject<UnityEngine.Material>();
-                if (generatedMaterial.CopyTo(destMaterial, generatedMaterialMapping))
-                    AssetDatabase.SaveAssetIfDirty(destMaterial);
-            }
-            else
-            {
-                await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
-                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
-                asset.FixObjectName();
-            }
-            asset.EnableGenerationLabel();
-
-            return true;
-        }
-
         public static bool AreMapsIdentical(this MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> materialMapping)
         {
             var sourceFileName = generatedMaterial.uri.GetLocalPath();
             if (!File.Exists(sourceFileName))
                 return false;
 
-            var destMaterial = asset.GetObject<UnityEngine.Material>();
+            var destMaterial = asset.GetMaterialAdapter();
             if (!generatedMaterial.IsValid() || destMaterial == null)
                 return false;
 
@@ -261,46 +236,22 @@ namespace Unity.AI.Material.Services.Utilities
             return foundMismatch == 0;
         }
 
-        public static bool CopyTo(this MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> generatedMaterialMapping)
-        {
-            var sourceFileName = generatedMaterial.uri.GetLocalPath();
-            if (!File.Exists(sourceFileName))
-                return false;
-
-            var destFileName = asset.GetPath();
-            if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
-            {
-                var destMaterial = asset.GetObject<UnityEngine.Material>();
-                if (generatedMaterial.CopyTo(destMaterial, generatedMaterialMapping))
-                    AssetDatabase.SaveAssetIfDirty(destMaterial);
-            }
-            else
-            {
-                FileIO.CopyFile(sourceFileName, destFileName, true);
-                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
-                asset.FixObjectName();
-            }
-            asset.EnableGenerationLabel();
-
-            return true;
-        }
-
-        public static UnityEngine.Material ImportMaterialTemporarily(this MaterialResult result)
+        public static IMaterialAdapter ImportMaterialTemporarily(this MaterialResult result)
         {
             var materialFilePath = result.uri.GetLocalPath();
             var extension = Path.GetExtension(materialFilePath);
-            if (string.IsNullOrEmpty(extension) || !extension.Equals(AssetUtils.defaultAssetExtension, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(extension) || !AssetUtils.supportedExtensions.Contains(extension.ToLowerInvariant()))
             {
-                Debug.LogError($"File does not have a valid {AssetUtils.defaultAssetExtension} extension");
+                Debug.LogError($"File does not have a valid ({string.Join(",", AssetUtils.supportedExtensions)}) extension");
                 return null;
             }
 
             using var temporaryAsset = TemporaryAssetUtilities.ImportAssets(new[] { materialFilePath });
-            var importedMaterial = temporaryAsset.assets[0].asset.GetObject<UnityEngine.Material>();
+            var importedMaterial = temporaryAsset.assets[0].asset.GetObject();
             var materialInstance = Object.Instantiate(importedMaterial);
             materialInstance.hideFlags = HideFlags.HideAndDontSave;
 
-            return materialInstance;
+            return MaterialAdapterFactory.Create(materialInstance);
         }
 
         public static Uri GetUri(this MaterialResult materialResult, MapType mapType = MapType.Preview) =>
@@ -415,7 +366,7 @@ namespace Unity.AI.Material.Services.Utilities
                 return;
 
             var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
-            if (AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
+            if (AssetUtils.supportedExtensions.Contains(extension.ToLowerInvariant()))
                 return;
 
             var materialName = materialResult.GetName();

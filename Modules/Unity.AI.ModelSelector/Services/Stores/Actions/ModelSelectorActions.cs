@@ -16,7 +16,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
         internal static Creator<AppData> init => new($"{slice}/init");
         public static Creator<string> setEnvironment => new($"{slice}/setEnvironment");
         public static Creator<string> setLastSelectedModelID => new($"{slice}/setLastSelectedModelID");
-        public static Creator<ModalityEnum> setLastSelectedModality => new($"{slice}/setLastSelectedModality");
+        public static Creator<ModalityEnum[]> setLastSelectedModalities => new($"{slice}/setLastSelectedModalities");
         public static Creator<OperationSubTypeEnum[]> setLastOperationSubTypes => new($"{slice}/setLastOperationSubTypes");
 
         public static readonly AsyncThunkCreatorWithArg<DiscoverModelsData> discoverModels = new($"{slice}/openSelectModelPanel", async (data, api) =>
@@ -43,5 +43,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
         static bool s_FetchingBool = false;
 
         public static Creator<long> setLastModelDiscoveryTimestamp => new($"{slice}/setLastModelDiscoveryTimestamp");
+
+        public static Creator<string> setLastUsedSelectedModelID => new($"{slice}/setLastUsedSelectedModelID");
     }
 }

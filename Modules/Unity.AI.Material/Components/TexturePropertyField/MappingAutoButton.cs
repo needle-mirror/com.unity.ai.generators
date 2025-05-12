@@ -9,20 +9,20 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Material.Components
 {
     [UxmlElement]
-    partial class MaterialPropertyAutodetectButton : VisualElement
+    partial class MappingAutoButton : VisualElement
     {
-        const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Material/Components/MaterialPropertyTexturePopupField/MaterialPropertyAutodetectButton.uxml";
+        const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Material/Components/TexturePropertyField/MappingAutoButton.uxml";
 
-        public MaterialPropertyAutodetectButton()
+        public MappingAutoButton()
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.SafeCloneTree(this);
 
-            AddToClassList("material-property-autodetect");
+            AddToClassList("mapping-autodetect");
 
             var button = this.Q<Button>();
             if (button != null)
-                button.clickable = new Clickable(() => this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, this.GetAsset()));
+                button.clickable = new Clickable(() => this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, new(this.GetAsset(), true)));
         }
     }
 }

@@ -8,12 +8,19 @@ namespace Unity.AI.Material.Windows
     static class MaterialGeneratorObjectPicker
     {
         [InitializeOnLoadMethod]
-        static void ObjectPickerBlankGenerationHook()
+        public static void ObjectPickerBlankGenerationHook()
         {
             Toolkit.GenerationObjectPicker.RegisterTemplate<UnityEngine.Material>(
                 "Material",
                 AssetUtils.CreateBlankMaterial,
-                "Assets/New Material.mat",
+                $"Assets/New Material{AssetUtils.materialExtension}",
+                MaterialGeneratorInspectorButton.OpenGenerationWindow
+            );
+
+            Toolkit.GenerationObjectPicker.RegisterTemplate<UnityEngine.TerrainLayer>(
+                "TerrainLayer",
+                AssetUtils.CreateBlankTerrainLayer,
+                $"Assets/New Terrain Layer{AssetUtils.terrainLayerExtension}",
                 MaterialGeneratorInspectorButton.OpenGenerationWindow
             );
         }

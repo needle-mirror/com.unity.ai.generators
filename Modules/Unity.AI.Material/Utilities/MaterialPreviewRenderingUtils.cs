@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.AI.Generators.Redux;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
@@ -31,12 +32,13 @@ namespace Unity.AI.Material.Services.Utilities
         /// Renders a preview of the given material on a default cube.
         /// </summary>
         /// <param name="material">The material to preview.</param>
+        /// <param name="state"></param>
         /// <param name="width">Width of the preview texture.</param>
         /// <param name="height">Height of the preview texture.</param>
         /// <param name="screenScaleFactor">Device size scaling</param>
         /// <param name="invalidateCache"></param>
         /// <returns>A RenderTexture containing the preview image.</returns>
-        public static RenderTexture GetPreview(this MaterialResult material, int width = 128, int height = 128, float screenScaleFactor = 1, bool invalidateCache = false)
+        public static RenderTexture GetPreview(this MaterialResult material, IState state, int width = 128, int height = 128, float screenScaleFactor = 1, bool invalidateCache = false)
         {
             var texWidth = Mathf.RoundToInt(width * screenScaleFactor);
             var texHeight = Mathf.RoundToInt(height * screenScaleFactor);
@@ -53,7 +55,11 @@ namespace Unity.AI.Material.Services.Utilities
             k_Cache[cacheKey] = cachedTexture;
 
             s_MaterialPreviewRenderUtility ??= new MaterialPreviewRenderUtility();
-            s_MaterialPreviewRenderUtility.SetMaterial(material.GetTemporary());
+            var t = material.GetTemporary(state);
+            if (!typeof(UnityEngine.Material).IsAssignableFrom(t.AsObject.GetType()))
+                return null;
+
+            s_MaterialPreviewRenderUtility.SetMaterial(t.AsObject as UnityEngine.Material);
 
             var rt = s_MaterialPreviewRenderUtility.DoRenderPreview(new Rect(0, 0, texWidth, texHeight), new GUIStyle());
             if (rt == null)

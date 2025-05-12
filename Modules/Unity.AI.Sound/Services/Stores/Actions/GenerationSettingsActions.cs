@@ -38,13 +38,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<VisualElement> openSelectModelPanel = new($"{slice}/openSelectModelPanel", async (element, api) =>
         {
-            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            // its model selection is transient and needs to be exchanged with the current modality's slice
             var selectedModelID = api.State.SelectSelectedModelID(element);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModelID, selectedModelID);
-            element.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.setLastSelectedModality, ModalityEnum.Sound);
-            await ModelSelectorWindow.Open(element.GetStore());
-            selectedModelID = ModelSelector.Services.Stores.Selectors.ModelSelectorSelectors.SelectLastSelectedModelID(api.State);
+            // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Sound, Array.Empty<OperationSubTypeEnum>());
             element.Dispatch(setSelectedModelID, selectedModelID);
         });
 

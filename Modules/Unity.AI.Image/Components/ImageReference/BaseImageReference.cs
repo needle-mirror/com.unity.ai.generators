@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using Unity.AI.Image.Services.Stores.Selectors;
 using UnityEditor;
 using UnityEngine;

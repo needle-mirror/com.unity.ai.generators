@@ -64,6 +64,7 @@ namespace Unity.AI.Material.Components
             this.Use(state => state.SelectShouldAutoAssignModel(this), payload =>
             {
                 m_Button.SetEnabled(!payload.should);
+                m_Button.tooltip = payload.should ? "No additional model currently available" : "Choose another AI model";
                 if (!payload.should)
                     return;
                 var autoAssignModel = this.GetState().SelectAutoAssignModel(this);

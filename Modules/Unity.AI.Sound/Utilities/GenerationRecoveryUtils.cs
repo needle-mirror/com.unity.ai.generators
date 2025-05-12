@@ -105,10 +105,17 @@ namespace Unity.AI.Sound.Services.Utilities
         {
             if (System.IO.File.Exists(k_InterruptedDownloadsFilePath))
             {
-                var json = FileIO.ReadAllText(k_InterruptedDownloadsFilePath);
-                s_InterruptedDownloadsByEnv = JsonUtility.FromJson<SerializableDictionary<string, List<InterruptedDownloadData>>>(json);
-                if (s_InterruptedDownloadsByEnv == null)
-                    s_InterruptedDownloadsByEnv = new SerializableDictionary<string, List<InterruptedDownloadData>>();
+                try
+                {
+                    var json = FileIO.ReadAllText(k_InterruptedDownloadsFilePath);
+                    s_InterruptedDownloadsByEnv = JsonUtility.FromJson<SerializableDictionary<string, List<InterruptedDownloadData>>>(json);
+                }
+                catch
+                {
+                    s_InterruptedDownloadsByEnv = null;
+                }
+
+                s_InterruptedDownloadsByEnv ??= new SerializableDictionary<string, List<InterruptedDownloadData>>();
             }
             else
             {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.States;
@@ -80,7 +81,7 @@ namespace Unity.AI.Sound.Components
 
             m_ContextualMenu = new ContextualMenuManipulator(BuildContextualMenu);
             m_FailedContextualMenu = new ContextualMenuManipulator(BuildFailedContextualMenu);
-            m_DragManipulator = new DragExternalFileManipulator();
+            m_DragManipulator = new DragExternalFileManipulator { newFileName = AssetUtils.defaultNewAssetName };
 
             progress = this.Q<VisualElement>("progress");
             progress.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
@@ -286,6 +287,7 @@ namespace Unity.AI.Sound.Components
             audioClipResult = result;
 
             m_DragManipulator.externalFilePath = audioClipResult?.uri.GetLocalPath();
+            m_DragManipulator.newFileName = Path.GetFileNameWithoutExtension(this.GetAsset().GetPath());
 
             if (audioClipResult.IsFailed())
             {

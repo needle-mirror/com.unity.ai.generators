@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -9,10 +11,16 @@ namespace Unity.AI.Animate.Services.Utilities
     static class AnimationClipRenderingUtils
     {
         static AvatarPreviewRenderUtility s_AvatarPreviewRenderUtility;
+        static readonly Dictionary<RenderKey, RenderTexture> k_PendingRenderCache = new();
+        static int s_RenderConcurrency = 0;
+        const int k_RenderMaxConcurrency = 4;
+
+        // Record type to uniquely identify render requests
+        record RenderKey(AnimationClip Clip, float Time, int Width, int Height);
 
         [InitializeOnLoadMethod]
-        static void InitializeOnLoad() 
-        { 
+        static void InitializeOnLoad()
+        {
             AssemblyReloadEvents.beforeAssemblyReload += Cleanup;
             EditorApplication.quitting += Cleanup;
         }
@@ -29,16 +37,13 @@ namespace Unity.AI.Animate.Services.Utilities
 
         public static RenderTexture GetTemporary(this AnimationClip animationClip, float time, int width = 64, int height = 64, RenderTexture reusableBuffer = null)
         {
-            if (s_AvatarPreviewRenderUtility == null)
-                s_AvatarPreviewRenderUtility = new AvatarPreviewRenderUtility();
+            var renderKey = new RenderKey(animationClip, time, width, height);
 
-            var animTime = time % animationClip.length;
-            animationClip.SampleAnimation(s_AvatarPreviewRenderUtility.previewObject, animTime);
+            // Check if we already have a pending render for this key
+            if (k_PendingRenderCache.TryGetValue(renderKey, out var pendingTexture) && pendingTexture != null)
+                return pendingTexture;
 
-            var rt = s_AvatarPreviewRenderUtility.DoRenderPreview(new Rect(0, 0, width, height), k_GUIStyle);
-            if (rt == null)
-                return null;
-
+            // Create a new render texture or reuse the provided one
             if (!reusableBuffer || reusableBuffer.width != width || reusableBuffer.height != height)
             {
                 if (reusableBuffer)
@@ -46,10 +51,48 @@ namespace Unity.AI.Animate.Services.Utilities
                 reusableBuffer = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.Default);
             }
 
-            var previous = RenderTexture.active;
-            Graphics.Blit(rt, reusableBuffer);
-            Graphics.SetRenderTarget(previous);
+            // Add to pending cache
+            k_PendingRenderCache[renderKey] = reusableBuffer;
+
+            // Start rendering asynchronously
+            _ = RenderAnimationAsync(renderKey, animationClip, time, width, height, reusableBuffer);
+
             return reusableBuffer;
+        }
+
+        static async Task RenderAnimationAsync(RenderKey renderKey, AnimationClip animationClip, float time, int width, int height, RenderTexture buffer)
+        {
+            // Wait if we've reached the concurrency limit
+            while (s_RenderConcurrency >= k_RenderMaxConcurrency)
+                await Task.Yield();
+
+            // Increment concurrency counter
+            ++s_RenderConcurrency;
+
+            try
+            {
+                // Perform the actual rendering
+                s_AvatarPreviewRenderUtility ??= new AvatarPreviewRenderUtility();
+
+                var animTime = time % animationClip.length;
+                animationClip.SampleAnimation(s_AvatarPreviewRenderUtility.previewObject, animTime);
+
+                var rt = s_AvatarPreviewRenderUtility.DoRenderPreview(new Rect(0, 0, width, height), k_GUIStyle);
+                if (rt == null)
+                    return;
+
+                var previous = RenderTexture.active;
+                Graphics.Blit(rt, buffer);
+                Graphics.SetRenderTarget(previous);
+            }
+            finally
+            {
+                // Decrement concurrency counter
+                --s_RenderConcurrency;
+
+                // Remove from pending cache after rendering is complete
+                k_PendingRenderCache.Remove(renderKey);
+            }
         }
 
         class AvatarPreviewRenderUtility

@@ -11,6 +11,9 @@ To use the **PBR** tab, follow these steps:
 1. In the Material Generator, select the **PBR** tab.
 1. To influence the material further, select the browse icon in the **Image Reference** section to open the **Select Texture 2D** window.
 1. Select an image to influence the material’s appearance.
+
+   ![Generator window with fields to add effects to a material surface](../images/material.png)
+
 1. In the **Material Map Assignments** section, assign maps for different material properties. 
 
    For more information on different maps or layers, refer to [Material Map Assignments](#material-map-assignments).
@@ -43,7 +46,7 @@ The following table shows the available map types:
 | **occlusion** | Adds shadows where ambient light would be blocked or occluded. |
 | **metalsmoothness** | Combines metallic and smoothness maps into a single texture. |
 | **nonmetalsmoothness** | Handles non-metallic surface areas, integrating smoothness with non-metallic properties. |
-| **mask** | Combines multiple maps into a single texture for more complex material properties. This map is most often used with Unity's HDRP render pipeline. |
+| **maskmap** | Combines multiple maps into a single texture for more complex material properties. This map is most often used with Unity's HDRP render pipeline. |
 
 ## Additional resources
 

@@ -6,11 +6,11 @@ using UnityEngine;
 namespace Unity.AI.Generators.UI.Utilities
 {
     [Serializable]
-    [FilePath("ProjectSettings/GeneratedAssetCache.asset", FilePathAttribute.Location.ProjectFolder)]
-    class GeneratedAssetCache : ScriptableSingleton<GeneratedAssetCache>
+    [FilePath("UserSettings/AI.Generators/DragAndDropCache.asset", FilePathAttribute.Location.ProjectFolder)]
+    class DragAndDropCache : ScriptableSingleton<DragAndDropCache>
     {
         [SerializeField]
-        public SerializableDictionary<string, string> assetCacheEntries = new();
+        public SerializableDictionary<string, string> entries = new();
 
         public void EnsureSaved()
         {

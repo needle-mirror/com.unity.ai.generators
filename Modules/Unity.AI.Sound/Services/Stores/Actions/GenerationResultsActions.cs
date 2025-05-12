@@ -13,6 +13,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -215,7 +216,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             try
             {
                 api.Dispatch(setGenerationAllowed, new(asset, false));
-                await api.Dispatch(GenerationResultsSuperProxyActions.generateAudioClips, new(asset, api.State.SelectGenerationSetting(asset), taskID), CancellationToken.None);
+                var modelSettings = api.State.SelectGenerationSetting(asset);
+                api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, modelSettings.selectedModelID);
+                await api.Dispatch(GenerationResultsSuperProxyActions.generateAudioClips, new(asset, modelSettings, taskID), CancellationToken.None);
             }
             finally
             {

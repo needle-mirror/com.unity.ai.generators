@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using Unity.AI.Material.Services.SessionPersistence;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;

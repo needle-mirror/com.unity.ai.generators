@@ -39,7 +39,7 @@ namespace Unity.AI.Generators.UI.Utilities
             DragAndDrop.AddDropHandler(HandleDropHierarchy);
             DragAndDrop.AddDropHandler(HandleDropProjectBrowser);
             SceneView.duringSceneGui += HandleDropOnSceneView;
-            GeneratedAssetCache.instance.EnsureSaved();
+            DragAndDropCache.instance.EnsureSaved();
         }
 
         static void EnsureDirectoriesExist()
@@ -306,8 +306,8 @@ namespace Unity.AI.Generators.UI.Utilities
             var assetGuid = AssetDatabase.AssetPathToGUID(newPath);
             var currentDirectory = Directory.GetCurrentDirectory();
             var relativeExternalPath = Path.GetRelativePath(currentDirectory, externalFilePath);
-            GeneratedAssetCache.instance.assetCacheEntries[relativeExternalPath] = assetGuid;
-            GeneratedAssetCache.instance.EnsureSaved();
+            DragAndDropCache.instance.entries[relativeExternalPath] = assetGuid;
+            DragAndDropCache.instance.EnsureSaved();
         }
 
         static void ClearGenericData(bool deleteTempAsset = true)
@@ -350,7 +350,7 @@ namespace Unity.AI.Generators.UI.Utilities
             cacheHit = false;
             var currentDirectory = Directory.GetCurrentDirectory();
             var relativeExternalPath = Path.GetRelativePath(currentDirectory, externalPath);
-            if (GeneratedAssetCache.instance.assetCacheEntries.TryGetValue(relativeExternalPath, out var cachedGuid))
+            if (DragAndDropCache.instance.entries.TryGetValue(relativeExternalPath, out var cachedGuid))
             {
                 var cachedPath = AssetDatabase.GUIDToAssetPath(cachedGuid);
                 if (!string.IsNullOrEmpty(cachedPath))
@@ -368,7 +368,7 @@ namespace Unity.AI.Generators.UI.Utilities
                         }
                     }
                 }
-                GeneratedAssetCache.instance.assetCacheEntries.Remove(relativeExternalPath);
+                DragAndDropCache.instance.entries.Remove(relativeExternalPath);
             }
 
             newFileName = Path.GetFileName(!string.IsNullOrEmpty(newFileName) ? newFileName : externalPath);

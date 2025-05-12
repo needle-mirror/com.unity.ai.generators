@@ -13,7 +13,8 @@ namespace Unity.AI.Animate.Services.Utilities
 
         readonly Dictionary<string, AnimationClipDatabaseItem> m_ClipMap = new();
 
-        const int k_MaxLruCacheSize = 50;
+        const int k_MaxInMemoryCacheSize = 200; // Max items during editor session
+        const int k_PersistentCacheSize = 50;   // Max items to save to disk
 
         bool m_Dirty;
 
@@ -22,7 +23,7 @@ namespace Unity.AI.Animate.Services.Utilities
             m_ClipMap.Clear();
             foreach (var entry in cachedClips)
             {
-                if (!string.IsNullOrEmpty(entry.uri))
+                if (entry != null && !string.IsNullOrEmpty(entry.uri))
                     m_ClipMap[entry.uri] = entry;
             }
             EditorApplication.quitting += OnEditorQuitting;
@@ -44,18 +45,50 @@ namespace Unity.AI.Animate.Services.Utilities
 
         void Save()
         {
+            var needsTrimmingForPersistence = cachedClips.Count > k_PersistentCacheSize;
+            if (!m_Dirty && !needsTrimmingForPersistence)
+                return;
+
+            if (needsTrimmingForPersistence)
+                m_Dirty = true;
+
             if (!m_Dirty)
                 return;
 
             try
             {
-                var canceled = EditorUtility.DisplayCancelableProgressBar("AI.Animate", "Saving AI.Animate database...", 0.5f);
-                if (!canceled)
-                    Save(true);
+                if (EditorUtility.DisplayCancelableProgressBar("AI.Animate", "Preparing AI.Animate database...", 0.2f))
+                {
+                    EditorUtility.ClearProgressBar();
+                    return;
+                }
+
+                if (needsTrimmingForPersistence)
+                {
+                    cachedClips.Sort((a, b) => a.lastUsedTimestamp.CompareTo(b.lastUsedTimestamp));
+                    var numToRemove = cachedClips.Count - k_PersistentCacheSize;
+                    for (var i = 0; i < numToRemove; i++)
+                    {
+                        if (cachedClips.Count == 0)
+                            break;
+                        var itemToRemove = cachedClips[0];
+                        cachedClips.RemoveAt(0);
+                        m_ClipMap.Remove(itemToRemove.uri);
+                    }
+                }
+
+                if (EditorUtility.DisplayCancelableProgressBar("AI.Animate", "Saving AI.Animate database...", 0.7f))
+                {
+                    EditorUtility.ClearProgressBar();
+                    return;
+                }
+
+                base.Save(true);
+
+                m_Dirty = false;
             }
             finally
             {
-                m_Dirty = false;
                 EditorUtility.ClearProgressBar();
             }
         }
@@ -68,28 +101,31 @@ namespace Unity.AI.Animate.Services.Utilities
             if (!clip)
                 return false;
 
-            m_Dirty = true;
-
             var now = EditorApplication.timeSinceStartup;
 
             if (m_ClipMap.TryGetValue(uri, out var existing))
             {
-                existing.lastUsedTimestamp = now;
-                // Don't save immediately.
+                if (Math.Abs(existing.lastUsedTimestamp - now) > double.Epsilon)
+                {
+                    existing.lastUsedTimestamp = now;
+                    m_Dirty = true;
+                }
                 return true;
             }
 
-            if (cachedClips.Count >= k_MaxLruCacheSize)
+            m_Dirty = true;
+
+            if (cachedClips.Count >= k_MaxInMemoryCacheSize)
                 EvictOldClips();
 
             var serializedData = AnimationClipDatabaseUtils.SerializeAnimationClip(clip);
-            if (serializedData.data == null)
+            if (serializedData.data == null || serializedData.data.Length == 0)
             {
-                Debug.LogError("Failed to serialize AnimationClip.");
+                Debug.LogError($"Failed to serialize AnimationClip for URI '{uri}'. Serialized data is null or empty.");
                 return false;
             }
 
-            var cached = new AnimationClipDatabaseItem
+            var cachedItem = new AnimationClipDatabaseItem
             {
                 uri = uri,
                 fileName = serializedData.fileName,
@@ -97,8 +133,8 @@ namespace Unity.AI.Animate.Services.Utilities
                 lastUsedTimestamp = now
             };
 
-            cachedClips.Add(cached);
-            m_ClipMap.Add(uri, cached);
+            cachedClips.Add(cachedItem);
+            m_ClipMap.Add(uri, cachedItem);
 
             // Instead of saving now, wait until editor close or OnDisable.
             return true;
@@ -111,17 +147,19 @@ namespace Unity.AI.Animate.Services.Utilities
         /// </summary>
         public AnimationClip GetClip(string uri)
         {
-            if (!m_ClipMap.TryGetValue(uri, out var cached))
+            if (!m_ClipMap.TryGetValue(uri, out var cachedItem))
                 return null;
 
+            cachedItem.lastUsedTimestamp = EditorApplication.timeSinceStartup;
             m_Dirty = true;
 
-            cached.lastUsedTimestamp = EditorApplication.timeSinceStartup;
-
             // Instead of immediate save, rely on the OnDisable (or quitting) save.
-            return AnimationClipDatabaseUtils.DeserializeAnimationClip(cached.fileName, cached.clipData);
+            return AnimationClipDatabaseUtils.DeserializeAnimationClip(cachedItem.fileName, cachedItem.clipData);
         }
 
+        /// <summary>
+        /// Returns the AnimationClip for the given URI, or null if it doesn’t exist.
+        /// </summary>
         public AnimationClip GetClip(Uri uri) => GetClip(uri.ToString());
 
         /// <summary>
@@ -132,14 +170,18 @@ namespace Unity.AI.Animate.Services.Utilities
         public bool Peek(Uri uri) => Peek(uri.ToString());
 
         /// <summary>
-        /// Evicts the least recently used items until the cache is below the limit.
+        /// Evicts the least recently used items from the in-memory cache
+        /// until it's strictly below the k_MaxInMemoryCacheSize limit,
+        /// effectively making space for one new item if the cache was full.
         /// </summary>
         void EvictOldClips()
         {
             cachedClips.Sort((a, b) => a.lastUsedTimestamp.CompareTo(b.lastUsedTimestamp));
-            while (cachedClips.Count >= k_MaxLruCacheSize)
+
+            while (cachedClips.Count >= k_MaxInMemoryCacheSize)
             {
-                m_Dirty = true;
+                if (cachedClips.Count == 0)
+                    break;
 
                 var toRemove = cachedClips[0];
                 cachedClips.RemoveAt(0);

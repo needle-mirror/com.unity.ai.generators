@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -122,6 +124,78 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
 
+        public static async Task<bool> CopyToAsync(IState state, MaterialResult generatedMaterial, AssetReference asset,
+            Dictionary<MapType, string> generatedMaterialMapping)
+        {
+            var sourceFileName = generatedMaterial.uri.GetLocalPath();
+            if (!File.Exists(sourceFileName))
+                return false;
+
+            var destFileName = asset.GetPath();
+            if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
+            {
+                var destMaterial = asset.GetMaterialAdapter();
+                if (generatedMaterial.CopyTo(destMaterial, state, generatedMaterialMapping))
+                    destMaterial.AsObject.SafeCall(AssetDatabase.SaveAssetIfDirty);
+            }
+            else
+            {
+                await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
+                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
+                asset.FixObjectName();
+            }
+            asset.EnableGenerationLabel();
+
+            return true;
+        }
+
+        public static bool CopyTo(IState state, MaterialResult generatedMaterial, AssetReference asset, Dictionary<MapType, string> generatedMaterialMapping)
+        {
+            var sourceFileName = generatedMaterial.uri.GetLocalPath();
+            if (!File.Exists(sourceFileName))
+                return false;
+
+            var destFileName = asset.GetPath();
+            if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
+            {
+                var destMaterial = asset.GetMaterialAdapter();
+                if (generatedMaterial.CopyTo(destMaterial, state, generatedMaterialMapping))
+                    destMaterial.AsObject.SafeCall(AssetDatabase.SaveAssetIfDirty);
+            }
+            else
+            {
+                FileIO.CopyFile(sourceFileName, destFileName, true);
+                AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
+                asset.FixObjectName();
+            }
+            asset.EnableGenerationLabel();
+
+            return true;
+        }
+
+        public static async Task<bool> ReplaceAsync(IState state, AssetReference asset, MaterialResult generatedMaterial,
+            Dictionary<MapType, string> generatedMaterialMapping)
+        {
+            if (await CopyToAsync(state, generatedMaterial, asset, generatedMaterialMapping))
+            {
+                asset.EnableGenerationLabel();
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool Replace(IState state, AssetReference asset, MaterialResult generatedMaterial, Dictionary<MapType, string> generatedMaterialMapping)
+        {
+            if (CopyTo(state, generatedMaterial, asset, generatedMaterialMapping))
+            {
+                asset.EnableGenerationLabel();
+                return true;
+            }
+
+            return false;
+        }
+
         public static readonly AsyncThunkCreator<SelectGenerationData, bool> selectGeneration = new($"{slice}/selectGeneration", async (payload, api) =>
         {
             var replaceAsset = payload.replaceAsset && !payload.result.IsFailed();
@@ -151,7 +225,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 {
                     Debug.Assert(assetUndoManager != null);
                     assetUndoManager.BeginRecord(payload.asset);
-                    if (await payload.asset.ReplaceAsync(payload.result, materialMapping))
+                    if (await ReplaceAsync(api.api.State, payload.asset, payload.result, materialMapping))
                     {
                         AssetDatabase.ImportAsset(payload.asset.GetPath(), ImportAssetOptions.ForceUpdate);
                         api.Dispatch(setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(payload.asset, replaceWithoutConfirmation));
@@ -167,15 +241,15 @@ namespace Unity.AI.Material.Services.Stores.Actions
             return result;
         });
 
-        public static readonly AsyncThunkCreatorWithArg<AssetReference> autodetectMaterialMapping = new($"{slice}/autodetectMaterialMapping", (asset, api) =>
+        public static readonly AsyncThunkCreatorWithArg<AutodetectMaterialMappingData> autodetectMaterialMapping = new($"{slice}/autodetectMaterialMapping", (payload, api) =>
         {
             foreach (MapType mapType in Enum.GetValues(typeof(MapType)))
             {
                 if (mapType == MapType.Preview)
                     continue;
-
-                var found = asset.TryGetDefaultTexturePropertyName(mapType, out var materialProperty);
-                api.Dispatch(setGeneratedMaterialMapping, new GenerationMaterialMappingData(asset, mapType, found ? materialProperty : GenerationResult.noneMapping));
+                var (found, materialProperty) = api.api.State.GetTexturePropertyName(payload.asset, mapType, payload.force);
+                api.Dispatch(setGeneratedMaterialMapping,
+                    new GenerationMaterialMappingData(payload.asset, mapType, found ? materialProperty : GenerationResult.noneMapping));
             }
 
             return Task.CompletedTask;
@@ -242,8 +316,10 @@ namespace Unity.AI.Material.Services.Stores.Actions
             try
             {
                 api.Dispatch(setGenerationAllowed, new(asset, false));
+                var generationSetting = api.State.SelectGenerationSetting(asset);
+                api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
                 await api.Dispatch(GenerationResultsSuperProxyActions.generateMaterialsSuperProxy,
-                    new(asset, api.State.SelectGenerationSetting(asset), taskID), CancellationToken.None);
+                    new(asset, generationSetting, taskID), CancellationToken.None);
             }
             finally
             {

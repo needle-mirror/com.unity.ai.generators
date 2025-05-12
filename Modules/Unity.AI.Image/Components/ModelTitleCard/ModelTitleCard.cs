@@ -1,5 +1,5 @@
 ﻿using System;
-using Unity.AI.Image.Services.Utilities;
+using Unity.AI.ModelSelector.Services.Utilities;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

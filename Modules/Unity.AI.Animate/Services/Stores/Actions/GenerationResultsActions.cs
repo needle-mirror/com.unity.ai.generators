@@ -13,6 +13,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -229,8 +230,10 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             try
             {
                 api.Dispatch(setGenerationAllowed, new(asset, false));
+                var generationSetting = api.State.SelectGenerationSetting(asset);
+                api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
                 await api.Dispatch(
-                    GenerationResultsSuperProxyActions.generateAnimations, new(asset, api.State.SelectGenerationSetting(asset), taskID),
+                    GenerationResultsSuperProxyActions.generateAnimations, new(asset, generationSetting, taskID),
                     CancellationToken.None);
             }
             finally

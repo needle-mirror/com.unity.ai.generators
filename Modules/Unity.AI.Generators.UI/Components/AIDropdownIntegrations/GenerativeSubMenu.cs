@@ -13,11 +13,11 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
             styleSheets.Add(AssetDatabase.LoadAssetAtPath<StyleSheet>("Packages/com.unity.ai.toolkit/Modules/Accounts/Components/AIDropdown/AIDropdown.uss"));
 
             AddToClassList("sub-menu");
-            Add(CreateStandardLabel("Sprite", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Sprite")));
-            Add(CreateStandardLabel("Texture", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Texture 2D")));
-            Add(CreateStandardLabel("Material", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Material")));
             Add(CreateStandardLabel("Animation", () => EditorApplication.ExecuteMenuItem("Assets/Create/Animation/Generate Animation Clip")));
-            Add(CreateStandardLabel("Sound", () => EditorApplication.ExecuteMenuItem("Assets/Create/Audio/Generate Audio Clip"), false));
+            Add(CreateStandardLabel("Material", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Material")));
+            Add(CreateStandardLabel("Sound", () => EditorApplication.ExecuteMenuItem("Assets/Create/Audio/Generate Audio Clip")));
+            Add(CreateStandardLabel("Sprite", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Sprite")));
+            Add(CreateStandardLabel("Texture", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Texture 2D"), false));
         }
 
         static Label CreateStandardLabel(string text, Action onClick, bool bottomMargin = true)

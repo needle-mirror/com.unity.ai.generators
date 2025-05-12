@@ -81,12 +81,18 @@ namespace Unity.AI.Generators.Asset
                 store = assetEditorWindow.store;
             }
 
-            var nextAssetContext = TakeNextAssetContext();
-            window.rootVisualElement.ProvideContext(StoreExtensions.storeKey, (Store)store);
-            window.SetAssetContext(nextAssetContext.IsValid() ? nextAssetContext : assetContext);
-
             window.rootVisualElement.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
             OnGeometryChanged(GeometryChangedEvent.GetPooled(window.rootVisualElement.contentRect, window.rootVisualElement.contentRect));
+
+            var nextAssetContext = TakeNextAssetContext();
+            window.rootVisualElement.ProvideContext(StoreExtensions.storeKey, (Store)store);
+            var asset = nextAssetContext.IsValid() ? nextAssetContext : assetContext;
+            try { window.SetAssetContext(asset); }
+            catch
+            {
+                Debug.LogError($"Asset {asset.guid} at '{asset.GetPath()}' is not valid.");
+                window.SetAssetContext(new AssetReference());
+            }
 
             return;
             // not context related...

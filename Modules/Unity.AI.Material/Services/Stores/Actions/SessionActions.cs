@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.Selectors;
@@ -28,7 +29,8 @@ namespace Unity.AI.Material.Services.Stores.Actions
             var destFileName = AssetDatabase.GenerateUniqueAssetPath(data.asset.GetPath());
 
             // clone the original asset
-            destFileName = Path.ChangeExtension(destFileName, AssetUtils.defaultAssetExtension);
+            if (!AssetUtils.supportedExtensions.Contains(Path.GetExtension(destFileName).ToLowerInvariant()))
+                destFileName = Path.ChangeExtension(destFileName, AssetUtils.materialExtension);
             AssetDatabase.CopyAsset(data.asset.GetPath(), destFileName);
 
             var promotedMaterialResult = MaterialResult.FromPath(originalMaterialResult.uri.GetLocalPath());
@@ -51,7 +53,8 @@ namespace Unity.AI.Material.Services.Stores.Actions
             var destFileName = args.data.newAssetPath;
 
             // clone the original asset
-            destFileName = Path.ChangeExtension(destFileName, AssetUtils.defaultAssetExtension);
+            if (!AssetUtils.supportedExtensions.Contains(Path.GetExtension(destFileName).ToLowerInvariant()))
+                destFileName = Path.ChangeExtension(destFileName, AssetUtils.materialExtension);
             AssetDatabase.CopyAsset(args.data.asset.GetPath(), destFileName);
 
             var promotedMaterialResult = MaterialResult.FromPath(originalMaterialResult.uri.GetLocalPath());
@@ -68,7 +71,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 await promotedMaterialResult.CopyToProject(promotedMaterialResult.GetName(), await originalMaterialResult.GetMetadata(), generativePath);
 
                 // forcibly overwrites the asset, only ok when we create a new asset (as here)
-                promotedAsset.Replace(promotedMaterialResult, args.api.State.SelectGeneratedMaterialMapping(args.data.asset));
+                GenerationResultsActions.Replace(args.api.State, promotedAsset, promotedMaterialResult, args.api.State.SelectGeneratedMaterialMapping(args.data.asset));
 
                 // set late because asset import clears the selection
                 args.api.Dispatch(GenerationResultsActions.setSelectedGeneration, new PromotedGenerationData(promotedAsset, promotedMaterialResult));

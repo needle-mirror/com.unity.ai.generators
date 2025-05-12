@@ -10,7 +10,8 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
     class GenerativeMenuRoot : VisualElement
     {
         const int k_DropdownPadding = 8;
-        const int k_MenuSeparation = 8;
+        const int k_MenuSeparation = 2;
+        internal const string generatorsIsDisabledTooltip = "Your organization has disabled the use of Generators";
 
         public GenerativeMenuRoot()
         {
@@ -38,16 +39,19 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
             RegisterCallback<AttachToPanelEvent>(_ =>
             {
                 Account.session.OnChange += Refresh;
+                Refresh();
             });
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
                 Account.session.OnChange -= Refresh;
             });
+            Refresh();
         }
 
         void Refresh()
         {
-            EnableInClassList("hide", !Account.settings.AiGeneratorsEnabled);
+            SetEnabled(Account.settings.AiGeneratorsEnabled);
+            tooltip = Account.settings.AiGeneratorsEnabled ? "" : generatorsIsDisabledTooltip;
         }
     }
 }

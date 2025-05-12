@@ -26,6 +26,8 @@ Use **Text to Motion** to generate an animation using a text prompt.
 
 1. Use the **Duration** slider to specify the length of the generated animation in seconds.
 1. To specify a custom seed to generate consistent results, enable **Custom Seed** and enter a seed number.
+
+    For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).
 1. Select **Generate**.
 
 ## Video to Motion
@@ -65,8 +67,13 @@ The animation is saved in the `Assets` folder as a `.anim` file. For example, `w
 
 After generating an animation clip, you can modify or refine it with Unity's standard animation editing tools. For more information, refer to [Unity animation clips](https://docs.unity3d.com/Manual/AnimationClips.html).
 
+## Unityai label
+
+[!include[](../snippets/unityai-label.md)]
+
 ## Additional resources
 
 * [Apply animation to a character](xref:animation-apply)
+* [Use custom seed to generate consistent sprites](xref:custom-seed)
 * [Troubleshoot issues with Animation Generator](xref:animation-troubleshoot)
 * [Unity animation clips](https://docs.unity3d.com/Manual/AnimationClips.html)

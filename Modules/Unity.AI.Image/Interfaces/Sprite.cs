@@ -171,6 +171,9 @@ namespace Unity.AI.Image.Interfaces
             }).Invoke;
         }
 
+        public static void SetPromoteNewAssetPostAction(this VisualElement ve, Action<string> action) => ve.Dispatch(GenerationResultsActions.setPromoteNewAssetPostAction,
+            new PromoteNewAssetPostActionData(ve.GetAsset(), reference => action?.Invoke(reference.GetPath())));
+
         public static void OpenGeneratorWindow(string assetPath)
         {
             if (!string.IsNullOrWhiteSpace(assetPath) && AssetDatabase.AssetPathExists(assetPath))

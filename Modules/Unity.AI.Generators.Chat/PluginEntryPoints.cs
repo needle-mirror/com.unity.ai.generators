@@ -6,6 +6,7 @@ using Unity.AI.Sound.Windows;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Toolkit.Chat;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.TerrainLayer.Windows;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -18,6 +19,7 @@ namespace Unity.AI.Generators.Chat
         static VisualElement s_AnimateVisualElement;
         static VisualElement s_SoundVisualElement;
         static VisualElement s_MaterialVisualElement;
+        static VisualElement s_TerrainLayerVisualElement;
 
         [Plugin("Plugin for creating a sound given a prompt.", toolName: "Sound", actionText: "Generate Sound")]
         public static void GenerateSound(
@@ -105,6 +107,24 @@ namespace Unity.AI.Generators.Chat
             s_AnimateVisualElement.SetAssetContext(asset);
 
             s_AnimateVisualElement.Dispatch(Animate.Services.Stores.Actions.GenerationSettingsActions.setPrompt, prompt);
+
+            // todo: maybe generate 1 right away (model selection is ambiguous here)
+        }
+
+        [Plugin("Plugin for creating a terrain layer given a prompt.", toolName: "TerrainLayer", actionText: "Generate Terrain Layer")]
+        public static void GenerateTerrainLayer(
+            [Parameter("The prompt to guide what material will be generated as terrain layer")]
+            string prompt)
+        {
+            var terrainLayer = TerrainLayerGeneratorInspectorButton.EmptyTerrainLayer();
+
+            s_TerrainLayerVisualElement ??= new VisualElement();
+            var assetPath = AssetDatabase.GetAssetPath(terrainLayer);
+            var asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
+            Contexts.ContextExtensions.ProvideContext(s_TerrainLayerVisualElement, StoreExtensions.storeKey, Material.Services.SessionPersistence.SharedStore.Store);
+            s_TerrainLayerVisualElement.SetAssetContext(asset);
+
+            s_TerrainLayerVisualElement.Dispatch(Material.Services.Stores.Actions.GenerationSettingsActions.setPrompt, prompt);
 
             // todo: maybe generate 1 right away (model selection is ambiguous here)
         }

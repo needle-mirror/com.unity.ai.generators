@@ -3,8 +3,8 @@
     <Style src="./UpscalePanel.uss" />
     <Style src="../../../Unity.AI.Generators.UI/StyleSheets/FlexUtilities.uss" />
     <Style src="../../../Unity.AI.Generators.UI/StyleSheets/SessionStatusBannerClasses.uss" />
-    <!-- Model Selector Row -->
-    <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark">
+    <!-- Model Selector Row (Creative Upscale only) -->
+    <VisualElement class="hide flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
         <VisualElement class="flex-row items-center flex-no-shrink pb-6 pl-5">
             <ui:SelectedModelTitleCard />
             <ui:ModelSelectorButton />

@@ -5,7 +5,16 @@
 
 .unity-object-field__selector {
     position: absolute;
-    right: 0;
+    top: 4px;
+    right: 4px;
+    width: 19px;
+    height: 19px;
+    border-width: 1px;
+    border-radius: 3px;
+    border-color: var(--unity-colors-button-border);
+    border-bottom-color: var(--unity-colors-button-border_accent);
+    background-color: var(--unity-colors-button-background);
+    -unity-background-scale-mode: scale-to-fit;
 }
 
 .unity-object-field-display {

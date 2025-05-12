@@ -9,6 +9,7 @@ using Unity.AI.ModelSelector.Windows;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UIElements.Extensions;
+using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Material.Services.Stores.Actions
@@ -16,6 +17,26 @@ namespace Unity.AI.Material.Services.Stores.Actions
     static class GenerationSettingsActions
     {
         public static readonly string slice = "generationSettings";
+
+        const string k_InternalMenu = "internal:";
+        const string k_SpriteModelsFeatureFlagMenu = "AI Toolkit/Internals/Feature Flags/Sprite Models As Material Models";
+        const string k_SpriteModelsFeatureFlagKey = "AI_Toolkit_SpriteModelsAsMaterialModels_FeatureFlag";
+
+        public static bool spriteModelsAsMaterialModelsEnabled
+        {
+            get => Unsupported.IsDeveloperMode() && EditorPrefs.GetBool(k_SpriteModelsFeatureFlagKey, false);
+            private set => EditorPrefs.SetBool(k_SpriteModelsFeatureFlagKey, value);
+        }
+
+        [MenuItem(k_InternalMenu + k_SpriteModelsFeatureFlagMenu, false, -1000)]
+        static void ToggleSpriteModelsFeature() => spriteModelsAsMaterialModelsEnabled = !spriteModelsAsMaterialModelsEnabled;
+
+        [MenuItem(k_InternalMenu + k_SpriteModelsFeatureFlagMenu, true, 100)]
+        static bool ValidateSpriteModelsFeature()
+        {
+            Menu.SetChecked(k_SpriteModelsFeatureFlagMenu, spriteModelsAsMaterialModelsEnabled);
+            return true;
+        }
 
         public static AssetActionCreator<float> setLastModelDiscoveryTime => new($"{slice}/{nameof(setLastModelDiscoveryTime)}");
         public static AssetActionCreator<(RefinementMode mode, string modelID)> setSelectedModelID => new($"{slice}/{nameof(setSelectedModelID)}");
@@ -39,7 +60,11 @@ namespace Unity.AI.Material.Services.Stores.Actions
             var selectedModelID = api.State.SelectSelectedModelID(element);
             var operations = api.State.SelectRefinementOperations(element);
             // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Texture2d, operations.ToArray());
+            var modalities = spriteModelsAsMaterialModelsEnabled
+                ? new [] { ModalityEnum.Texture2d, ModalityEnum.Image }
+                : new [] { ModalityEnum.Texture2d };
+
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, modalities, operations.ToArray());
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 

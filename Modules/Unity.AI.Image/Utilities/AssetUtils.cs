@@ -11,6 +11,7 @@ namespace Unity.AI.Image.Services.Utilities
     {
         public const string defaultNewAssetName = "New Texture";
         public const string defaultNewAssetNameAlt = "New Sprite";
+        public const string defaultAssetExtension = ".png";
 
         static string CreateBlankTexture(string path, bool force, int width, int height)
         {
@@ -67,7 +68,7 @@ namespace Unity.AI.Image.Services.Utilities
         static Texture2D CreateTexture(string name, bool force = true)
         {
             var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{name}.png";
+            var path = $"{basePath}/{name}{defaultAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);
@@ -84,7 +85,7 @@ namespace Unity.AI.Image.Services.Utilities
         static Texture2D CreateSprite(string name, bool force = true)
         {
             var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{name}.png";
+            var path = $"{basePath}/{name}{defaultAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);

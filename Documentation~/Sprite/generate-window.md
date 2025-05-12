@@ -20,7 +20,7 @@ The following table describes the options available on the **Generate** window:
 | **Reference options** | Select [**Add More Controls to Prompt**](xref:reference-sprite) to define how reference images influence the generated sprite. |
 | **Images** | Set the number of sprites to generate. |
 | **Dimensions** | Set the size of the sprite output. |
-| **Custom seed** | Set a fixed seed for consistent sprite generation. |
+| **Custom seed** | Set a fixed seed for consistent sprite generation. <br>For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).|
 | **Generate** | Generate the sprite. |
 
 For more information, refer to [Generate Sprite asset with a prompt](xref:generate-sprite).

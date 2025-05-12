@@ -172,7 +172,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 var newClip = await generatedAnimationClip.AnimationClipFromResultAsync();
                 var targetClip = asset.GetObject<AnimationClip>();
                 if (newClip.CopyTo(targetClip))
-                    AssetDatabase.SaveAssetIfDirty(targetClip);
+                    targetClip.SafeCall(AssetDatabase.SaveAssetIfDirty);
             }
             else
             {
@@ -197,7 +197,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 var newClip = generatedAnimationClip.AnimationClipFromResult();
                 var targetClip = asset.GetObject<AnimationClip>();
                 if (newClip.CopyTo(targetClip))
-                    AssetDatabase.SaveAssetIfDirty(targetClip);
+                    targetClip.SafeCall(AssetDatabase.SaveAssetIfDirty);
             }
             else
             {
@@ -252,7 +252,7 @@ namespace Unity.AI.Animate.Services.Utilities
             modelImporter.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
 
             AssetDatabase.WriteImportSettingsIfDirty(asset.GetPath());
-            AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
+            ExecuteWithTempDisabledErrorPause(() => AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate));
 
             var subAssets = AssetDatabase.LoadAllAssetRepresentationsAtPath(asset.GetPath());
             var foundClip = subAssets.FirstOrDefault(obj => obj is AnimationClip) as AnimationClip;
@@ -266,6 +266,13 @@ namespace Unity.AI.Animate.Services.Utilities
             animationClipInstance.hideFlags = HideFlags.HideAndDontSave;
 
             return animationClipInstance;
+        }
+
+        static void ExecuteWithTempDisabledErrorPause(Action actionToExecute)
+        {
+            var isPaused = EditorApplication.isPaused;
+            try { actionToExecute(); }
+            finally { EditorApplication.isPaused = isPaused; }
         }
     }
 

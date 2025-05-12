@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.States;
@@ -7,7 +6,6 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;
-using MapType = Unity.AI.Material.Services.Stores.States.MapType;
 using Object = UnityEngine.Object;
 
 namespace Unity.AI.Material.Services.Utilities
@@ -29,31 +27,9 @@ namespace Unity.AI.Material.Services.Utilities
         public static async Task<Stream> GetCompatibleImageStreamAsync(this AssetReference asset) =>
             asset.Exists() ? await ImageFileUtilities.GetCompatibleImageStreamAsync(new Uri(Path.GetFullPath(asset.GetPath()))) : null;
 
-        public static async Task<bool> ReplaceAsync(this AssetReference asset, MaterialResult generatedMaterial, Dictionary<MapType, string> generatedMaterialMapping)
-        {
-            if (await generatedMaterial.CopyToAsync(asset, generatedMaterialMapping))
-            {
-                asset.EnableGenerationLabel();
-                return true;
-            }
-
-            return false;
-        }
-
-        public static bool Replace(this AssetReference asset, MaterialResult generatedMaterial, Dictionary<MapType, string> generatedMaterialMapping)
-        {
-            if (generatedMaterial.CopyTo(asset, generatedMaterialMapping))
-            {
-                asset.EnableGenerationLabel();
-                return true;
-            }
-
-            return false;
-        }
-
         public static Task<bool> IsBlank(this AssetReference asset)
         {
-            var material = GetObject<UnityEngine.Material>(asset);
+            var material = GetMaterialAdapter(asset);
             return Task.FromResult(material.IsBlank());
         }
 
@@ -65,11 +41,7 @@ namespace Unity.AI.Material.Services.Utilities
             return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<Object>(path);
         }
 
-        public static T GetObject<T>(this AssetReference asset) where T : Object
-        {
-            var path = asset.GetPath();
-            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
-        }
+        public static IMaterialAdapter GetMaterialAdapter(this AssetReference asset) => MaterialAdapterFactory.Create(asset.GetObject());
 
         public static AssetReference FromObject(Object obj)
         {
@@ -88,13 +60,6 @@ namespace Unity.AI.Material.Services.Utilities
             {
                 return false;
             }
-        }
-
-        public static bool TryGetDefaultTexturePropertyName(this AssetReference asset, MapType mapType, out string texturePropertyName)
-        {
-            texturePropertyName = null;
-            var material = asset.GetObject<UnityEngine.Material>();
-            return material && material.TryGetDefaultTexturePropertyName(mapType, out texturePropertyName);
         }
     }
 }

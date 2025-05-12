@@ -83,12 +83,11 @@ namespace Unity.AI.Generators.UI.Utilities
 
             // Build the dialog message
             var dialogTitle = $"Replace {thisFileName}?";
-            var dialogMessage = $"Replace asset '{thisFileName}' with its newly generated version?";
+            var dialogMessage = $"Replace asset '{thisFileName}' with its newly generated version?\n\nTo preserve your current asset and still use the selected generation press 'no' and duplicate the asset in the project window or right-click the generation and promote it to a new asset.";
             if (!string.IsNullOrEmpty(otherPath) && mismatchedTypes)
                 dialogMessage += $"\n\nA conversion will occur because the file types differ: '{otherExtension}' → '{thisExtension}'.";
 
-            var options = new[] { "Yes", "No", "Always for this asset" };
-            var option = await ReplaceAssetDialogWindow.ShowAsync(dialogTitle, dialogMessage, options);
+            var option = await ReplaceAssetDialogWindow.ShowAsync(dialogTitle, dialogMessage, null);
 
             switch (option)
             {
@@ -136,7 +135,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
                 // Set window size based on content
                 float minWidth = 400;
-                float minHeight = 100 + countLines * 20;
+                float minHeight = 120 + countLines * 24;
                 var buttonCount = buttonLabels.Length;
 
                 // Add width for buttons (approximation)

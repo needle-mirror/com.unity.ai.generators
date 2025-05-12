@@ -5,6 +5,7 @@ using System.Linq;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Toolkit.GenerationContextMenu;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Accounts.Services;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -19,13 +20,22 @@ namespace Unity.AI.Image.Windows
         public static bool GenerateImageValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
 
         [MenuItem("Assets/Create/2D/Generate Sprite", false, -1000)]
-        public static void Empty2dSpriteMenu() => EmptySprite();
+        public static void Empty2dSpriteMenu() => CreateAndNameSprite();
+
+        [MenuItem("Assets/Create/2D/Generate Sprite", true)]
+        static bool ValidateEmpty2dSpriteMenu() => Account.settings.AiGeneratorsEnabled;
 
         [MenuItem("Assets/Create/Rendering/Generate Sprite", false, -1000)]
-        public static void EmptySpriteMenu() => EmptySprite();
+        public static void EmptySpriteMenu() => CreateAndNameSprite();
+
+        [MenuItem("Assets/Create/Rendering/Generate Sprite", true)]
+        static bool ValidateEmptySpriteMenu() => Account.settings.AiGeneratorsEnabled;
 
         [MenuItem("Assets/Create/Rendering/Generate Texture 2D", false, -1000)]
-        public static void EmptyTextureMenu() => EmptyTexture();
+        public static void EmptyTextureMenu() => CreateAndNameTexture();
+
+        [MenuItem("Assets/Create/Rendering/Generate Texture 2D", true)]
+        static bool ValidateEmptyTextureMenu() => Account.settings.AiGeneratorsEnabled;
 
         public static Texture2D EmptyTexture()
         {
@@ -41,6 +51,54 @@ namespace Unity.AI.Image.Windows
             Selection.activeObject = texture;
             GenerateImage();
             return texture;
+        }
+
+        public static void CreateAndNameSprite()
+        {
+            var icon = EditorGUIUtility.ObjectContent(null, typeof(Sprite))?.image as Texture2D;
+            var doCreate = ScriptableObject.CreateInstance<DoCreateBlankAsset>();
+            doCreate.action = (_, pathName, _) =>
+            {
+                pathName = AssetDatabase.GenerateUniqueAssetPath(pathName);
+                pathName = AssetUtils.CreateBlankSprite(pathName);
+                if (string.IsNullOrEmpty(pathName))
+                    Debug.Log($"Failed to create sprite file for '{pathName}'.");
+                AssetDatabase.ImportAsset(pathName, ImportAssetOptions.ForceUpdate);
+                var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(pathName);
+                Selection.activeObject = sprite;
+                GenerateImage();
+            };
+            ProjectWindowUtil.StartNameEditingIfProjectWindowExists(
+                0,
+                doCreate,
+                $"{AssetUtils.defaultNewAssetNameAlt}{AssetUtils.defaultAssetExtension}",
+                icon,
+                null,
+                true);
+        }
+
+        public static void CreateAndNameTexture()
+        {
+            var icon = EditorGUIUtility.ObjectContent(null, typeof(Texture))?.image as Texture2D;
+            var doCreate = ScriptableObject.CreateInstance<DoCreateBlankAsset>();
+            doCreate.action = (_, path, _) =>
+            {
+                path = AssetDatabase.GenerateUniqueAssetPath(path);
+                path = AssetUtils.CreateBlankTexture(path);
+                if (string.IsNullOrEmpty(path))
+                    Debug.Log($"Failed to create texture file for '{path}'.");
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                Selection.activeObject = texture;
+                GenerateImage();
+            };
+            ProjectWindowUtil.StartNameEditingIfProjectWindowExists(
+                0,
+                doCreate,
+                $"{AssetUtils.defaultNewAssetName}{AssetUtils.defaultAssetExtension}",
+                icon,
+                null,
+                true);
         }
 
         [InitializeOnLoadMethod]
@@ -59,9 +117,13 @@ namespace Unity.AI.Image.Windows
 
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets));
+            var generatorsEnabled = Account.settings.AiGeneratorsEnabled;
+            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || !generatorsEnabled);
+            var generateButtonTooltip = $"Use generative ai to transform this {(textureImporter ? textureImporter.textureType : TextureImporterType.Default).ToString()} texture.";
+            if (!generatorsEnabled)
+                generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;
             if (GUILayout.Button(new GUIContent("Generate",
-                    $"Use generative ai to transform this {(textureImporter ? textureImporter.textureType : TextureImporterType.Default).ToString()} texture.")))
+                    generateButtonTooltip)))
                 OnAssetGenerationRequest(editor.targets);
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();

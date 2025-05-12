@@ -60,7 +60,7 @@ namespace Unity.AI.Material.Components
             m_FailedContextualMenu = new ContextualMenuManipulator(BuildFailedContextualMenu);
             m_DragManipulator = new DragExternalFileManipulator
             {
-                newFileName = AssetUtils.defaultNewAssetName + AssetUtils.defaultAssetExtension, // we need to force the extension because our artifacts are lists of images
+                newFileName = AssetUtils.defaultNewAssetName + Path.GetExtension(this.GetAsset().GetPath()), // we need to force the extension because our artifacts are lists of images
                 copyFunction = data => SessionActions.promoteGenerationUnsafe((new DragAndDropGenerationData(this.GetAsset(),
                     MaterialResult.FromPath(data.sourcePath), data.destinationPath), this.GetStoreApi())).GetPath(),
                 moveDependencies = data => SessionActions.moveAssetDependencies((new DragAndDropFinalizeData(this.GetAsset(),
@@ -213,7 +213,7 @@ namespace Unity.AI.Material.Components
 
             if (!materialResult.IsFailed())
             {
-                rt = materialResult.GetPreview((int)width, (int)height, screenScaleFactor, m_InvalidateCache);
+                rt = materialResult.GetPreview(null, (int)width, (int)height, screenScaleFactor, m_InvalidateCache);
                 image.style.backgroundImage = Background.FromRenderTexture(rt);
                 image.MarkDirtyRepaint();
             }
@@ -256,7 +256,7 @@ namespace Unity.AI.Material.Components
             materialResult = result;
 
             m_DragManipulator.externalFilePath = materialResult?.uri.GetLocalPath();
-            m_DragManipulator.newFileName = Path.GetFileNameWithoutExtension(this.GetAsset().GetPath()) + AssetUtils.defaultAssetExtension; // we need to force the extension because our artifacts are lists of images
+            m_DragManipulator.newFileName = Path.GetFileNameWithoutExtension(this.GetAsset().GetPath()) + Path.GetExtension(this.GetAsset().GetPath()); // we need to force the extension because our artifacts are lists of images
 
             if (materialResult.IsFailed())
             {

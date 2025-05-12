@@ -10,6 +10,9 @@ To record and generate a new sound, follow these steps:
 
 1. Open the **Generate New Audio Clip** window. 
 1. In the **Sound Reference** section, select **Start Recording**.
+
+   ![Generate window with fields to record a sound](../images/sound.png)
+
 1. Speak or make a sound into your microphone.
 
    > [!NOTE]

@@ -21,10 +21,22 @@
                             </VisualElement>
                             <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray">
                                 <Label text="Sort" class="section-title font-bold mb-9"/>
-                                <RadioButtonGroup class="sort-radio-group" value="0">
-                                    <RadioButton text="A-Z" value="true" />
-                                    <RadioButton text="Z-A"/>
+                                <RadioButtonGroup class="sort-radio-group" value="2">
+                                    <RadioButton text="Recently Used" />
+                                    <RadioButton text="Popular" class="hide" /> <!-- todo: implement this -->
+                                    <RadioButton text="Alphabetical" value="true" />
+                                    <RadioButton text="Reverse Alphabetical"/>
                                 </RadioButtonGroup>
+                            </VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray misc-container">
+                                <Label text="Models" class="section-title font-bold mb-9"/>
+                                <VisualElement class="misc p-8-0">
+                                </VisualElement>
+                            </VisualElement>
+                            <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray base-models-container">
+                                <Label text="Base Models" class="section-title font-bold mb-9"/>
+                                <VisualElement class="base-models p-8-0">
+                                </VisualElement>
                             </VisualElement>
                             <VisualElement class="mt-4 mb-6 pb-6 border-bottom-1px border-color-medium-gray tags-container">
                                 <Label text="Tags" class="section-title font-bold mb-9"/>

@@ -66,5 +66,6 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static AssetUndoManager SelectAssetUndoManager(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).assetUndoManager;
         public static int SelectGenerationCount(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationCount;
         public static bool SelectReplaceWithoutConfirmationEnabled(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).replaceWithoutConfirmation;
+        public static Action<AssetReference> SelectPromoteNewAssetPostAction(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).promoteNewAssetPostAction;
     }
 }

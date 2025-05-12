@@ -137,6 +137,9 @@ namespace Unity.AI.Image.Services.Utilities
                 imageReferenceObjectField.RemoveFromClassList(ImageReferenceMode.Asset.ToString().ToLower());
                 imageReferenceObjectField.RemoveFromClassList(ImageReferenceMode.Doodle.ToString().ToLower());
                 imageReferenceObjectField.AddToClassList(mode.ToString().ToLower());
+
+                if (mode == ImageReferenceMode.Doodle)
+                    objectField.SetValueWithoutNotify(null); // force the field to be empty to not hold a reference to the previous asset
             });
 
             return;

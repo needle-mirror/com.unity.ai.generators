@@ -7,6 +7,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Image.Services.Stores.Selectors;
 using UnityEditor;
 using UnityEngine;
 
@@ -32,8 +33,14 @@ namespace Unity.AI.Image.Services.Stores.Actions
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
             await promotedTextureResult.CopyToProject(await originalTextureResult.GetMetadata(), generativePath);
 
-            Selection.activeObject = promotedAsset.GetObject();
-            TextureGeneratorWindow.Display(destFileName);
+            var postPromoteAction = api.api.State.SelectPromoteNewAssetPostAction(data.asset);
+            if (postPromoteAction != null)
+                postPromoteAction.Invoke(promotedAsset);
+            else
+            {
+                Selection.activeObject = promotedAsset.GetObject();
+                TextureGeneratorWindow.Display(destFileName);
+            }
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedTextureResult, true, false));
 

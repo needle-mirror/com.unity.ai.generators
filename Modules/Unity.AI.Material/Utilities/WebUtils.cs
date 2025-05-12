@@ -12,7 +12,7 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static string selectedEnvironment
         {
-            get => EditorPrefs.GetString(k_SelectedEnvironmentKey, ModelSelector.Services.Utilities.WebUtils.stagingEnvironment);
+            get => EditorPrefs.GetString(k_SelectedEnvironmentKey, ModelSelector.Services.Utilities.WebUtils.prodEnvironment);
             set => EditorPrefs.SetString(k_SelectedEnvironmentKey, value);
         }
 

@@ -73,6 +73,16 @@ namespace Unity.AI.Generators.UI.Utilities
             return Array.IndexOf(m_Items, item) >= 0 ? this : Add(item);
         }
 
+        public ImmutableArray<T> AddRangeDistinct(IEnumerable<T> items)
+        {
+            var that = this;
+            foreach (var item in items)
+            {
+                that = AddDistinct(item);
+            }
+            return that;
+        }
+
         public ImmutableArray<T> Remove(T item)
         {
             var index = Array.IndexOf(m_Items, item);

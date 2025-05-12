@@ -3,14 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
 

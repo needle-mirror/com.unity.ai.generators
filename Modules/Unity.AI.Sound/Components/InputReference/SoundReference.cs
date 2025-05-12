@@ -145,6 +145,7 @@ namespace Unity.AI.Sound.Components
 
             Microphone.GetDeviceCaps(microphoneName, out var minFreq, out var maxFreq);
             var freq = (maxFreq + minFreq) / 2;
+            freq = freq <= 0 ? 44100 : freq;
 
             var audioClip = Microphone.Start(microphoneName, false, lengthSec, freq);
             recordStopwatch.Start();

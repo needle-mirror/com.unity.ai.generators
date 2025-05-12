@@ -56,6 +56,16 @@ namespace Unity.AI.Generators.Chat
             );
         }
 
+        [MenuItem("internal:AI Toolkit/Internals/Chat/Generate Terrain Layer", false, 6)]
+        public static void OnGenerateTerrainLayer()
+        {
+            ShowWindow(
+                "Generate Terrain Layer Prompt (Chat Plugin Test)",
+                "Enter the prompt for the material to be generated as terrain layer:",
+                PluginEntryPoints.GenerateTerrainLayer
+            );
+        }
+
         string m_InputText = "";
         string m_Label;
         Action<string> m_OnConfirm;

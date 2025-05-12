@@ -4,6 +4,7 @@ using Unity.AI.Generators.Redux.Toolkit;
 
 namespace Unity.AI.Material.Services.Stores.States
 {
+    [Serializable]
     enum MapType
     {
         Preview = 0,

@@ -27,6 +27,10 @@ To manage images, follow these steps:
       | **Use** | Copies only the selected settings to the **Generation** area. |
       | **Copy** | Copies the settings and applies them to generate a new image. | 
 
+## Unityai label
+
+[!include[](../snippets/unityai-label.md)]
+
 ## Additional resources
 
 * [Generate Texture2D asset with a prompt](xref:generate-texture2d)

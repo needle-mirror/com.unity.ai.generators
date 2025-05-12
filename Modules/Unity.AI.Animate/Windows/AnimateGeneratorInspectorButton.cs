@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Animate.Services.Utilities;
+using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Accounts.Services;
 using Unity.AI.Toolkit.GenerationContextMenu;
 using UnityEditor;
 using UnityEngine;
@@ -17,7 +19,10 @@ namespace Unity.AI.Animate.Windows
         public static bool GenerateAnimateValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
 
         [MenuItem("Assets/Create/Animation/Generate Animation Clip", false, -1000)]
-        public static void EmptyAnimateMenu() => EmptyAnimate();
+        public static void EmptyAnimateMenu() => CreateAndNameAnimate();
+
+        [MenuItem("Assets/Create/Animation/Generate Animation Clip", true)]
+        static bool ValidateEmptyAnimateMenu() => Account.settings.AiGeneratorsEnabled;
 
         public static AnimationClip EmptyAnimate()
         {
@@ -25,6 +30,29 @@ namespace Unity.AI.Animate.Windows
             Selection.activeObject = animate;
             GenerateAnimate();
             return animate;
+        }
+
+        public static void CreateAndNameAnimate()
+        {
+            var icon = EditorGUIUtility.ObjectContent(null, typeof(AnimationClip))?.image as Texture2D;
+            var doCreate = ScriptableObject.CreateInstance<DoCreateBlankAsset>();
+            doCreate.action = (_, pathName, _) =>
+            {
+                pathName = AssetUtils.CreateBlankAnimation(pathName);
+                if (string.IsNullOrEmpty(pathName))
+                    Debug.Log($"Failed to create animate file for '{pathName}'.");
+                AssetDatabase.ImportAsset(pathName, ImportAssetOptions.ForceUpdate);
+                var animate = AssetDatabase.LoadAssetAtPath<AnimationClip>(pathName);
+                Selection.activeObject = animate;
+                GenerateAnimate();
+            };
+            ProjectWindowUtil.StartNameEditingIfProjectWindowExists(
+                0,
+                doCreate,
+                $"{AssetUtils.defaultNewAssetName}{AssetUtils.defaultAssetExtension}",
+                icon,
+                null,
+                true);
         }
 
         [InitializeOnLoadMethod]
@@ -37,9 +65,13 @@ namespace Unity.AI.Animate.Windows
 
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets));
+            var generatorsEnabled = Account.settings.AiGeneratorsEnabled;
+            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets)  || !generatorsEnabled);
+            var generateButtonTooltip = $"Use generative ai to transform this animate.";
+            if (!generatorsEnabled)
+                generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;
             if (GUILayout.Button(new GUIContent("Generate",
-                    $"Use generative ai to transform this animate.")))
+                    generateButtonTooltip)))
                 OnAssetGenerationRequest(editor.targets);
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();

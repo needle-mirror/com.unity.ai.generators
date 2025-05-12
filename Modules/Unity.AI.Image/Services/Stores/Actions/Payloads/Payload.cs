@@ -5,7 +5,6 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
-using Unity.AI.ImageEditor.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -28,7 +27,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
     record GenerationsProgressData(AssetReference asset, GenerationProgressData progress) : AsssetContext(asset);
     record GenerationFeedbackData(string message);
     record GenerationsFeedbackData(AssetReference asset, GenerationFeedbackData feedback) : AsssetContext(asset);
-    record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, bool negativePrompt, string model, int variations, RefinementMode mode, int referencesBitmask) : AsssetContext(asset);
+    record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, bool negativePrompt, string model, int variations, RefinementMode mode, int activeReferencesBitmask, int validReferencesBitmask) : AsssetContext(asset);
     record GenerationValidationResult(bool success, AiResultErrorEnum error, int cost, List<GenerationFeedbackData> feedback);
     record GenerationsValidationResult(AssetReference asset, GenerationValidationResult result) : AsssetContext(asset);
     record GenerationResultData(AssetReference asset, GenerationResult result) : AsssetContext(asset);
@@ -43,6 +42,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
     record SelectedGenerationData(AssetReference asset, TextureResult result) : AsssetContext(asset);
     record AssetUndoData(AssetReference asset, AssetUndoManager undoManager) : AsssetContext(asset);
     record ReplaceWithoutConfirmationData(AssetReference asset, bool withoutConfirmation) : AsssetContext(asset);
+    record PromoteNewAssetPostActionData(AssetReference asset, Action<AssetReference> postPromoteAction) : AsssetContext(asset);
     record AddImageReferenceTypeData(AssetReference asset, ImageReferenceType[] types) : AsssetContext(asset);
     record ImageReferenceTypeData(ImageReferenceType type);
     record ImageReferenceAssetData(ImageReferenceType type, AssetReference reference) : ImageReferenceTypeData(type);

@@ -65,6 +65,7 @@ namespace Unity.AI.Sound.Components
             {
                 var (should, _) = payload;
                 m_Button.SetEnabled(!should);
+                m_Button.tooltip = payload.should ? "No additional model currently available" : "Choose another AI model";
                 if (!should)
                     return;
                 var autoAssignModel = this.GetState().SelectAutoAssignModel(this);

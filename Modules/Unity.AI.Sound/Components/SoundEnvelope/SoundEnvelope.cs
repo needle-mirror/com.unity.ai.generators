@@ -101,14 +101,25 @@ namespace Unity.AI.Sound.Components
             };
 
             RegisterCallback<GeometryChangedEvent>(_ => UpdateShaderProperties());
-            RegisterCallback<AttachToPanelEvent>(_ => k_SoundEnvelopeEditors.Add(this));
+            RegisterCallback<AttachToPanelEvent>(_ =>
+            {
+                k_SoundEnvelopeEditors.Add(this);
+                if (m_WaveformTexture)
+                    RenderTexture.ReleaseTemporary(m_WaveformTexture);
+                m_WaveformTexture = null;
+                if (m_CompositeTexture)
+                    RenderTexture.ReleaseTemporary(m_CompositeTexture);
+                m_CompositeTexture = null;
+            });
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
                 k_SoundEnvelopeEditors.Remove(this);
                 if (m_WaveformTexture)
                     RenderTexture.ReleaseTemporary(m_WaveformTexture);
+                m_WaveformTexture = null;
                 if (m_CompositeTexture)
                     RenderTexture.ReleaseTemporary(m_CompositeTexture);
+                m_CompositeTexture = null;
             });
 
             this.AddManipulator(new SoundEnvelopeManipulator());

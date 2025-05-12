@@ -20,9 +20,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 {
     static class ModelSelectorSuperProxyActions
     {
-        public const string unityLogo = "Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/UnityLogo.png";
-
-        public static ModelSettings FromSuperProxy(PlatformGenerativeModelsResult info)
+        public static ModelSettings FromSuperProxy(PlatformGenerativeModelsResult info, bool isFavorite)
         {
             var model = new ModelSettings
             {
@@ -34,24 +32,22 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 thumbnails = info.ThumbnailsUrls.ToList(),
                 icon = info.IconImageUrl,
                 modality = info.Modality,
+                baseModelId = info.BaseModelId == Guid.Empty ? null : info.BaseModelId.ToString(),
+                isFavorite = isFavorite,
                 operations = info.OperationSubTypes.SelectMany(r => r).Distinct().ToList(),
                 nativeResolution = new []{info.NativeResolutionWidth, info.NativeResolutionHeight},
                 imageSizes = info.ImageSizes.Select(r => new []{r.Width, r.Height}).Append(new []{info.NativeResolutionWidth, info.NativeResolutionHeight}).OrderBy(r => r[0]).ToArray(),
             };
 
-            // ugh
-            if (model.provider == ProviderEnum.Unity)
-            {
-                model.icon = new Uri(Path.GetFullPath(unityLogo), UriKind.Absolute).GetLocalPath();
-                model.thumbnails = new List<string> { model.icon };
-            }
-
-            if (model.thumbnails.Count == 0)
+            if (model.thumbnails.Count == 0 && !string.IsNullOrWhiteSpace(model.icon))
                 model.thumbnails = new List<string> { model.icon };
 
             // cache immediately
-            if (model.thumbnails.Count > 0)
-                _ = TextureCache.GetPreview(new Uri(model.thumbnails[0]), (int)TextureSizeHint.Carousel);
+            if (model.thumbnails.Count > 0 && !string.IsNullOrWhiteSpace(model.thumbnails[0]))
+            {
+                try { _ = TextureCache.GetPreview(new Uri(model.thumbnails[0]), (int)TextureSizeHint.Carousel); }
+                catch { /* ignored */ }
+            }
 
             return model;
         }
@@ -96,10 +92,26 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                         return models;
                     }
 
+                    var favoritesResults = await generativeModelsComponent.GetGenerativeModelsFavoritesList();
+
+                    if (!favoritesResults.Batch.IsSuccessful)
+                    {
+                        if (favoritesResults.Batch.Error.Errors.Count == 0)
+                            Debug.Log($"Error reason is '{favoritesResults.Batch.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment}).");
+                        else
+                            favoritesResults.Batch.Error.Errors.ForEach(e => Debug.Log($"{favoritesResults.Batch.Error.AiResponseError.ToString()}: {e}"));
+
+                        // do not return here, we can still use the models
+                    }
+
                     foreach (var modelResult in modelResults.Batch.Value)
                     {
                         if (modelResult.Value.Modality != ModalityEnum.None || modelResult.Value.Provider == ProviderEnum.None)
-                            models.Add(FromSuperProxy(modelResult.Value));
+                        {
+                            var isFavorite = favoritesResults.Batch.IsSuccessful && favoritesResults.Batch.Value
+                                .Any(f => f.Value.GenerativeModelId == modelResult.Value.GenerativeModelId);
+                            models.Add(FromSuperProxy(modelResult.Value, isFavorite));
+                        }
                     }
                 }
 

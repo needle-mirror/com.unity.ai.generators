@@ -64,6 +64,8 @@ namespace Unity.AI.Generators.UI
 
         void RebuildNow()
         {
+            if (m_Watcher == null)
+                return;
             try
             {
                 var files = Directory.GetFiles(m_Watcher.Path)

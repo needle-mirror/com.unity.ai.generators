@@ -5,6 +5,7 @@ using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Material.Services.Utilities;
 
 namespace Unity.AI.Material.Services.Stores.Slices
 {
@@ -30,12 +31,23 @@ namespace Unity.AI.Material.Services.Stores.Slices
                             if (string.IsNullOrEmpty(modelSelection.modelID))
                                 modelSelection.modelID = kvp.Value.modelID;
                         }
+                        mergedState.settings.lastMaterialMappings = MaterialGeneratorSettings.instance.session.settings.lastMaterialMappings;
                         mergedState.settings.previewSettings.sizeFactor = MaterialGeneratorSettings.instance.session.settings.previewSettings.sizeFactor;
 
                         return mergedState;
                     })
                     .AddCase(GenerationSettingsActions.setSelectedModelID).With((state, payload) =>
-                        state.settings.lastSelectedModels.Ensure(payload.payload.mode).modelID = payload.payload.modelID),
+                        state.settings.lastSelectedModels.Ensure(payload.payload.mode).modelID = payload.payload.modelID)
+                    .Add(GenerationResultsActions.setGeneratedMaterialMapping, (state, payload) =>
+                    {
+                        var material = payload.asset.GetMaterialAdapter();
+                        if (material == null)
+                            return;
+                        var shaderAssetCache = state.settings.lastMaterialMappings.Ensure(material.Shader);
+                        var mapType = payload.mapType;
+                        var materialProperty = payload.materialProperty;
+                        shaderAssetCache[mapType] = materialProperty;
+                    }),
                 state => state with
                 {
                     settings = state.settings with
@@ -44,6 +56,9 @@ namespace Unity.AI.Material.Services.Stores.Slices
                             state.settings.lastSelectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
                                 modelID = kvp.Value.modelID
                             })),
+                        lastMaterialMappings = new SerializableDictionary<string, SerializableDictionary<MapType, string>>(
+                            state.settings.lastMaterialMappings.ToDictionary(kvp => kvp.Key,
+                                kvp => new SerializableDictionary<MapType, string>(kvp.Value.ToDictionary(keyValuePair => keyValuePair.Key, keyValuePair => keyValuePair.Value)))),
                         previewSettings = state.settings.previewSettings with {
                             sizeFactor = state.settings.previewSettings.sizeFactor
                         }

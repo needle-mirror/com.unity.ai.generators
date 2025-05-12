@@ -10,7 +10,7 @@
         <editorui:Template src="./ImageReferenceStrength.uxml" name="ImageReferenceStrength" />
 
         <Instance template="ImageReferenceHeader" class="no-delete">
-            <AttributeOverrides element-name="header-title" text="Inpaint Mask" />
+            <AttributeOverrides element-name="header-title" text="Inpaint Mask" tooltip="Use Inpaint Mask to refine specific areas of the sprite with masking."/>
         </Instance>
         <Instance template="ImageReferenceObjectField" class="p-4-2"/>
         <Instance template="ImageReferenceStrength" />

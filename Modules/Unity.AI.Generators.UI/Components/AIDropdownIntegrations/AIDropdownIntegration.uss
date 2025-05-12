@@ -5,3 +5,7 @@
 .label-button:hover .chevron {
     --unity-image-tint-color: var(--unity-colors-label-text-focus);
 }
+
+.label-button .chevron {
+    opacity: 0.5;
+}

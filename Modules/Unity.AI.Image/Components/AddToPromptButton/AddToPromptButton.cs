@@ -119,7 +119,7 @@ namespace Unity.AI.Image.Components
             }
 
             m_AddToPrompt.SetEnabled(!m_IsDirty);
-            m_AddToPrompt.tooltip = "";
+            m_AddToPrompt.tooltip = "Use to guide generation using an existing image as reference.";
         }
 
         static ImageReferenceType[] GetTypesToValidate()

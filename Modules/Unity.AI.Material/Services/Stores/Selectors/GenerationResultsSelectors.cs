@@ -1,4 +1,5 @@
-﻿using System;
+﻿#define AI_TK_MATERIAL_EMISSIVE_DEFAULT
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Material.Services.Stores.Actions;
@@ -70,5 +71,156 @@ namespace Unity.AI.Material.Services.Stores.Selectors
 
         public static AssetUndoManager SelectAssetUndoManager(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).assetUndoManager;
         public static bool SelectReplaceWithoutConfirmationEnabled(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).replaceWithoutConfirmation;
+
+        public static (bool success, string texturePropertyName) GetDefaultTexturePropertyName(IMaterialAdapter material, MapType mapType)
+        {
+            // Fall back to built-in defaults if no cached mapping was found or applicable
+            switch (mapType)
+            {
+                case MapType.Preview:
+                    // No texture property to return for Preview
+                    break;
+
+                case MapType.Height:
+                    // Universal Render Pipeline/Lit, Standard
+                    if (material.HasTexture("_ParallaxMap"))
+                        return (true, "_ParallaxMap");
+                    // HDRP/Lit
+                    if (material.HasTexture("_HeightMap"))
+                        return (true, "_HeightMap");
+                    break;
+
+                case MapType.Normal:
+                    // Universal Render Pipeline/Lit, Standard
+                    if (material.HasTexture("_BumpMap"))
+                        return (true, "_BumpMap");
+                    // HDRP/Lit, Terrain
+                    if (material.HasTexture("_NormalMap"))
+                        return (true, "_NormalMap");
+                    break;
+
+                case MapType.Emission:
+#if AI_TK_MATERIAL_EMISSIVE_DEFAULT
+                    // Universal Render Pipeline/Lit, Standard
+                    if (material.HasTexture("_EmissionMap"))
+                        return (true, "_EmissionMap");
+
+                    // HDRP/Lit
+                    if (material.HasTexture("_EmissiveColorMap"))
+                        return (true, "_EmissiveColorMap");
+#endif
+                    break;
+
+                case MapType.Metallic:
+                    // Muse
+                    if (material.HasTexture("_MetallicMap"))
+                        return (true, "_MetallicMap");
+                    break;
+
+                case MapType.Roughness:
+                    // Muse
+                    if (material.HasTexture("_RoughnessMap"))
+                        return (true, "_RoughnessMap");
+                    break;
+
+                case MapType.Delighted: // Albedo
+                    // Muse
+                    if (material.HasTexture("_AlbedoMap"))
+                        return (true, "_AlbedoMap");
+
+                    // Universal Render Pipeline/Lit, Universal Render Pipeline/Unlit
+                    if (material.HasTexture("_BaseMap"))
+                        return (true, "_BaseMap");
+
+                    // HDRP/Lit
+                    if (material.HasTexture("_BaseColorMap"))
+                        return (true, "_BaseColorMap");
+
+                    // HDRP/Unlit
+                    if (material.HasTexture("_UnlitColorMap"))
+                        return (true, "_UnlitColorMap");
+
+                    // Unlit/Texture, Standard
+                    if (material.HasTexture("_MainTex"))
+                        return (true, "_MainTex");
+
+                    // Terrain
+                    if (material.HasTexture("_Diffuse"))
+                        return (true, "_Diffuse");
+
+                    break;
+
+                case MapType.Occlusion:
+                    // Muse
+                    if (material.HasTexture("_AmbientOcclusionMap"))
+                        return (true, "_AmbientOcclusionMap");
+
+                    // Universal Render Pipeline/Lit, Standard
+                    if (material.HasTexture("_OcclusionMap"))
+                        return (true, "_OcclusionMap");
+
+                    break;
+
+                case MapType.MaskMap:
+                    // HDRP/Lit, Terrain
+                    if (material.HasTexture("_MaskMap"))
+                        return (true, "_MaskMap");
+
+                    break;
+
+                case MapType.Smoothness:
+                    // Muse
+                    if (material.HasTexture("_SmoothnessMap"))
+                        return (true, "_SmoothnessMap");
+
+                    break;
+
+                case MapType.MetallicSmoothness:
+                    break;
+
+                case MapType.NonMetallicSmoothness:
+                    // Universal Render Pipeline/Lit, Standard
+                    if (material.HasTexture("_MetallicGlossMap"))
+                        return (true, "_MetallicGlossMap");
+
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mapType), mapType, null);
+            }
+
+            return (false, null);
+        }
+
+        public static (bool success, string texturePropertyName) GetTexturePropertyName(this IState state, IMaterialAdapter material, MapType mapType)
+        {
+            // First check if we have a cached mapping for this shader and map type
+            if (state != null && material.IsValid && !string.IsNullOrEmpty(material.Shader))
+            {
+                var session = state.SelectSession();
+                if (session?.settings?.lastMaterialMappings != null &&
+                    session.settings.lastMaterialMappings.TryGetValue(material.Shader, out var mappings) &&
+                    mappings.TryGetValue(mapType, out var cachedMapping) && !string.IsNullOrEmpty(cachedMapping))
+                {
+                    return material.HasTexture(cachedMapping) && cachedMapping != GenerationResult.noneMapping ? (true, cachedMapping) : (false, null);
+                }
+            }
+
+            return GetDefaultTexturePropertyName(material, mapType);
+        }
+
+        public static (bool success, string texturePropertyName) GetTexturePropertyName(this IState state, AssetReference asset, MapType mapType, bool forceDefault = false)
+        {
+            var material = asset.GetMaterialAdapter();
+            if (forceDefault)
+                return GetDefaultTexturePropertyName(asset, mapType);
+            return !material.IsValid ? (false, null) : state.GetTexturePropertyName(material, mapType);
+        }
+
+        static (bool success, string texturePropertyName) GetDefaultTexturePropertyName(AssetReference asset, MapType mapType)
+        {
+            var material = asset.GetMaterialAdapter();
+            return !material.IsValid ? (false, null) : GetDefaultTexturePropertyName(material, mapType);
+        }
     }
 }

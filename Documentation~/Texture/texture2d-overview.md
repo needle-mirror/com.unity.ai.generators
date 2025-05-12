@@ -17,7 +17,7 @@ Use the following topics to get started with using Texture2D Generator.
 
 | Topic | Description |
 | ----- | ----------- |
-| [Generate Texture2D asset with a prompt]((xref:generate-texture2d)) | Generate images using text-based prompt. |
+| [Generate Texture2D asset with a prompt](xref:generate-texture2d) | Generate images using text-based prompt. |
 | [Generate window](xref:generate-window) | Learn about the different options available on the **Generate** window. |
 | [Generate Texture2D asset from reference images](xref:reference) | Generate images from a reference image. |
 | [Manage generated images](xref:manage) | Learn to use the **Generations** panel to manage your generated images. |

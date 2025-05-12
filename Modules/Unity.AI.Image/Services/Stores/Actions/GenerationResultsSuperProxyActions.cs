@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Asset.Responses;
 using AiEditorToolsSdk.Components.Common.Enums;
-using AiEditorToolsSdk.Components.Common.Responses;
+using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
@@ -44,7 +44,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
                     new (arg.asset,
-                        new (false, AiResultErrorEnum.UnknownError, 0,
+                        new (false, AiResultErrorEnum.Unknown, 0,
                             messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                 return;
             }
@@ -55,7 +55,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 var messages = new[] { $"Error reason is 'Invalid Asset'." };
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
                     new (arg.asset,
-                        new (false, AiResultErrorEnum.UnknownError, 0,
+                        new (false, AiResultErrorEnum.Unknown, 0,
                             messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                 return;
             }
@@ -101,6 +101,17 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                     var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
                     var paletteAssetGuid = paletteImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
+
+                    if (paletteAssetGuid == Guid.Empty)
+                    {
+                        var messages = new[] { $"Error reason is 'Invalid palette'." };
+                        api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                            new(arg.asset,
+                                new(false, AiResultErrorEnum.Unknown, 0,
+                                    messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                        return;
+                    }
+
                     var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, null)
                         .Recolor(new Recolor(assetGuid, paletteAssetGuid));
                     var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
@@ -187,7 +198,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
                 new(arg.asset,
                     new(quoteResults.Result.IsSuccessful,
-                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.UnknownError,
+                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
                         quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
         });
 
@@ -257,7 +268,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 BatchOperationResult<ImageGenerateResult> generateResults = null;
                 BatchOperationResult<ImageTransformResult> transformResults = null;
 
-                var storeMainAssetTask = Task.FromResult<OperationResult<DownloadableAssetResult>>(null);
+                var storeMainAssetTask = Task.FromResult<OperationResult<BlobAssetResult>>(null);
 
                 var refineAsset = refinementMode
                     is RefinementMode.RemoveBackground or RefinementMode.Upscale
@@ -369,7 +380,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, useCustomSeed ? customSeed : null);
                         var textPrompt = new TextPrompt(prompt, negativePrompt);
 
-                        Dictionary<ImageReferenceType, Task<OperationResult<DownloadableAssetResult>>> referenceAssetTasks = new();
+                        Dictionary<ImageReferenceType, Task<OperationResult<BlobAssetResult>>> referenceAssetTasks = new();
                         foreach (var (imageReferenceType, imageReference) in imageReferences[refinementMode])
                         {
                             if (!imageReference.SelectImageReferenceIsValid())
@@ -422,7 +433,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 {
                     if (!generateResults.Batch.IsSuccessful)
                     {
-                        LogFailedResult(generateResults.Batch.Error);
+                        LogFailedBatchResult(generateResults);
                         // we can simply return because the error is already logged and we rely on finally statements for cleanup
                         return;
                     }
@@ -443,7 +454,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 {
                     if (!transformResults.Batch.IsSuccessful)
                     {
-                        LogFailedResult(transformResults.Batch.Error);
+                        LogFailedBatchResult(transformResults);
                         // we can simply return because the error is already logged and we rely on finally statements for cleanup
                         return;
                     }
@@ -507,6 +518,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 }
             }
 
+            void LogFailedBatchResult<T>(BatchOperationResult<T> results) where T : class
+            {
+                LogFailedResult(results.Batch.Error);
+                Debug.Log($"Trace Id {results.SdkTraceId} => {results.W3CTraceId}");
+            }
+
             void LogFailedResult(AiOperationFailedResult result)
             {
                 api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
@@ -520,17 +537,22 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 }
             }
 
-            bool FinalizeStoreAsset(OperationResult<DownloadableAssetResult> assetResults, out Guid assetGuid)
+            bool FinalizeStoreAsset(OperationResult<BlobAssetResult> assetResults, out Guid assetGuid)
             {
                 assetGuid = Guid.Empty;
                 if (!assetResults.Result.IsSuccessful)
                 {
                     LogFailedResult(assetResults.Result.Error);
+                    Debug.Log($"Trace Id {assetResults.SdkTraceId} => {assetResults.W3CTraceId}");
 
                     // caller can simply return without throwing or additional logging because the error is already logged and we rely on 'finally' statements for cleanup
                     return false;
                 }
                 assetGuid = assetResults.Result.Value.AssetId;
+                if (LoggerUtilities.sdkLogLevel == 0)
+                    return true;
+                if (assetResults.Result.Value.Ttl.HasValue)
+                    Debug.Log($"Asset {assetGuid} has ttl {assetResults.Result.Value.Ttl}");
                 return true;
             }
 
@@ -585,10 +607,10 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     if (result.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
                         return TextureResult.FromUrl(result.Result.Value.AssetUrl.Url);
 
-                    var failedResult = result.Result.IsSuccessful
-                        ? new AiOperationFailedResult(AiResultErrorEnum.UnknownError, new List<string> { "Simulated server timeout" })
-                        : result.Result.Error;
-                    LogFailedDownload(failedResult);
+                    if (result.Result.IsSuccessful)
+                        LogFailedDownload(new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
+                    else
+                        LogFailedDownloadResult(result);
                     throw new HandledFailureException();
                 }).ToList();
             }
@@ -650,7 +672,11 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             // auto-apply if blank or if RefinementMode
             if (generatedImages.Count > 0 && ((assetWasBlank && arg.replaceBlankAsset) || (arg.isRefinement && arg.replaceRefinementAsset)))
+            {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedImages[0], backupSuccess, !assetWasBlank));
+                if (assetWasBlank)
+                    api.Dispatch(GenerationResultsActions.setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(arg.asset, true));
+            }
 
             SetProgress(progress with { progress = 1f }, "Done.");
 
@@ -674,6 +700,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     Debug.Log(message);
                     api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
                 }
+            }
+
+            void LogFailedDownloadResult<T>(OperationResult<T> result) where T : class
+            {
+                LogFailedDownload(result.Result.Error);
+                Debug.Log($"Trace Id {result.SdkTraceId} => {result.W3CTraceId}");
             }
 
             void LogFailedDownload(AiOperationFailedResult result)

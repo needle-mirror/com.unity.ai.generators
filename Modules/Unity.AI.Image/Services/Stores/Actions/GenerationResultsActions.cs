@@ -14,6 +14,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -122,6 +123,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static readonly Creator<AssetReference> incrementGenerationCount = new($"{slice}/incrementGenerationCount");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
+        public static Creator<PromoteNewAssetPostActionData> setPromoteNewAssetPostAction => new($"{slice}/setPromoteNewAssetPostAction");
 
         public static readonly AsyncThunkCreator<SelectGenerationData, bool> selectGeneration = new($"{slice}/selectGeneration", async (payload, api) =>
         {
@@ -220,7 +222,9 @@ namespace Unity.AI.Image.Services.Stores.Actions
             try
             {
                 api.Dispatch(setGenerationAllowed, new(asset, false));
-                await api.Dispatch(GenerationResultsSuperProxyActions.generateImages, new(asset, api.State.SelectGenerationSetting(asset), taskID), CancellationToken.None);
+                var generationSetting = api.State.SelectGenerationSetting(asset);
+                api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
+                await api.Dispatch(GenerationResultsSuperProxyActions.generateImages, new(asset, generationSetting, taskID), CancellationToken.None);
             }
             finally
             {
