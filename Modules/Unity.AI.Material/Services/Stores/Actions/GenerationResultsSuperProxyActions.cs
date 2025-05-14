@@ -35,109 +35,158 @@ namespace Unity.AI.Material.Services.Stores.Actions
 {
     static class GenerationResultsSuperProxyActions
     {
+        static readonly Dictionary<AssetReference, CancellationTokenSource> k_QuoteCancellationTokenSources = new();
+
         public static readonly AsyncThunkCreatorWithArg<QuoteMaterialsData> quoteMaterials = new($"{GenerationResultsActions.slice}/quoteMaterialsSuperProxy", async (arg, api) =>
         {
-            var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
-            if (!success)
+            if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var existingTokenSource))
             {
-                var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                existingTokenSource.Cancel();
+                existingTokenSource.Dispose();
             }
+            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
 
-            var asset = new AssetReference { guid = arg.asset.guid };
-            if (!asset.Exists())
+            try
             {
-                var messages = new[] { $"Error reason is 'Invalid Asset'." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
-            }
+                SendValidatingMessage();
 
-            using var httpClientLease = HttpClientManager.instance.AcquireLease();
-            var generationSetting = arg.generationSetting;
+                var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
-            var variations = arg.generationSetting.SelectVariationCount();
-            var refinementMode = generationSetting.SelectRefinementMode();
-            if (refinementMode is RefinementMode.Upscale or RefinementMode.Pbr)
-                variations = 1;
-            var prompt = generationSetting.SelectPrompt();
-            var negativePrompt = generationSetting.SelectNegativePrompt();
-            var modelID = api.State.SelectSelectedModelID(asset);
-            var dimensions = generationSetting.SelectImageDimensionsVector2();
-            var patternImageReference = generationSetting.SelectPatternImageReference();
-            var seed = Random.Range(0, int.MaxValue - variations);
-            Guid.TryParse(modelID, out var generativeModelID);
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.realtimeTimeout);
-            var imageComponent = builder.ImageComponent();
-
-            var assetGuid = Guid.NewGuid();
-
-            OperationResult<QuoteResponse> quoteResults = null;
-
-            switch (refinementMode)
-            {
-                case RefinementMode.Upscale:
+                if (arg.cancellationTokenSource.IsCancellationRequested)
                 {
-                    var materialGenerations = new List<Dictionary<MapType, Guid>>
-                        { new() { [MapType.Preview] = assetGuid } };
-
-                    var request = ImageTransformRequestBuilder.Initialize();
-                    var requests = materialGenerations.Select(m => request.Upscale(new (m[MapType.Preview], 2, null, null))).ToList();
-                    quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout);
-                    break;
+                    SendValidatingMessage();
+                    return;
                 }
-                case RefinementMode.Pbr:
+
+                if (!success)
                 {
-                    var materialGenerations = new List<Dictionary<MapType, Guid>>
-                        { new() { [MapType.Preview] = assetGuid } };
-
-                    var requests = materialGenerations.Select(m => new Texture2DPbrRequest(generativeModelID, m[MapType.Preview])).ToList();
-                    quoteResults = await imageComponent.GeneratePbrQuote(requests, Constants.realtimeTimeout);
-                    break;
+                    var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
                 }
-                case RefinementMode.Generation:
+
+                var asset = new AssetReference { guid = arg.asset.guid };
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
                 {
-                    var patternGuid = Guid.Empty;
-                    if (patternImageReference.asset.IsValid())
-                        patternGuid = Guid.NewGuid();
-
-                    var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, seed)
-                        .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
-                            new CompositionReference(patternGuid, patternImageReference.strength));
-                    var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout);
-                    break;
+                    SendValidatingMessage();
+                    return;
                 }
-            }
 
-            if (quoteResults == null)
-                return;
+                if (!asset.Exists())
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
 
-            if (!quoteResults.Result.IsSuccessful)
-            {
-                var messages = quoteResults.Result.Error.Errors.Count == 0
-                    ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
-                    : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                using var httpClientLease = HttpClientManager.instance.AcquireLease();
+                var generationSetting = arg.generationSetting;
+
+                var variations = arg.generationSetting.SelectVariationCount();
+                var refinementMode = generationSetting.SelectRefinementMode();
+                if (refinementMode is RefinementMode.Upscale or RefinementMode.Pbr)
+                    variations = 1;
+                var prompt = generationSetting.SelectPrompt();
+                var negativePrompt = generationSetting.SelectNegativePrompt();
+                var modelID = api.State.SelectSelectedModelID(asset);
+                var dimensions = generationSetting.SelectImageDimensionsVector2();
+                var patternImageReference = generationSetting.SelectPatternImageReference();
+                var seed = Random.Range(0, int.MaxValue - variations);
+                Guid.TryParse(modelID, out var generativeModelID);
+                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
+                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout);
+                var imageComponent = builder.ImageComponent();
+
+                var assetGuid = Guid.NewGuid();
+
+                OperationResult<QuoteResponse> quoteResults = null;
+
+                switch (refinementMode)
+                {
+                    case RefinementMode.Upscale:
+                    {
+                        var materialGenerations = new List<Dictionary<MapType, Guid>>
+                            { new() { [MapType.Preview] = assetGuid } };
+
+                        var request = ImageTransformRequestBuilder.Initialize();
+                        var requests = materialGenerations.Select(m => request.Upscale(new(m[MapType.Preview], 2, null, null))).ToList();
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
+                    }
+                    case RefinementMode.Pbr:
+                    {
+                        var materialGenerations = new List<Dictionary<MapType, Guid>>
+                            { new() { [MapType.Preview] = assetGuid } };
+
+                        var requests = materialGenerations.Select(m => new Texture2DPbrRequest(generativeModelID, m[MapType.Preview])).ToList();
+                        quoteResults = await imageComponent.GeneratePbrQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
+                    }
+                    case RefinementMode.Generation:
+                    {
+                        var patternGuid = Guid.Empty;
+                        if (patternImageReference.asset.IsValid())
+                            patternGuid = Guid.NewGuid();
+
+                        var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, seed)
+                            .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
+                                new CompositionReference(patternGuid, patternImageReference.strength));
+                        var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
+                    }
+                }
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
+
+                if (quoteResults == null)
+                    return;
+
+                if (!quoteResults.Result.IsSuccessful)
+                {
+                    var messages = quoteResults.Result.Error.Errors.Count == 0
+                        ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
+                        : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                    new(arg.asset,
+                        new(quoteResults.Result.IsSuccessful,
+                            !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
+                            quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
             }
-            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                new(arg.asset,
-                    new(quoteResults.Result.IsSuccessful,
-                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
-                        quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
+            finally
+            {
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                    k_QuoteCancellationTokenSources.Remove(arg.asset);
+                arg.cancellationTokenSource.Dispose();
+            }
+
+            void SendValidatingMessage()
+            {
+                var messages = new[] { "Validating generation inputs..." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new(arg.asset,
+                        new(false, AiResultErrorEnum.Unknown, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+            }
         });
 
         public static readonly AsyncThunkCreatorWithArg<GenerateMaterialsData> generateMaterialsSuperProxy = new($"{GenerationResultsActions.slice}/generateMaterialSuperProxy", async (arg, api) =>

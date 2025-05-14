@@ -157,7 +157,7 @@ namespace Unity.AI.Animate.Components
                 return;
 
             m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset,
-                new[] { ".pose.json", AssetUtils.defaultAssetExtension, AssetUtils.fbxAssetExtension },
+                new[] { AssetUtils.poseAssetExtension, AssetUtils.defaultAssetExtension, AssetUtils.fbxAssetExtension },
                 files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedAnimationsAsync,
                     new(asset, files.Select(AnimationClipResult.FromPath).ToList())));
             this.AddManipulator(m_GenerationFileSystemWatcher);

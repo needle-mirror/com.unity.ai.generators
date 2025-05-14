@@ -81,9 +81,10 @@ namespace Unity.AI.Animate.Services.Utilities
             if (!animationClipResult.uri.IsFile)
                 return; // DownloadToProject should be used for remote files
 
-            var extension = Path.GetExtension(animationClipResult.uri.GetLocalPath());
+            var extension = animationClipResult.uri.GetLocalPath().GetFileExtension();
             if (!AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase) &&
-                !AssetUtils.fbxAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
+                !AssetUtils.fbxAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase) &&
+                !AssetUtils.poseAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
                 return; // unknown file type
 
             var path = animationClipResult.uri.GetLocalPath();
@@ -152,6 +153,8 @@ namespace Unity.AI.Animate.Services.Utilities
                 return false;
 
             var localPath = result.uri.GetLocalPath();
+            if (string.IsNullOrEmpty(localPath))
+                return false;
 
             var fileInfo = new FileInfo(localPath);
             if (!fileInfo.Exists)

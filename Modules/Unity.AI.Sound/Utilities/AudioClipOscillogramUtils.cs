@@ -39,6 +39,9 @@ namespace Unity.AI.Sound.Services.Utilities
                 return 0;
 
             var path = Path.GetFullPath(assetPath);
+            if (string.IsNullOrEmpty(path))
+                return 0;
+
             if (!File.Exists(path))
                 return 0;
 

@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Networking;
 using Object = UnityEngine.Object;
 
@@ -23,10 +22,20 @@ namespace Unity.AI.Generators.UI.Utilities
         /// <returns>The last modified time in UTC ticks, or 0 if the URI is not a valid local file.</returns>
         public static long GetLastModifiedUtcTime(Uri uri)
         {
-            if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
+            if (uri == null)
                 return 0;
 
-            return new FileInfo(uri.GetLocalPath()).LastWriteTimeUtc.Ticks;
+            if (!uri.IsFile)
+                return 0;
+
+            var path = uri.GetLocalPath();
+            if (string.IsNullOrEmpty(path))
+                return 0;
+
+            if (!File.Exists(path))
+                return 0;
+
+            return new FileInfo(path).LastWriteTimeUtc.Ticks;
         }
 
         public static bool TryGetImageExtension(IReadOnlyList<byte> imageBytes, out string extension)

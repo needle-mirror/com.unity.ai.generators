@@ -213,7 +213,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
         });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteImagesMain = new($"{slice}/quoteImagesMain",
-            async (asset, api) => await api.Dispatch(GenerationResultsSuperProxyActions.quoteImages, new (asset, api.State.SelectGenerationSetting(asset)), CancellationToken.None));
+            async (asset, api) =>
+            {
+                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteImages,
+                    new(asset, api.State.SelectGenerationSetting(asset), new CancellationTokenSource())); }
+                catch (OperationCanceledException) { /* ignored */ }
+            });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> generateImagesMain = new($"{slice}/generateImagesMain", async (asset, api) =>
         {

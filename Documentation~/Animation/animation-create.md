@@ -51,6 +51,9 @@ Use **Video to Motion** to replicate complex or realistic movements from a refer
 
 1. Select **Generate**.
 
+> [!NOTE]
+> To generate and assign assets directly, refer to [Generate and assign assets with the Object Picker](xref:asset-picker).
+
 ### Guidelines for Video to Motion
 
 * **Only one person in the frame**: Place only one person in the frame, and ensure good contrast and that their feet are clearly visible and distinguishable from the ground.
@@ -77,3 +80,4 @@ After generating an animation clip, you can modify or refine it with Unity's sta
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
 * [Troubleshoot issues with Animation Generator](xref:animation-troubleshoot)
 * [Unity animation clips](https://docs.unity3d.com/Manual/AnimationClips.html)
+* [Generate and assign assets with the Object Picker](xref:asset-picker)

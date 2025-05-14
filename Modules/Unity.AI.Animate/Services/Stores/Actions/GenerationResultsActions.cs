@@ -217,7 +217,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteAnimationsMain = new($"{slice}/quoteAnimationsMain",
-            async (asset, api) => await api.Dispatch(GenerationResultsSuperProxyActions.quoteAnimations, new (asset, api.State.SelectGenerationSetting(asset)), CancellationToken.None));
+            async (asset, api) =>
+            {
+                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteAnimations,
+                    new(asset, api.State.SelectGenerationSetting(asset), new CancellationTokenSource())); }
+                catch (OperationCanceledException) { /* ignored */ }
+            });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> generateAnimationsMain = new($"{slice}/generateAnimationsMain", async (asset, api) =>
         {

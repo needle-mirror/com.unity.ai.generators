@@ -207,7 +207,12 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteAudioClipsMain = new($"{slice}/quoteAudioClipsMain",
-            async (asset, api) => await api.Dispatch(GenerationResultsSuperProxyActions.quoteAudioClips, new (asset, api.State.SelectGenerationSetting(asset)), CancellationToken.None));
+            async (asset, api) =>
+            {
+                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteAudioClips,
+                    new(asset, api.State.SelectGenerationSetting(asset), new CancellationTokenSource())); }
+                catch (OperationCanceledException) { /* ignored */ }
+            });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> generateAudioClipsMain = new($"{slice}/generateAudioClipsMain", async (asset, api) =>
         {

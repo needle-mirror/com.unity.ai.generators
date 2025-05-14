@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 
@@ -11,6 +12,7 @@ namespace Unity.AI.Animate.Services.Utilities
         public const string defaultNewAssetName = "New Animation";
         public const string defaultAssetExtension = ".anim";
         public const string fbxAssetExtension = ".fbx";
+        public const string poseAssetExtension = ".pose.json";
 
         public static string CreateBlankAnimation(string path, bool force = true)
         {

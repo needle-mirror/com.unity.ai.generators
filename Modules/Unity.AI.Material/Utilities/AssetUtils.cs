@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;

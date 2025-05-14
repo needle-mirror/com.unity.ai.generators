@@ -304,7 +304,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
         });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteMaterialsMain = new($"{slice}/quoteMaterialsMain",
-            async (asset, api) => await api.Dispatch(GenerationResultsSuperProxyActions.quoteMaterials, new (asset, api.State.SelectGenerationSetting(asset)), CancellationToken.None));
+            async (asset, api) =>
+            {
+                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteMaterials,
+                    new(asset, api.State.SelectGenerationSetting(asset), new CancellationTokenSource())); }
+                catch (OperationCanceledException) { /* ignored */ }
+            });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> generateMaterialsMain = new($"{slice}/generateMaterialsMain", async (asset, api) =>
         {

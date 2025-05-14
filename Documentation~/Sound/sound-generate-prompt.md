@@ -32,12 +32,14 @@ To generate audio from natural language prompts, follow these steps:
 The generated audio clip appears in the **Generations** panel. Hover over the audio clip to play it and view details, such as the model used and prompt settings.
 
 > [!NOTE]
+> To generate and assign assets directly, refer to [Generate and assign assets with the Object Picker](xref:asset-picker).
+
+> [!NOTE]
 > Sound Generator stores the generated audio files in the `/GeneratedAssets` folder located at the root of your project. These assets remain in that folder until you remove them manually.
-
-
 
 ## Additional resources
 
 * [Generate sound assets with a sound reference](xref:sound-reference)
 * [Record your own sound](xref:sound-record)
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
+* [Generate and assign assets with the Object Picker](xref:asset-picker)

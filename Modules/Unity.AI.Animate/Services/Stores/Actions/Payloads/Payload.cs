@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Undo;
@@ -10,7 +11,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
 {
     record AsssetContext(AssetReference asset);
-    record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
+    record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting, CancellationTokenSource cancellationTokenSource) : AsssetContext(asset);
     record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadAnimationsData(AssetReference asset, List<Guid> ids, int[] customSeeds, int taskID = 0, GenerationMetadata generationMetadata = null, bool autoApply = false) : AsssetContext(asset);
     record GenerationProgressData(int taskID, int count, float progress);

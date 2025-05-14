@@ -30,87 +30,138 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 {
     static class GenerationResultsSuperProxyActions
     {
+        static readonly Dictionary<AssetReference, CancellationTokenSource> k_QuoteCancellationTokenSources = new();
+
         public static readonly AsyncThunkCreatorWithArg<QuoteAudioData> quoteAudioClips = new($"{GenerationResultsActions.slice}/quoteAudioClipsSuperProxy", async (arg, api) =>
         {
-            var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
-            if (!success)
+            if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var existingTokenSource))
             {
-                var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
+                existingTokenSource.Cancel();
+                existingTokenSource.Dispose();
+            }
+            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
+
+            try
+            {
+                SendValidatingMessage();
+
+                var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
+
+                if (!success)
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
+
+                var asset = new AssetReference { guid = arg.asset.guid };
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
+
+                if (!asset.Exists())
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
+
+                using var httpClientLease = HttpClientManager.instance.AcquireLease();
+                var generationSetting = arg.generationSetting;
+
+                var variations = generationSetting.SelectVariationCount();
+                var duration = generationSetting.SelectGenerableDuration();
+                var prompt = generationSetting.SelectPrompt();
+                var negativePrompt = generationSetting.SelectNegativePrompt();
+                var modelID = api.State.SelectSelectedModelID(asset);
+                var soundReference = generationSetting.SelectSoundReference();
+                var referenceAudioStrength = soundReference.strength;
+
+                var seed = Random.Range(0, int.MaxValue - variations);
+                Guid.TryParse(modelID, out var generativeModelID);
+
+                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
+                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout);
+                var audioComponent = builder.AudioComponent();
+
+                var referenceAudioGuid = Guid.Empty;
+                if (soundReference.asset.IsValid())
+                    referenceAudioGuid = Guid.NewGuid();
+
+                List<AudioGenerateRequest> requests;
+                if (referenceAudioGuid != Guid.Empty)
+                {
+                    var request = AudioGenerateRequestBuilder
+                        .Initialize(generativeModelID, prompt, duration)
+                        .GenerateWithReference(referenceAudioGuid, referenceAudioStrength, negativePrompt, seed);
+                    requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                }
+                else
+                {
+                    var request = AudioGenerateRequestBuilder
+                        .Initialize(generativeModelID, prompt, duration)
+                        .Generate(negativePrompt, seed);
+                    requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                }
+
+                var quoteResults = await audioComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
+
+                if (!quoteResults.Result.IsSuccessful)
+                {
+                    var messages = quoteResults.Result.Error.Errors.Count == 0
+                        ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
+                        : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                    new(arg.asset,
+                        new(quoteResults.Result.IsSuccessful,
+                            !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
+                            quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
+            }
+            finally
+            {
+                // Only dispose if this is still the current token source for this asset
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                    k_QuoteCancellationTokenSources.Remove(arg.asset);
+                arg.cancellationTokenSource.Dispose();
             }
 
-            var asset = new AssetReference { guid = arg.asset.guid };
-            if (!asset.Exists())
+            void SendValidatingMessage()
             {
-                var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                var messages = new[] { "Validating generation inputs..." };
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
+                    new(arg.asset,
+                        new(false, AiResultErrorEnum.Unknown, 0,
                             messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
             }
-
-            using var httpClientLease = HttpClientManager.instance.AcquireLease();
-            var generationSetting = arg.generationSetting;
-
-            var variations = generationSetting.SelectVariationCount();
-            var duration = generationSetting.SelectGenerableDuration();
-            var prompt = generationSetting.SelectPrompt();
-            var negativePrompt = generationSetting.SelectNegativePrompt();
-            var modelID = api.State.SelectSelectedModelID(asset);
-            var soundReference = generationSetting.SelectSoundReference();
-            var referenceAudioStrength = soundReference.strength;
-
-            var seed = Random.Range(0, int.MaxValue - variations);
-            Guid.TryParse(modelID, out var generativeModelID);
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.realtimeTimeout);
-            var audioComponent = builder.AudioComponent();
-
-            var referenceAudioGuid = Guid.Empty;
-            if (soundReference.asset.IsValid())
-                referenceAudioGuid = Guid.NewGuid();
-
-            List<AudioGenerateRequest> requests;
-            if (referenceAudioGuid != Guid.Empty)
-            {
-                var request = AudioGenerateRequestBuilder
-                    .Initialize(generativeModelID, prompt, duration)
-                    .GenerateWithReference(referenceAudioGuid, referenceAudioStrength, negativePrompt, seed);
-                requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-            }
-            else
-            {
-                var request = AudioGenerateRequestBuilder
-                    .Initialize(generativeModelID, prompt, duration)
-                    .Generate(negativePrompt, seed);
-                requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-            }
-
-            var quoteResults = await audioComponent.GenerateQuote(requests, Constants.realtimeTimeout);
-            if (!quoteResults.Result.IsSuccessful)
-            {
-                var messages = quoteResults.Result.Error.Errors.Count == 0
-                    ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
-                    : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
-            }
-            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                new(arg.asset,
-                    new(quoteResults.Result.IsSuccessful,
-                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
-                        quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
         });
 
         public static readonly AsyncThunkCreatorWithArg<GenerateAudioData> generateAudioClips = new($"{GenerationResultsActions.slice}/generateAudioClipsSuperProxy", async (arg, api) =>

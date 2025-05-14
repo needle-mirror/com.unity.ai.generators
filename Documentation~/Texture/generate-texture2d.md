@@ -41,6 +41,9 @@ To generate 2D images using [Texture2D](https://docs.unity3d.com/6000.0/Document
    The generated images appear in the **Generations** panel. Hover over an image to view details, such as the model used and prompt settings.
 
    > [!NOTE]
+   > To generate and assign assets directly, refer to [Generate and assign assets with the Object Picker](xref:asset-picker).
+   
+   > [!NOTE]
    > Texture2D Generator saves all the generated textures in the `/GeneratedAssets` folder located at the root of your project. These assets remain in that folder until you remove them manually.
 
 ## Additional resources
@@ -49,3 +52,4 @@ To generate 2D images using [Texture2D](https://docs.unity3d.com/6000.0/Document
 * [Generate window](xref:generate-window)
 * [Texture2D](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Texture2D.html)
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
+* [Generate and assign assets with the Object Picker](xref:asset-picker)

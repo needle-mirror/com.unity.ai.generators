@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;

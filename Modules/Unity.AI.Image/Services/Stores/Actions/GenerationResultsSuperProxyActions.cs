@@ -36,170 +36,222 @@ namespace Unity.AI.Image.Services.Stores.Actions
 {
     static class GenerationResultsSuperProxyActions
     {
+        static readonly Dictionary<AssetReference, CancellationTokenSource> k_QuoteCancellationTokenSources = new();
+
         public static readonly AsyncThunkCreatorWithArg<QuoteImagesData> quoteImages = new($"{GenerationResultsActions.slice}/quoteImagesSuperProxy", async (arg, api) =>
         {
-            var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
-            if (!success)
+            if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var existingTokenSource))
             {
-                var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                existingTokenSource.Cancel();
+                existingTokenSource.Dispose();
             }
+            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
 
-            var asset = new AssetReference { guid = arg.asset.guid };
-            if (!asset.Exists())
+            try
             {
-                var messages = new[] { $"Error reason is 'Invalid Asset'." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
-            }
+                SendValidatingMessage();
 
-            using var httpClientLease = HttpClientManager.instance.AcquireLease();
-            var generationSetting = arg.generationSetting;
+                var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
-            var variations = generationSetting.SelectVariationCount();
-            var refinementMode = generationSetting.SelectRefinementMode();
-            if (refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Pixelate)
-                variations = 1;
-
-            var prompt = generationSetting.SelectPrompt();
-            var negativePrompt = generationSetting.SelectNegativePrompt();
-            var modelID = api.State.SelectSelectedModelID(asset);
-            var dimensions = generationSetting.SelectImageDimensionsVector2();
-            var upscaleFactor = generationSetting.SelectUpscaleFactor();
-            var imageReferences = generationSetting.SelectImageReferencesByRefinement();
-
-            var pixelateTargetSize = generationSetting.pixelateSettings.targetSize;
-            var pixelateResizeToTargetSize = !generationSetting.pixelateSettings.keepImageSize;
-            var pixelatePixelBlockSize = generationSetting.pixelateSettings.pixelBlockSize;
-            var pixelateMode = (int)generationSetting.pixelateSettings.mode;
-            var pixelateOutlineThickness = generationSetting.SelectPixelateOutlineThickness();
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.realtimeTimeout);
-            var imageComponent = builder.ImageComponent();
-
-            Guid.TryParse(modelID, out var generativeModelID);
-
-            OperationResult<QuoteResponse> quoteResults = null;
-
-            var assetGuid = asset.IsValid() ? Guid.NewGuid() : Guid.Empty;
-
-            switch (refinementMode)
-            {
-                case RefinementMode.Recolor:
+                if (arg.cancellationTokenSource.IsCancellationRequested)
                 {
-                    Guid.TryParse(api.State.SelectRecolorModel(), out var recolorModelID);
+                    SendValidatingMessage();
+                    return;
+                }
 
-                    var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
-                    var paletteAssetGuid = paletteImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
+                if (!success)
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
 
-                    if (paletteAssetGuid == Guid.Empty)
+                var asset = new AssetReference { guid = arg.asset.guid };
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
+
+                if (!asset.Exists())
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
+
+                using var httpClientLease = HttpClientManager.instance.AcquireLease();
+                var generationSetting = arg.generationSetting;
+
+                var variations = generationSetting.SelectVariationCount();
+                var refinementMode = generationSetting.SelectRefinementMode();
+                if (refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Pixelate)
+                    variations = 1;
+
+                var prompt = generationSetting.SelectPrompt();
+                var negativePrompt = generationSetting.SelectNegativePrompt();
+                var modelID = api.State.SelectSelectedModelID(asset);
+                var dimensions = generationSetting.SelectImageDimensionsVector2();
+                var upscaleFactor = generationSetting.SelectUpscaleFactor();
+                var imageReferences = generationSetting.SelectImageReferencesByRefinement();
+
+                var pixelateTargetSize = generationSetting.pixelateSettings.targetSize;
+                var pixelateResizeToTargetSize = !generationSetting.pixelateSettings.keepImageSize;
+                var pixelatePixelBlockSize = generationSetting.pixelateSettings.pixelBlockSize;
+                var pixelateMode = (int)generationSetting.pixelateSettings.mode;
+                var pixelateOutlineThickness = generationSetting.SelectPixelateOutlineThickness();
+
+                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
+                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout);
+                var imageComponent = builder.ImageComponent();
+
+                Guid.TryParse(modelID, out var generativeModelID);
+
+                OperationResult<QuoteResponse> quoteResults = null;
+
+                var assetGuid = asset.IsValid() ? Guid.NewGuid() : Guid.Empty;
+
+                switch (refinementMode)
+                {
+                    case RefinementMode.Recolor:
                     {
-                        var messages = new[] { $"Error reason is 'Invalid palette'." };
-                        api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                            new(arg.asset,
-                                new(false, AiResultErrorEnum.Unknown, 0,
-                                    messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                        return;
-                    }
+                        Guid.TryParse(api.State.SelectRecolorModel(), out var recolorModelID);
 
-                    var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, null)
-                        .Recolor(new Recolor(assetGuid, paletteAssetGuid));
-                    var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout);
-                    break;
-                }
-                case RefinementMode.Pixelate:
-                {
-                    var requests = ImageTransformRequestBuilder.Initialize().Pixelate(new Pixelate(assetGuid, pixelateResizeToTargetSize,
-                        pixelateTargetSize, pixelatePixelBlockSize, pixelateMode, pixelateOutlineThickness)).AsSingleInAList();
-                    quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout);
-                    break;
-                }
-                case RefinementMode.Inpaint:
-                {
-                    var inpaintMaskImageReference = imageReferences[refinementMode][ImageReferenceType.InPaintMaskImage];
-                    var maskGuid = inpaintMaskImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
-                    var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null)
-                        .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt), new MaskReference(assetGuid, maskGuid, inpaintMaskImageReference.strength));
-                    var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout);
-                    break;
-                }
-                case RefinementMode.RemoveBackground:
-                {
-                    var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(assetGuid));
-                    var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout);
-                    break;
-                }
-                case RefinementMode.Upscale:
-                {
-                    var request = ImageTransformRequestBuilder.Initialize().Upscale(new (assetGuid, upscaleFactor, null, null));
-                    var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout);
-                    break;
-                }
-                case RefinementMode.Generation:
-                {
-                    var requestBuilder = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null);
-                    var textPrompt = new TextPrompt(prompt, negativePrompt);
-                    try
-                    {
-                        var referenceGuids = imageReferences[refinementMode].ToDictionary(kvp => kvp.Key, kvp => kvp.Value.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty);
-                        var request = requestBuilder.GenerateWithReferences(textPrompt,
-                            referenceGuids[ImageReferenceType.PromptImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.PromptImage], imageReferences[refinementMode][ImageReferenceType.PromptImage].strength) : null,
-                            referenceGuids[ImageReferenceType.StyleImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.StyleImage], imageReferences[refinementMode][ImageReferenceType.StyleImage].strength) : null,
-                            referenceGuids[ImageReferenceType.CompositionImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.CompositionImage], imageReferences[refinementMode][ImageReferenceType.CompositionImage].strength) : null,
-                            referenceGuids[ImageReferenceType.PoseImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.PoseImage], imageReferences[refinementMode][ImageReferenceType.PoseImage].strength) : null,
-                            referenceGuids[ImageReferenceType.DepthImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.DepthImage], imageReferences[refinementMode][ImageReferenceType.DepthImage].strength) : null,
-                            referenceGuids[ImageReferenceType.LineArtImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.LineArtImage], imageReferences[refinementMode][ImageReferenceType.LineArtImage].strength) : null,
-                            referenceGuids[ImageReferenceType.FeatureImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.FeatureImage], imageReferences[refinementMode][ImageReferenceType.FeatureImage].strength) : null);
+                        var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
+                        var paletteAssetGuid = paletteImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
 
+                        if (paletteAssetGuid == Guid.Empty)
+                        {
+                            var messages = new[] { $"Error reason is 'Invalid palette'." };
+                            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.Unknown, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
+                        var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, null)
+                            .Recolor(new Recolor(assetGuid, paletteAssetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout);
+                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
                     }
-                    catch (UnhandledReferenceCombinationException e)
+                    case RefinementMode.Pixelate:
                     {
-                        var messages = new[] { $"{e.responseError.ToString()}: {e.Message}" };
-                        api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                            new(arg.asset,
-                                new(false, e.responseError, 0,
-                                    messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                        return;
+                        var requests = ImageTransformRequestBuilder.Initialize().Pixelate(new Pixelate(assetGuid, pixelateResizeToTargetSize,
+                            pixelateTargetSize, pixelatePixelBlockSize, pixelateMode, pixelateOutlineThickness)).AsSingleInAList();
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
                     }
-                    break;
+                    case RefinementMode.Inpaint:
+                    {
+                        var inpaintMaskImageReference = imageReferences[refinementMode][ImageReferenceType.InPaintMaskImage];
+                        var maskGuid = inpaintMaskImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
+                        var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null)
+                            .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt), new MaskReference(assetGuid, maskGuid, inpaintMaskImageReference.strength));
+                        var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
+                    }
+                    case RefinementMode.RemoveBackground:
+                    {
+                        var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(assetGuid));
+                        var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
+                    }
+                    case RefinementMode.Upscale:
+                    {
+                        var request = ImageTransformRequestBuilder.Initialize().Upscale(new(assetGuid, upscaleFactor, null, null));
+                        var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        break;
+                    }
+                    case RefinementMode.Generation:
+                    {
+                        var requestBuilder = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null);
+                        var textPrompt = new TextPrompt(prompt, negativePrompt);
+                        try
+                        {
+                            var referenceGuids = imageReferences[refinementMode].ToDictionary(kvp => kvp.Key, kvp => kvp.Value.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty);
+                            var request = requestBuilder.GenerateWithReferences(textPrompt,
+                                referenceGuids[ImageReferenceType.PromptImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.PromptImage], imageReferences[refinementMode][ImageReferenceType.PromptImage].strength) : null,
+                                referenceGuids[ImageReferenceType.StyleImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.StyleImage], imageReferences[refinementMode][ImageReferenceType.StyleImage].strength) : null,
+                                referenceGuids[ImageReferenceType.CompositionImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.CompositionImage], imageReferences[refinementMode][ImageReferenceType.CompositionImage].strength) : null,
+                                referenceGuids[ImageReferenceType.PoseImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.PoseImage], imageReferences[refinementMode][ImageReferenceType.PoseImage].strength) : null,
+                                referenceGuids[ImageReferenceType.DepthImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.DepthImage], imageReferences[refinementMode][ImageReferenceType.DepthImage].strength) : null,
+                                referenceGuids[ImageReferenceType.LineArtImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.LineArtImage], imageReferences[refinementMode][ImageReferenceType.LineArtImage].strength) : null,
+                                referenceGuids[ImageReferenceType.FeatureImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.FeatureImage], imageReferences[refinementMode][ImageReferenceType.FeatureImage].strength) : null);
+
+                            var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                            quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        }
+                        catch (UnhandledReferenceCombinationException e)
+                        {
+                            var messages = new[] { $"{e.responseError.ToString()}: {e.Message}" };
+                            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, e.responseError, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+                        break;
+                    }
                 }
-            }
 
-            if (quoteResults == null)
-                return;
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
 
-            if (!quoteResults.Result.IsSuccessful)
-            {
-                var messages = quoteResults.Result.Error.Errors.Count == 0
-                    ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
-                    : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                if (quoteResults == null)
+                    return;
+
+                if (!quoteResults.Result.IsSuccessful)
+                {
+                    var messages = quoteResults.Result.Error.Errors.Count == 0
+                        ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
+                        : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                    new(arg.asset,
+                        new(quoteResults.Result.IsSuccessful,
+                            !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
+                            quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
             }
-            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                new(arg.asset,
-                    new(quoteResults.Result.IsSuccessful,
-                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
-                        quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
+            finally
+            {
+                // Only dispose if this is still the current token source for this asset
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                    k_QuoteCancellationTokenSources.Remove(arg.asset);
+                arg.cancellationTokenSource.Dispose();
+            }
+
+            return;
+
+            void SendValidatingMessage()
+            {
+                var messages = new[] { "Validating generation inputs..." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new(arg.asset,
+                        new(false, AiResultErrorEnum.Unknown, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+            }
         });
 
         public static readonly AsyncThunkCreatorWithArg<GenerateImagesData> generateImages = new($"{GenerationResultsActions.slice}/generateImagesSuperProxy", async (arg, api) =>

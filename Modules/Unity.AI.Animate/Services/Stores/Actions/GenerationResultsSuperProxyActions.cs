@@ -33,88 +33,132 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 {
     static class GenerationResultsSuperProxyActions
     {
+        static readonly Dictionary<AssetReference, CancellationTokenSource> k_QuoteCancellationTokenSources = new();
+
         public static readonly AsyncThunkCreatorWithArg<QuoteAnimationsData> quoteAnimations = new($"{GenerationResultsActions.slice}/quoteAnimationsSuperProxy", async (arg, api) =>
         {
-            var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
-            if (!success)
+            if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var existingTokenSource))
             {
-                var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                existingTokenSource.Cancel();
+                existingTokenSource.Dispose();
             }
+            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
 
-            var asset = new AssetReference { guid = arg.asset.guid };
-            if (!asset.Exists())
+            try
             {
-                var messages = new[] { $"Error reason is 'Invalid Asset'." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (false, AiResultErrorEnum.Unknown, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
-            }
+                SendValidatingMessage();
 
-            using var httpClientLease = HttpClientManager.instance.AcquireLease();
-            var generationSetting = arg.generationSetting;
+                var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
-            var prompt = generationSetting.SelectPrompt();
-            var modelID = generationSetting.SelectSelectedModelID();
-            var roundedFrameDuration = generationSetting.SelectRoundedFrameDuration();
-            var variations = generationSetting.SelectVariationCount();
-            var seed = Random.Range(0, int.MaxValue - variations);
-            var refinementMode = generationSetting.SelectRefinementMode();
-
-            Guid.TryParse(modelID, out var generativeModelID);
-
-            var referenceVideoGuid = generationSetting.SelectVideoReference().asset.IsValid() ? Guid.NewGuid() : Guid.Empty;
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.realtimeTimeout);
-
-            var animationComponent = builder.AnimationComponent();
-
-            var requests = new List<AnimationGenerateRequest>();
-            switch (refinementMode)
-            {
-                case RefinementMode.VideoToMotion:
+                if (arg.cancellationTokenSource.IsCancellationRequested)
                 {
-                    var request = AnimationGenerateRequestBuilder.Initialize(generativeModelID).GenerateWithReference(referenceVideoGuid);
-                    requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    break;
+                    SendValidatingMessage();
+                    return;
                 }
-                case RefinementMode.TextToMotion:
+
+                if (!success)
                 {
-                    const float defaultTemperature = 0;
-                    var request = AnimationGenerateRequestBuilder.Initialize(generativeModelID).Generate(AnimationClipUtilities.bipedVersion.ToString(), prompt,
-                        roundedFrameDuration, seed, defaultTemperature);
-                    requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                    break;
+                    var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
                 }
-            }
-            var quoteResults = await animationComponent.GenerateAnimationQuote(requests, Constants.realtimeTimeout);
-            if (!quoteResults.Result.IsSuccessful)
-            {
-                var messages = quoteResults.Result.Error.Errors.Count == 0
-                    ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
-                    : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+
+                var asset = new AssetReference { guid = arg.asset.guid };
+
+                if (arg.cancellationTokenSource.IsCancellationRequested)
+                {
+                    SendValidatingMessage();
+                    return;
+                }
+
+                if (!asset.Exists())
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.Unknown, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
+
+                using var httpClientLease = HttpClientManager.instance.AcquireLease();
+                var generationSetting = arg.generationSetting;
+
+                var prompt = generationSetting.SelectPrompt();
+                var modelID = generationSetting.SelectSelectedModelID();
+                var roundedFrameDuration = generationSetting.SelectRoundedFrameDuration();
+                var variations = generationSetting.SelectVariationCount();
+                var seed = Random.Range(0, int.MaxValue - variations);
+                var refinementMode = generationSetting.SelectRefinementMode();
+
+                Guid.TryParse(modelID, out var generativeModelID);
+
+                var referenceVideoGuid = generationSetting.SelectVideoReference().asset.IsValid() ? Guid.NewGuid() : Guid.Empty;
+
+                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
+                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout);
+
+                var animationComponent = builder.AnimationComponent();
+
+                var requests = new List<AnimationGenerateRequest>();
+                switch (refinementMode)
+                {
+                    case RefinementMode.VideoToMotion:
+                    {
+                        var request = AnimationGenerateRequestBuilder.Initialize(generativeModelID).GenerateWithReference(referenceVideoGuid);
+                        requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        break;
+                    }
+                    case RefinementMode.TextToMotion:
+                    {
+                        const float defaultTemperature = 0;
+                        var request = AnimationGenerateRequestBuilder.Initialize(generativeModelID).Generate(AnimationClipUtilities.bipedVersion.ToString(), prompt,
+                            roundedFrameDuration, seed, defaultTemperature);
+                        requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        break;
+                    }
+                }
+                var quoteResults = await animationComponent.GenerateAnimationQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                if (!quoteResults.Result.IsSuccessful)
+                {
+                    var messages = quoteResults.Result.Error.Errors.Count == 0
+                        ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
+                        : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
 
                 api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                    new (arg.asset,
-                        new (quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
-                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                return;
+                    new(arg.asset,
+                        new(quoteResults.Result.IsSuccessful,
+                            !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
+                            quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
+            }
+            finally
+            {
+                // Only dispose if this is still the current token source for this asset
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                    k_QuoteCancellationTokenSources.Remove(arg.asset);
+                arg.cancellationTokenSource.Dispose();
             }
 
-            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
-                new(arg.asset,
-                    new(quoteResults.Result.IsSuccessful,
-                        !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
-                        quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
+            void SendValidatingMessage()
+            {
+                var messages = new[] { "Validating generation inputs..." };
+                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    new(arg.asset,
+                        new(false, AiResultErrorEnum.Unknown, 0,
+                            messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+            }
         });
 
         public static readonly AsyncThunkCreatorWithArg<GenerateAnimationsData> generateAnimations = new($"{GenerationResultsActions.slice}/generateAnimationsSuperProxy", async (arg, api) =>

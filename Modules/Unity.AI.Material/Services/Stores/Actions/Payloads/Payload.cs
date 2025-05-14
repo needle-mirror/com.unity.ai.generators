@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Material.Services.Undo;
@@ -10,7 +11,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Material.Services.Stores.Actions.Payloads
 {
     record AsssetContext(AssetReference asset);
-    record QuoteMaterialsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
+    record QuoteMaterialsData(AssetReference asset, GenerationSetting generationSetting, CancellationTokenSource cancellationTokenSource) : AsssetContext(asset);
     record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadMaterialsData(AssetReference asset, List<Dictionary<MapType, Guid>> ids, int[] customSeeds, int taskID = 0, GenerationMetadata generationMetadata = null, bool autoApply = false) : AsssetContext(asset);
     record GenerationProgressData(int taskID, int count, float progress);

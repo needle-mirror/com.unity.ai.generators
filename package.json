@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.7",
+  "version": "1.0.0-pre.8",
   "unity": "6000.2",
   "unityRelease": "0a9",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.7"
+    "com.unity.ai.toolkit": "1.0.0-pre.8"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.7"
+    "com.unity.ai.generators.tests": "1.0.0-pre.8"
   },
   "_upm": {
-    "changelog": "### Added\n\n- Added more items to the Model Selector Sidebar.\n- Users can now name assets before they are created.\n- Added the ability to open all material terrain layers simultaneously from terrain object.\n- Added multiple tooltips.\n- Added some missing model icons.\n- Enabled Sprite Editor customization for opening the 'Promote Asset' generator window.\n- Added support for material terrain layers.\n- Added documentation regarding generated assets.\n- Added documentation for the 'unityai' label.\n- Added a new documentation topic on using custom seeds.\n\n### Changed\n\n- Update SDK to version 0.18.0.\n- Improved material assignment caching for better UX.\n- Updated the AI Flyout menu; 'Generate' buttons are now disabled if AI Generators are turned off.\n- Asset confirmation dialog doesn't show on initial replace and is more verbose.\n\n### Fixed\n\n- Fixed drag and drop functionality for material terrain layers, audio clips and images.\n- Fixed an issue where the last object was not cleared in the image reference Object Selector.\n- Better support for longer package file paths.\n- Added additional recolor image validation checks.\n- Fixed issues with renaming materials with generated material maps.\n- Fixed the audio clip inspector to update correctly when the 'unityai' label is set on an asset.\n- Fixed audio clip reference recording on Linux.\n- Fixed legal agreement button over generate button.\n- Fixed generating animation using video to motion during play mode.\n- Fixed audio clip editing window repaint.\n- Fixed animation clip window caching.\n\n### Removed\n\n- Removed the 'Generate' button from the AI Toolkit material shader graph interface for clarity.\n- Removed model selection from image Upscale.\n- Removed reference delete button where not used."
+    "changelog": "### Fixed\n\n- Fixed history of new asset when promoting animation.\n- Fixed generate button not disabling itself during server validation."
   },
   "upmCi": {
-    "footprint": "deed2d0f93bd36584d2d00ec5d4d965cf272c994"
+    "footprint": "0e7dca24ebcbfe4d0a584e8621374beebc84e50b"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "ca3c2e614b4f444d51ff02264b62d44d68828b38"
+    "revision": "c3258fe5b93b1314b0546f491cd5e8b333b9ada9"
   }
 }

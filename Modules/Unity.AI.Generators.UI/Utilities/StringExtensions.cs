@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.IO;
+using System.Text;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -29,6 +30,24 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             return result.ToString();
+        }
+
+        public static string GetFileExtension(this string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return string.Empty;
+
+            var fileName = Path.GetFileName(filePath);
+            if (string.IsNullOrEmpty(fileName))
+                return string.Empty;
+
+            var firstDotIndex = fileName.IndexOf('.');
+            return firstDotIndex switch
+            {
+                -1 => string.Empty,
+                0 => fileName,
+                _ => fileName[firstDotIndex..]
+            };
         }
     }
 }

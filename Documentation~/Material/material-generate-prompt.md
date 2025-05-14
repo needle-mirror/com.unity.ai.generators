@@ -39,6 +39,9 @@ To generate a new material, follow these steps:
 The generated material appears in the **Generations** panel. Hover over a material to view details like the model used and prompt settings.
 
 > [!NOTE]
+> To generate and assign assets directly, refer to [Generate and assign assets with the Object Picker](xref:asset-picker).
+
+> [!NOTE]
 > Material Generator stores the generated material maps in the `/GeneratedAssets` folder located at the root of your project. These assets remain in that folder until you remove them manually.
 
 ## Work with generated material
@@ -57,3 +60,4 @@ You can apply the material to your objects in the **Scene** view.
 * [Use the PBR tab](xref:material-pbr)
 * [Use the Upscale tab](xref:material-upscale)
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
+* [Generate and assign assets with the Object Picker](xref:asset-picker)

@@ -43,6 +43,9 @@ The generated sprite appears in the **Generations** panel and the **Inspector** 
 Hover over a sprite the **Generations** panel to view details, such as the model used and prompt settings.
 
 > [!NOTE]
+> To generate and assign assets directly, refer to [Generate and assign assets with the Object Picker](xref:asset-picker).
+
+> [!NOTE]
 > Sprite Generator stores the generated sprites in the `/GeneratedAssets` folder located at the root of your project. These assets remain in that folder until you remove them manually.
 
 ## Additional resources
@@ -51,3 +54,4 @@ Hover over a sprite the **Generations** panel to view details, such as the model
 * [Generate sprite from a reference images](xref:reference-sprite)
 * [Manage generated sprites](xref:manage-sprite)
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
+* [Generate and assign assets with the Object Picker](xref:asset-picker)
