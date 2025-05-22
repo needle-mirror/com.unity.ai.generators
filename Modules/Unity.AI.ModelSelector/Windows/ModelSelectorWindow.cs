@@ -16,9 +16,8 @@ namespace Unity.AI.ModelSelector.Windows
         public static async Task Open(IStore store)
         {
             var window = EditorWindowExtensions.CreateWindow<ModelSelectorWindow>(store, "Select AI Model", false);
-            // if both values are equal, the window will be fully resizable
             window.minSize = new Vector2(950, 832);
-            window.maxSize = new Vector2(950, 833);
+            window.maxSize = new Vector2(950, 832);
             window.ShowAuxWindow();
 
             var tcs = new TaskCompletionSource<bool>();

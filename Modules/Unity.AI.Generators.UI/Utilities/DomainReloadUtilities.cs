@@ -1,8 +1,8 @@
 ﻿using System;
 using System.IO;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
-using System.Threading.Tasks;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -34,7 +34,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
             async void RemoveTokenAfterOneFrame()
             {
-                await Task.Yield();
+                await EditorTask.Yield();
                 s_WasDomainReloaded = false;
                 RemoveToken();
             }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -10,28 +11,6 @@ namespace Unity.AI.Generators.UI.Utilities
 {
     static class WebUtilities
     {
-        [MenuItem(k_InternalMenu + "AI Toolkit/Internals/Log Cloud Project Info")]
-        static void ShowProjectInfo()
-        {
-            var traceID = "None";
-            try { traceID = Selection.activeObject ? AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(Selection.activeObject)) : traceID; }
-            catch { /* Ignored */ }
-
-            Debug.Log($"User ID: {CloudProjectSettings.userId}\n" +
-                $"User Name: {CloudProjectSettings.userName}\n" +
-                $"Organization Key: {CloudProjectSettings.organizationKey}\n" +
-                $"Organization ID: {CloudProjectSettings.organizationId}\n" +
-                $"Organization Name: {CloudProjectSettings.organizationName}\n" +
-                $"Cloud Project ID: {CloudProjectSettings.projectId}\n" +
-                $"Cloud Project Name: {CloudProjectSettings.projectName}\n" +
-                $"AI_Toolkit_Account_Environment: {EditorPrefs.GetString("AI_Toolkit_Account_Environment")}\n" +
-                $"AI_Toolkit_Animate_Environment: {EditorPrefs.GetString("AI_Toolkit_Animate_Environment")}\n" +
-                $"AI_Toolkit_Image_Environment: {EditorPrefs.GetString("AI_Toolkit_Image_Environment")}\n" +
-                $"AI_Toolkit_Material_Environment: {EditorPrefs.GetString("AI_Toolkit_Material_Environment")}\n" +
-                $"AI_Toolkit_Sound_Environment: {EditorPrefs.GetString("AI_Toolkit_Sound_Environment")}\n" +
-                $"(selected) Asset ID (trace ID): {traceID}");
-        }
-
         static readonly Dictionary<AssetReference, TaskCompletionSource<bool>> k_AssetCancellationDict = new();
 
         public static async Task<bool> WaitForCloudProjectSettings(AssetReference asset)
@@ -67,7 +46,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (cancellationToken.IsCancellationRequested)
                     return false;
 
-                await Task.Yield();
+                await EditorTask.Yield();
             }
 
             return true;

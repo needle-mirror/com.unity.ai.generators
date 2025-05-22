@@ -28,6 +28,7 @@ using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
+using Unity.AI.Toolkit;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Debug = UnityEngine.Debug;
 using Logger = Unity.AI.Generators.Sdk.Logger;
@@ -45,7 +46,8 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 existingTokenSource.Cancel();
                 existingTokenSource.Dispose();
             }
-            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
+            var cancellationTokenSource = new CancellationTokenSource();
+            k_QuoteCancellationTokenSources[arg.asset] = cancellationTokenSource;
 
             try
             {
@@ -53,7 +55,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                 var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -71,7 +73,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                 var asset = new AssetReference { guid = arg.asset.guid };
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -142,42 +144,62 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, null)
                             .Recolor(new Recolor(assetGuid, paletteAssetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.Pixelate:
                     {
                         var requests = ImageTransformRequestBuilder.Initialize().Pixelate(new Pixelate(assetGuid, pixelateResizeToTargetSize,
                             pixelateTargetSize, pixelatePixelBlockSize, pixelateMode, pixelateOutlineThickness)).AsSingleInAList();
-                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.Inpaint:
                     {
+                        if (generativeModelID == Guid.Empty)
+                        {
+                            var messages = new[] { $"Error reason is 'Invalid Model'." };
+                            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.UnknownModel, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var inpaintMaskImageReference = imageReferences[refinementMode][ImageReferenceType.InPaintMaskImage];
                         var maskGuid = inpaintMaskImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
                         var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null)
                             .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt), new MaskReference(assetGuid, maskGuid, inpaintMaskImageReference.strength));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.RemoveBackground:
                     {
                         var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(assetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.Upscale:
                     {
                         var request = ImageTransformRequestBuilder.Initialize().Upscale(new(assetGuid, upscaleFactor, null, null));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.Generation:
                     {
+                        if (generativeModelID == Guid.Empty)
+                        {
+                            var messages = new[] { $"Error reason is 'Invalid Model'." };
+                            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.UnknownModel, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var requestBuilder = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null);
                         var textPrompt = new TextPrompt(prompt, negativePrompt);
                         try
@@ -193,7 +215,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                                 referenceGuids[ImageReferenceType.FeatureImage] != Guid.Empty ? new(referenceGuids[ImageReferenceType.FeatureImage], imageReferences[refinementMode][ImageReferenceType.FeatureImage].strength) : null);
 
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                            quoteResults = await EditorTask.Run(() => imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         }
                         catch (UnhandledReferenceCombinationException e)
                         {
@@ -208,7 +230,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     }
                 }
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -237,9 +259,9 @@ namespace Unity.AI.Image.Services.Stores.Actions
             finally
             {
                 // Only dispose if this is still the current token source for this asset
-                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == cancellationTokenSource)
                     k_QuoteCancellationTokenSources.Remove(arg.asset);
-                arg.cancellationTokenSource.Dispose();
+                cancellationTokenSource.Dispose();
             }
 
             return;
@@ -369,7 +391,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, useCustomSeed ? customSeed : null)
                             .Recolor(new Recolor(assetGuid, paletteAssetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        generateResults = await imageComponent.Generate(requests);
+                        generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
                         break;
                     }
                     case RefinementMode.Pixelate:
@@ -379,7 +401,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                         var requests = ImageTransformRequestBuilder.Initialize().Pixelate(new Pixelate(assetGuid, pixelateResizeToTargetSize,
                             pixelateTargetSize, pixelatePixelBlockSize, pixelateMode, pixelateOutlineThickness)).AsSingleInAList();
-                        transformResults = await imageComponent.Transform(requests);
+                        transformResults = await EditorTask.Run(() => imageComponent.Transform(requests));
                         break;
                     }
                     case RefinementMode.Inpaint:
@@ -403,7 +425,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt),
                                 new MaskReference(assetGuid, maskGuid, inpaintMaskImageReference.strength));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        generateResults = await imageComponent.Generate(requests);
+                        generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
                         break;
                     }
                     case RefinementMode.RemoveBackground:
@@ -413,7 +435,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                         var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(assetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        transformResults = await imageComponent.Transform(requests);
+                        transformResults = await EditorTask.Run(() => imageComponent.Transform(requests));
                         break;
                     }
                     case RefinementMode.Upscale:
@@ -423,7 +445,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                         var request = ImageTransformRequestBuilder.Initialize().Upscale(new (assetGuid, upscaleFactor, null, null));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        transformResults = await imageComponent.Transform(requests);
+                        transformResults = await EditorTask.Run(() => imageComponent.Transform(requests));
                         break;
                     }
                     case RefinementMode.Generation:
@@ -466,7 +488,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                                 referenceGuids[ImageReferenceType.FeatureImage] != Guid.Empty ? new (referenceGuids[ImageReferenceType.FeatureImage], imageReferences[refinementMode][ImageReferenceType.FeatureImage].strength) : null);
 
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            generateResults = await imageComponent.Generate(requests);
+                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
                         }
                         catch (UnhandledReferenceCombinationException e)
                         {
@@ -651,8 +673,15 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     value => SetProgress(progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource2.Token);
 
-                var tasks = arg.ids.Select(async jobId => (jobId, await assetComponent.CreateAssetDownloadUrl(jobId, Constants.noTimeout, LogJobUpdates)));
-                var assetResults = await Task.WhenAll(tasks);
+                var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
+                foreach (var jobId in arg.ids)
+                {
+                    // need to be very careful, we're taking each in turn to guarantee paused play mode support
+                    // there's not much drawback as the generations are started way before
+                    var url = await EditorTask.Run(() => assetComponent.CreateAssetDownloadUrl(jobId, Constants.noTimeout, LogJobUpdates));
+                    assetResults.Add((jobId, url));
+                }
+
                 generatedImages = assetResults.Select(pair =>
                 {
                     var (_, result) = pair;

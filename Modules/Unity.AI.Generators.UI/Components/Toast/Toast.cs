@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit.Accounts.Components;
+using Unity.AI.Toolkit;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -45,7 +46,7 @@ namespace Unity.AI.Generators.UI
             }
 
             while (state.IsToastShowing)
-                await Task.Yield();
+                await EditorTask.Yield();
 
             state.IsToastShowing = true;
             state.LastMessage = message;
@@ -90,7 +91,7 @@ namespace Unity.AI.Generators.UI
                 // Add click handler
                 toast.RegisterCallback<ClickEvent>(e => {
                     toast.style.opacity = 0f;
-                    _ = Task.Delay(500).ContinueWith(_ => tcs.SetResult(true));
+                    _ = EditorTask.Delay(500).ContinueWith(_ => tcs.SetResult(true));
                 });
 
                 parent.Add(toast);
@@ -118,7 +119,7 @@ namespace Unity.AI.Generators.UI
 
             // Pulse effect: change to highlight color, wait, then back to original
             state.CurrentBanner.style.backgroundColor = k_HighlightColor;
-            await Task.Delay(500);
+            await EditorTask.Delay(500);
             state.CurrentBanner.style.backgroundColor = originalColor;
         }
     }

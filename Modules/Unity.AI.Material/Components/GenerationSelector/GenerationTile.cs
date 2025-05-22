@@ -127,11 +127,18 @@ namespace Unity.AI.Material.Components
                 OnGeometryChanged(null);
             }, DropdownMenuAction.AlwaysEnabled);
 
-            evt.menu.AppendAction("Promote to new asset", _ =>
+            evt.menu.AppendAction("Promote to new material", _ =>
             {
                 var asset = this.GetAsset();
                 var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                store.Dispatch(SessionActions.promoteGeneration, new (asset, materialResult));
+                store.Dispatch(SessionActions.promoteGenerationToMaterial, new (asset, materialResult));
+            }, DropdownMenuAction.AlwaysEnabled);
+
+            evt.menu.AppendAction("Promote to new terrain layer", _ =>
+            {
+                var asset = this.GetAsset();
+                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
+                store.Dispatch(SessionActions.promoteGenerationToTerrainLayer, new (asset, materialResult));
             }, DropdownMenuAction.AlwaysEnabled);
 
             evt.menu.AppendAction(
@@ -230,9 +237,6 @@ namespace Unity.AI.Material.Components
 
             image.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
             image.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
-
-            progress.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
-            progress.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
         }
 
         public void OnScreenScaleFactorChanged(ScreenScaleFactor _) => OnGeometryChanged(null);

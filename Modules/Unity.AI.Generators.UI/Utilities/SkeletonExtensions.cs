@@ -53,9 +53,15 @@ namespace Unity.AI.Generators.UI.Utilities
                 s_ProgressDiskMaterial = new Material(Shader.Find("Hidden/AIToolkit/ProgressDisk")) { hideFlags = HideFlags.HideAndDontSave };
 
             var previousRT = RenderTexture.active;
-            s_ProgressDiskMaterial.SetFloat("_Value", bucketedProgress);
-            Graphics.Blit(null, rt, s_ProgressDiskMaterial);
-            RenderTexture.active = previousRT;
+            try
+            {
+                s_ProgressDiskMaterial.SetFloat("_Value", bucketedProgress);
+                Graphics.Blit(null, rt, s_ProgressDiskMaterial);
+            }
+            finally
+            {
+                RenderTexture.active = previousRT;
+            }
 
             k_Cache.Add(key, rt);
             return rt;

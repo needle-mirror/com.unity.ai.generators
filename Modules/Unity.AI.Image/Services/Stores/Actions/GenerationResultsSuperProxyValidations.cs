@@ -16,6 +16,7 @@ using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using Logger = Unity.AI.Generators.Sdk.Logger;
@@ -153,7 +154,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             {
                 try
                 {
-                    var quoteResult = await imageComponent.GenerateQuote(request.AsSingleInAList(), Constants.mandatoryTimeout);
+                    var quoteResult = await EditorTask.Run(() => imageComponent.GenerateQuote(request.AsSingleInAList(), Constants.mandatoryTimeout));
                     bool? isSuccess = null;
                     if (!quoteResult.Result.IsSuccessful)
                     {

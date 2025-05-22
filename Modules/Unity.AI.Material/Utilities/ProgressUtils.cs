@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 using UnityEngine;
 
 namespace Unity.AI.Material.Services.Utilities
@@ -16,7 +17,7 @@ namespace Unity.AI.Material.Services.Utilities
             {
                 value += (endValue - value) * rate;
                 onStep(value);
-                await Task.Delay(intervalMs, token);
+                await EditorTask.Delay(intervalMs, token);
             }
         }
     }

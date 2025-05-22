@@ -15,6 +15,7 @@ using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -130,7 +131,7 @@ namespace Unity.AI.Image.Components
         {
             try
             {
-                await Task.Delay(k_RemovalDelayMS, token);
+                await EditorTask.Delay(k_RemovalDelayMS, token);
             }
             catch (TaskCanceledException)
             {

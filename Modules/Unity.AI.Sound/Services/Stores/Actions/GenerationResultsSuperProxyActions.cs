@@ -22,6 +22,7 @@ using UnityEditor;
 using UnityEngine;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
+using Unity.AI.Toolkit;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Logger = Unity.AI.Generators.Sdk.Logger;
 using Random = UnityEngine.Random;
@@ -39,7 +40,8 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 existingTokenSource.Cancel();
                 existingTokenSource.Dispose();
             }
-            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
+            var cancellationTokenSource = new CancellationTokenSource();
+            k_QuoteCancellationTokenSources[arg.asset] = cancellationTokenSource;
 
             try
             {
@@ -47,7 +49,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
                 var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -65,7 +67,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
                 var asset = new AssetReference { guid = arg.asset.guid };
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -95,6 +97,16 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 var seed = Random.Range(0, int.MaxValue - variations);
                 Guid.TryParse(modelID, out var generativeModelID);
 
+                if (generativeModelID == Guid.Empty)
+                {
+                    var messages = new[] { $"Error reason is 'Invalid Model'." };
+                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                        new(arg.asset,
+                            new(false, AiResultErrorEnum.UnknownModel, 0,
+                                messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
+
                 var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
                     projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                     unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
@@ -121,9 +133,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                 }
 
-                var quoteResults = await audioComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                var quoteResults = await EditorTask.Run(() => audioComponent.GenerateQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -149,9 +161,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             finally
             {
                 // Only dispose if this is still the current token source for this asset
-                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == cancellationTokenSource)
                     k_QuoteCancellationTokenSources.Remove(arg.asset);
-                arg.cancellationTokenSource.Dispose();
+                cancellationTokenSource.Dispose();
             }
 
             void SendValidatingMessage()
@@ -240,7 +252,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                         .Generate(negativePrompt, seed);
                     requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                 }
-                var generateResults = await audioComponent.Generate(requests);
+                var generateResults = await EditorTask.Run(() => audioComponent.Generate(requests));
                 if (!generateResults.Batch.IsSuccessful)
                 {
                     LogFailedBatchResult(generateResults);
@@ -386,8 +398,15 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     value => SetProgress(progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource2.Token);
 
-                var tasks = arg.ids.Select(async jobId => (jobId, await assetComponent.CreateAssetDownloadUrl(jobId, Constants.noTimeout)));
-                var assetResults = await Task.WhenAll(tasks);
+                var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
+                foreach (var jobId in arg.ids)
+                {
+                    // need to be very careful, we're taking each in turn to guarantee paused play mode support
+                    // there's not much drawback as the generations are started way before
+                    var url = await EditorTask.Run(() => assetComponent.CreateAssetDownloadUrl(jobId, Constants.noTimeout));
+                    assetResults.Add((jobId, url));
+                }
+
                 generatedAudioClips = assetResults.Select(pair =>
                 {
                     var (_, result) = pair;

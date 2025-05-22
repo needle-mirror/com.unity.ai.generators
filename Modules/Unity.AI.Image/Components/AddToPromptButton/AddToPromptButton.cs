@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Creators;
@@ -11,6 +10,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -43,7 +43,7 @@ namespace Unity.AI.Image.Components
                 try
                 {
                     while (!m_HasItems)
-                        await Task.Yield();
+                        await EditorTask.Yield();
                     m_AllowedOperatorsMenu.DropDown(m_AddToPrompt.worldBound, m_AddToPrompt, false);
                 }
                 finally

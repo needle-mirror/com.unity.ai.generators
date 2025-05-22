@@ -110,6 +110,36 @@ namespace Unity.AI.Generators.UI.Utilities
             };
         }
 
+        public static bool TryGetImageDimensions(Stream imageStream, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+
+            if (imageStream is not { CanSeek: true })
+                return false;
+
+            var originalPosition = imageStream.Position;
+            try
+            {
+                imageStream.Position = 0;
+
+                const int headerSize = 1024;
+                var headerBuffer = new byte[headerSize];
+                var bytesRead = imageStream.Read(headerBuffer, 0, headerBuffer.Length);
+
+                if (bytesRead < 24)
+                    return false;
+
+                var headerBytes = headerBuffer.Take(bytesRead).ToArray();
+                return TryGetImageDimensions(headerBytes, out width, out height);
+            }
+            finally
+            {
+                // Restore original position
+                imageStream.Position = originalPosition;
+            }
+        }
+
         public static bool TryGetPngDimensions(IReadOnlyList<byte> imageBytes, out int width, out int height)
         {
             width = 0;
@@ -554,64 +584,57 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        public static byte[] CheckImageSize(byte[] imageBytes, int minimumSize = 33, int maximumSize = 8192)
+        public static byte[] CheckImageSize(byte[] imageBytes, int minimumSize = 32, int maximumSize = 8192)
         {
             if (!TryGetImageDimensions(imageBytes, out var width, out var height))
                 return imageBytes;
 
             if (width < minimumSize || height < minimumSize)
             {
-                var e = new ArgumentOutOfRangeException(nameof(minimumSize), $"Image size must be at least {minimumSize}x{minimumSize}.");
-                Debug.LogException(e);
-                throw e;
+                var widthScale = minimumSize / (float)width;
+                var heightScale = minimumSize / (float)height;
+                var scale = Mathf.Max(widthScale, heightScale);
+
+                var outputWidth = Mathf.RoundToInt(width * scale);
+                var outputHeight = Mathf.RoundToInt(height * scale);
+
+                return Resize(imageBytes, outputWidth, outputHeight);
             }
 
             if (width > maximumSize || height > maximumSize)
-            {
-                var e = new ArgumentOutOfRangeException(nameof(minimumSize), $"Image size must be less than or equal to {maximumSize}x{maximumSize}.");
-                Debug.LogException(e);
-                throw e;
-            }
+                throw new ArgumentOutOfRangeException(nameof(maximumSize), $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
 
             return imageBytes;
         }
 
-        public static Stream CheckImageSize(Stream imageStream, int minimumSize = 33, int maximumSize = 8192)
+        public static Stream CheckImageSize(Stream imageStream, int minimumSize = 32, int maximumSize = 8192)
         {
             if (imageStream == null)
-                throw new ArgumentNullException(nameof(imageStream));
+                throw new ArgumentOutOfRangeException(nameof(minimumSize), $"Image size must be at least 2x2.");
 
             if (!imageStream.CanSeek)
                 throw new NotSupportedException("The provided stream must be seekable.");
 
-            var originalPosition = imageStream.Position;
-            imageStream.Position = 0;
-
-            const int headerSize = 1024;
-            var headerBuffer = new byte[headerSize];
-            var bytesRead = imageStream.Read(headerBuffer, 0, headerSize);
-
-            imageStream.Position = originalPosition;
-            var headerBytes = headerBuffer.Take(bytesRead).ToArray();
-
-            if (!TryGetImageDimensions(headerBytes, out var width, out var height))
+            if (!TryGetImageDimensions(imageStream, out var width, out var height))
                 return imageStream;
 
             if (width < minimumSize || height < minimumSize)
             {
-                var e = new ArgumentOutOfRangeException(nameof(minimumSize),
-                    $"Image size must be at least {minimumSize}x{minimumSize}. Actual: {width}x{height}.");
-                Debug.LogException(e);
-                throw e;
+                var widthScale = minimumSize / (float)width;
+                var heightScale = minimumSize / (float)height;
+                var scale = Mathf.Max(widthScale, heightScale);
+
+                var outputWidth = Mathf.RoundToInt(width * scale);
+                var outputHeight = Mathf.RoundToInt(height * scale);
+
+                var imageBytes = imageStream.ReadFully();
+                imageBytes = Resize(imageBytes, outputWidth, outputHeight);
+                imageStream.Dispose();
+                return new MemoryStream(imageBytes);
             }
 
             if (width > maximumSize || height > maximumSize)
-            {
-                var e = new ArgumentOutOfRangeException(nameof(maximumSize),
-                    $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
-                Debug.LogException(e);
-                throw e;
-            }
+                throw new ArgumentOutOfRangeException(nameof(maximumSize), $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
 
             return imageStream;
         }
@@ -724,6 +747,40 @@ namespace Unity.AI.Generators.UI.Utilities
                 RenderTexture.active = previousActive;
                 if (rt)
                     RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        public static byte[] Resize(byte[] imageBytes, int width, int height)
+        {
+            if (imageBytes == null || imageBytes.Length == 0)
+                return imageBytes;
+
+            var previousActive = RenderTexture.active;
+            Texture2D sourceTexture = null;
+            RenderTexture rt = null;
+
+            try
+            {
+                sourceTexture = new Texture2D(2, 2);
+                sourceTexture.LoadImage(imageBytes);
+
+                rt = RenderTexture.GetTemporary(width, height);
+
+                Graphics.Blit(sourceTexture, rt);
+
+                var resultTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                RenderTexture.active = rt;
+                resultTexture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                resultTexture.Apply();
+
+                return resultTexture.EncodeToPNG();
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                if (rt)
+                    RenderTexture.ReleaseTemporary(rt);
+                sourceTexture?.SafeDestroy();
             }
         }
 

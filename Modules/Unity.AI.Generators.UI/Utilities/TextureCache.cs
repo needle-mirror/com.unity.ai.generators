@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -267,7 +268,7 @@ namespace Unity.AI.Generators.UI.Utilities
             static async Task BlitAndAssign(Uri uri, Texture2D texture)
             {
                 while (s_PreviewTextureConcurrency > k_PreviewTextureMaxConcurrency)
-                    await Task.Yield();
+                    await EditorTask.Yield();
 
                 ++s_PreviewTextureConcurrency;
 

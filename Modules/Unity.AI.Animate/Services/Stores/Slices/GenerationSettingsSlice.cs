@@ -23,6 +23,7 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                         state.generationSettings[action.context.asset] = slice(subState);
                     },
                     reducers => reducers
+                        .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
                         .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt = payload)
@@ -59,7 +60,9 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                         refinementMode = entry.Value.refinementMode,
                         videoReference = entry.Value.videoReference with {
                             asset = entry.Value.videoReference.asset
-                        }
+                        },
+                        generationPaneWidth = entry.Value.generationPaneWidth,
+                        historyDrawerHeight = entry.Value.historyDrawerHeight,
                     })
                 )
             });

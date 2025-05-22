@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
@@ -13,7 +12,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Image.Services.Stores.Actions.Payloads
 {
     record AsssetContext(AssetReference asset);
-    record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting, CancellationTokenSource cancellationTokenSource) : AsssetContext(asset);
+    record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadImagesData(
         AssetReference asset,

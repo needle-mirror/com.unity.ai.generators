@@ -4,6 +4,29 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.9] - 2025-05-22
+
+### Added
+
+- Added support for Editor paused play mode.
+- Added a 'Promote to Terrain Layer' right-click action for material generations.
+
+### Changed
+
+- The horizontal window splitter is now draggable.
+- Reduced minimum reference image size from 32x32 to 2x2. Smaller images are now automatically upscaled before generation.
+
+### Fixed
+
+- Fixed window icon display in the light UI style/theme.
+- Fixed issues with resuming interrupted downloads during material generation.
+- Fixed the AI button's documentation menu link.
+- Optimized generation point cost quote when no model is selected.
+
+### Removed
+
+- Removed resize handles from the model selector.
+
 ## [1.0.0-pre.8] - 2025-05-14
 
 ### Fixed

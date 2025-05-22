@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -41,7 +42,7 @@ namespace Unity.AI.Sound.Services.Utilities
 
                 if (token.IsCancellationRequested)
                     break;
-                await Task.Yield();
+                await EditorTask.Yield();
             }
 
             if (audioSource.isPlaying)

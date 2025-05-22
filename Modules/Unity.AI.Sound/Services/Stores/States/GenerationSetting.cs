@@ -18,6 +18,7 @@ namespace Unity.AI.Sound.Services.Stores.States
         public SoundReferenceState soundReference = new();
 
         public float historyDrawerHeight = 200;
+        public float generationPaneWidth = 280;
     }
 
     [Serializable]

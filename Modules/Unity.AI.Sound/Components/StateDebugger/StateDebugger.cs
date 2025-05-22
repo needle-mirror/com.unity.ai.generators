@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Linq;
-using System.Threading.Tasks;
 using Unity.AI.Sound.Services.SessionPersistence;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Stores.Slices;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -147,7 +147,7 @@ namespace Unity.AI.Sound.Components
             }
             finally
             {
-                await Task.Delay(5);    // Wait for any state reset side effects.
+                await EditorTask.Delay(5);    // Wait for any state reset side effects.
                 m_Pause = false;
             }
         }

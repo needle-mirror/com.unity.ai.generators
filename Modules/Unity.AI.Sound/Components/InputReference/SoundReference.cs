@@ -9,6 +9,7 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -164,7 +165,7 @@ namespace Unity.AI.Sound.Components
                 if (token.IsCancellationRequested)
                     break;
 
-                await Task.Yield();
+                await EditorTask.Yield();
             }
 
             Microphone.End(microphoneName);

@@ -23,9 +23,9 @@ namespace Unity.AI.Image.Services.Utilities
             var paneContainer = generatorUI.Q<VisualElement>("pane-container");
             Unsubscribe referencesSubscription = null;
 
-            splitter.topPane = topPane;
-            splitter.bottomPane = bottomPane;
-            splitter.paneContainer = paneContainer;
+            splitter.firstPane = topPane;
+            splitter.secondPane = bottomPane;
+            splitter.container = paneContainer;
             splitter.RegisterValueChangedCallback(evt =>
                 generatorUI.Dispatch(setHistoryDrawerHeight, evt.newValue));
             paneContainer.RegisterCallback<GeometryChangedEvent>(_ =>
@@ -50,6 +50,30 @@ namespace Unity.AI.Image.Services.Utilities
                         initialValue = references
                     });
                 }
+            });
+        }
+
+        public static void BindHorizontal(this Splitter splitter, VisualElement generatorUI,
+            AssetActionCreator<float> setGenerationPaneWidth,
+            Func<IState, VisualElement, float> selectGenerationPaneWidth)
+        {
+            var paneContainer = generatorUI.Q<VisualElement>("pane-container");
+            var parent = paneContainer.parent;
+            var rightSection = parent.Q<VisualElement>("right-section");
+
+            splitter.isFirstPaneFixed = true;
+            splitter.vertical = false;
+            splitter.firstPane = paneContainer;
+            splitter.secondPane = rightSection;
+            splitter.container = parent;
+
+            splitter.RegisterValueChangedCallback(evt =>
+                generatorUI.Dispatch(setGenerationPaneWidth, evt.newValue));
+
+            rightSection.RegisterCallback<GeometryChangedEvent>(evt =>
+            {
+                var width = selectGenerationPaneWidth(generatorUI.GetState(), generatorUI);
+                splitter.SetValueWithoutNotify(width);
             });
         }
     }

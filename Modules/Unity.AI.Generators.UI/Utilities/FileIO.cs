@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Unity.AI.Toolkit;
 using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
@@ -299,7 +300,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             try
             {
-                return await File.ReadAllBytesAsync(path);
+                return await File.ReadAllBytesAsync(path).ConfigureAwaitMainThread();
             }
             catch (Exception originalException)
             {
@@ -318,7 +319,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     if (extendedPath == path) // No change needed
                         throw;
 
-                    return await File.ReadAllBytesAsync(extendedPath);
+                    return await File.ReadAllBytesAsync(extendedPath).ConfigureAwaitMainThread();
                 }
                 catch (Exception)
                 {
@@ -367,7 +368,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             try
             {
-                return await File.ReadAllTextAsync(path);
+                return await File.ReadAllTextAsync(path).ConfigureAwaitMainThread();
             }
             catch (Exception originalException)
             {
@@ -386,7 +387,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     if (extendedPath == path) // No change needed
                         throw;
 
-                    return await File.ReadAllTextAsync(extendedPath);
+                    return await File.ReadAllTextAsync(extendedPath).ConfigureAwaitMainThread();
                 }
                 catch (Exception)
                 {
@@ -435,7 +436,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             try
             {
-                await File.WriteAllBytesAsync(path, bytes);
+                await File.WriteAllBytesAsync(path, bytes).ConfigureAwaitMainThread();
             }
             catch (Exception originalException)
             {
@@ -454,7 +455,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     if (extendedPath == path) // No change needed
                         throw;
 
-                    await File.WriteAllBytesAsync(extendedPath, bytes);
+                    await File.WriteAllBytesAsync(extendedPath, bytes).ConfigureAwaitMainThread();
                 }
                 catch (Exception)
                 {
@@ -503,7 +504,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             try
             {
-                await File.WriteAllTextAsync(path, contents);
+                await File.WriteAllTextAsync(path, contents).ConfigureAwaitMainThread();
             }
             catch (Exception originalException)
             {
@@ -522,7 +523,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     if (extendedPath == path) // No change needed
                         throw;
 
-                    await File.WriteAllTextAsync(extendedPath, contents);
+                    await File.WriteAllTextAsync(extendedPath, contents).ConfigureAwaitMainThread();
                 }
                 catch (Exception)
                 {
@@ -571,7 +572,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     inputStream.Position = 0;
 
                 await using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
-                await inputStream.CopyToAsync(fileStream);
+                await inputStream.CopyToAsync(fileStream).ConfigureAwaitMainThread();
             }
             finally
             {
@@ -655,7 +656,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     }
                     catch (IOException)
                     {
-                        try { await Task.Delay(retryDelayMs, token); } // Back off briefly before retry
+                        try { await EditorTask.Delay(retryDelayMs, token); } // Back off briefly before retry
                         catch (OperationCanceledException) { break; } // Exit loop on cancellation during delay
                     }
                 }

@@ -24,6 +24,7 @@ namespace Unity.AI.Material.Services.Stores.Slices
                     },
                     reducers => reducers
                         .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
+                        .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
                         .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt = payload)
@@ -68,7 +69,9 @@ namespace Unity.AI.Material.Services.Stores.Slices
                         patternImageReference = entry.Value.patternImageReference with {
                             strength = entry.Value.patternImageReference.strength,
                             asset = entry.Value.patternImageReference.asset
-                        }
+                        },
+                        generationPaneWidth = entry.Value.generationPaneWidth,
+                        historyDrawerHeight = entry.Value.historyDrawerHeight,
                     })
                 )
             });

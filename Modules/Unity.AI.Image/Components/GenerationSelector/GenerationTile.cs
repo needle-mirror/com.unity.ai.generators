@@ -205,9 +205,6 @@ namespace Unity.AI.Image.Components
 
             image.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
             image.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
-
-            progress.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
-            progress.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
         }
 
         public void OnScreenScaleFactorChanged(ScreenScaleFactor _) => OnGeometryChanged(null);

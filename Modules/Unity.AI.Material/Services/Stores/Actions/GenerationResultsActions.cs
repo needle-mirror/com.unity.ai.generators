@@ -15,6 +15,7 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -39,7 +40,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
         {
             // Wait if another invocation is already running.
             while (s_SetGeneratedMaterialsAsyncMutex)
-                await Task.Yield();
+                await EditorTask.Yield();
 
             s_SetGeneratedMaterialsAsyncMutex = true;
             var taskID = Progress.Start("Precaching generations.");
@@ -98,7 +99,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 {
                     int visible;
                     while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
-                        await Task.Yield();
+                        await EditorTask.Yield();
                     return visible;
                 }
             }
@@ -306,8 +307,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteMaterialsMain = new($"{slice}/quoteMaterialsMain",
             async (asset, api) =>
             {
-                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteMaterials,
-                    new(asset, api.State.SelectGenerationSetting(asset), new CancellationTokenSource())); }
+                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteMaterials, new(asset, api.State.SelectGenerationSetting(asset))); }
                 catch (OperationCanceledException) { /* ignored */ }
             });
 

@@ -27,6 +27,7 @@ using UnityEngine;
 using MapType = Unity.AI.Material.Services.Stores.States.MapType;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
+using Unity.AI.Toolkit;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Logger = Unity.AI.Generators.Sdk.Logger;
 using Random = UnityEngine.Random;
@@ -44,7 +45,8 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 existingTokenSource.Cancel();
                 existingTokenSource.Dispose();
             }
-            k_QuoteCancellationTokenSources[arg.asset] = arg.cancellationTokenSource;
+            var cancellationTokenSource = new CancellationTokenSource();
+            k_QuoteCancellationTokenSources[arg.asset] = cancellationTokenSource;
 
             try
             {
@@ -52,7 +54,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
                 var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -70,7 +72,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
                 var asset = new AssetReference { guid = arg.asset.guid };
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -119,20 +121,40 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
                         var request = ImageTransformRequestBuilder.Initialize();
                         var requests = materialGenerations.Select(m => request.Upscale(new(m[MapType.Preview], 2, null, null))).ToList();
-                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.Pbr:
                     {
+                        if (generativeModelID == Guid.Empty)
+                        {
+                            var messages = new[] { $"Error reason is 'Invalid Model'." };
+                            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.UnknownModel, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var materialGenerations = new List<Dictionary<MapType, Guid>>
                             { new() { [MapType.Preview] = assetGuid } };
 
                         var requests = materialGenerations.Select(m => new Texture2DPbrRequest(generativeModelID, m[MapType.Preview])).ToList();
-                        quoteResults = await imageComponent.GeneratePbrQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.GeneratePbrQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                     case RefinementMode.Generation:
                     {
+                        if (generativeModelID == Guid.Empty)
+                        {
+                            var messages = new[] { $"Error reason is 'Invalid Model'." };
+                            api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.UnknownModel, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var patternGuid = Guid.Empty;
                         if (patternImageReference.asset.IsValid())
                             patternGuid = Guid.NewGuid();
@@ -141,12 +163,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
                                 new CompositionReference(patternGuid, patternImageReference.strength));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, arg.cancellationTokenSource.Token);
+                        quoteResults = await EditorTask.Run(() => imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
                         break;
                     }
                 }
 
-                if (arg.cancellationTokenSource.IsCancellationRequested)
+                if (cancellationTokenSource.IsCancellationRequested)
                 {
                     SendValidatingMessage();
                     return;
@@ -174,9 +196,9 @@ namespace Unity.AI.Material.Services.Stores.Actions
             }
             finally
             {
-                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == arg.cancellationTokenSource)
+                if (k_QuoteCancellationTokenSources.TryGetValue(arg.asset, out var storedTokenSource) && storedTokenSource == cancellationTokenSource)
                     k_QuoteCancellationTokenSources.Remove(arg.asset);
-                arg.cancellationTokenSource.Dispose();
+                cancellationTokenSource.Dispose();
             }
 
             void SendValidatingMessage()
@@ -261,7 +283,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
                         var request = ImageTransformRequestBuilder.Initialize();
                         var requests = materialGenerations.Select(m => request.Upscale(new (m[MapType.Preview], 2, null, null))).ToList();
-                        var upscaleResults = await imageComponent.Transform(requests);
+                        var upscaleResults = await EditorTask.Run(() => imageComponent.Transform(requests));
 
                         if (!upscaleResults.Batch.IsSuccessful)
                         {
@@ -310,7 +332,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             { new() { [MapType.Preview] = assetGuid } };
 
                         var requests = materialGenerations.Select(m => new Texture2DPbrRequest(generativeModelID, m[MapType.Preview])).ToList();
-                        var pbrResults = await imageComponent.GeneratePbr(requests);
+                        var pbrResults = await EditorTask.Run(() => imageComponent.GeneratePbr(requests));
 
                         if (!pbrResults.Batch.IsSuccessful)
                         {
@@ -363,7 +385,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
                                 new CompositionReference(patternGuid, patternImageReference.strength));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        var generateResults = await imageComponent.Generate(requests);
+                        var generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
 
                         if (!generateResults.Batch.IsSuccessful)
                         {
@@ -527,13 +549,27 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     value => SetProgress(progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource3.Token);
 
-                var urlTasks = arg.ids.ToDictionary(m => m[MapType.Preview],
-                    m => m.ToDictionary(kvp => kvp.Key, async kvp =>
+                var jobIdList = arg.ids
+                    .SelectMany(dictionary => dictionary.Values) // Get all JobId values
+                    .Where(jobId => !GenerationRecoveryUtils.HasCachedDownload(jobId.ToString())) // Filter out the ones that are already cached
+                    .ToList();
+
+                var assetResults = new Dictionary<Guid, OperationResult<BlobAssetResult>>();
+                foreach (var guid in jobIdList)
+                {
+                    // need to be very careful, we're taking each in turn to guarantee paused play mode support
+                    // there's not much drawback as the generations are started way before
+                    var url = await EditorTask.Run(() => assetComponent.CreateAssetDownloadUrl(guid, Constants.noTimeout));
+                    assetResults.Add(guid, url);
+                }
+
+                var urls = arg.ids.ToDictionary(m => m[MapType.Preview],
+                    m => m.ToDictionary(kvp => kvp.Key, kvp =>
                     {
                         var jobId = kvp.Value;
                         if (GenerationRecoveryUtils.HasCachedDownload(jobId.ToString()))
                             return TextureResult.FromUrl(GenerationRecoveryUtils.GetCachedDownloadUrl(jobId.ToString()).GetAbsolutePath());
-                        var result = await assetComponent.CreateAssetDownloadUrl(jobId, Constants.noTimeout);
+                        var result = assetResults[jobId];
 
                         if (result.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
                             return TextureResult.FromUrl(result.Result.Value.AssetUrl.Url);
@@ -544,9 +580,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             LogFailedDownloadResult(result);
                         throw new HandledFailureException();
                     }));
-                await Task.WhenAll(urlTasks.Values.SelectMany(kvp => kvp.Values));
-                generatedTextures = urlTasks.ToDictionary(m => m.Key,
-                    outerPair => outerPair.Value.ToDictionary(kvp => kvp.Key, innerPair => innerPair.Value.Result));
+                generatedTextures = urls.ToDictionary(m => m.Key, outerPair => outerPair.Value.ToDictionary(kvp => kvp.Key, innerPair => innerPair.Value));
             }
             catch (HandledFailureException)
             {

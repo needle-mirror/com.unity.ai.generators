@@ -1,11 +1,11 @@
 using System;
-using System.Threading.Tasks;
 using Unity.AI.Image.Services.SessionPersistence;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Toolkit;
 using UnityEditor;
 
 namespace Unity.AI.Image.Services.Stores.Actions
@@ -15,7 +15,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
         internal static Creator<AppData> init => new("init");
         internal static Creator<AssetReference> deleteAsset => new("deleteAsset");
     }
-    
+
     /// <summary>
     /// remove the redux state for an asset once deleted
     /// </summary>
@@ -25,14 +25,14 @@ namespace Unity.AI.Image.Services.Stores.Actions
         {
             var guid = AssetDatabase.AssetPathToGUID(assetPath);
             var asset = new AssetReference { guid = guid };
-            
+
             DelayedDispatch(asset);
             return AssetDeleteResult.DidNotDelete;
 
             // once file is actually deleted
             async void DelayedDispatch(AssetReference assetReference)
             {
-                await Task.Yield();
+                await EditorTask.Yield();
                 SharedStore.Store.Dispatch(AppActions.deleteAsset, assetReference);
             }
         }

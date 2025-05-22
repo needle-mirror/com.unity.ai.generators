@@ -19,7 +19,7 @@ RemoveBackgroundPanel {
     display: flex;
 }
 
+
 .horizontal-layout .left-stack {
     min-width: 280px;
-    max-width: 280px;
 }

@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Unity.AI.ModelTrainer.Services.Stores.States;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -61,7 +62,7 @@ namespace Unity.AI.ModelTrainer.Services.Stores.Actions
 
                 SetProgress(0.0f, "Authenticating with UnityConnect.");
                 while (string.IsNullOrEmpty(CloudProjectSettings.organizationKey))
-                    await Task.Yield();
+                    await EditorTask.Yield();
 
                 SetProgress(0.8f, "Receiving models.");
                 var baseModels = new List<BaseModel>

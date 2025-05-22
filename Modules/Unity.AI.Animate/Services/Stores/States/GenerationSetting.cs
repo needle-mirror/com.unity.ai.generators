@@ -19,6 +19,7 @@ namespace Unity.AI.Animate.Services.Stores.States
         public VideoInputReference videoReference = new();
 
         public float historyDrawerHeight = 200;
+        public float generationPaneWidth = 280;
     }
 
     [Serializable]

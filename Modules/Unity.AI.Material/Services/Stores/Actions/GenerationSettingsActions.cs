@@ -72,5 +72,6 @@ namespace Unity.AI.Material.Services.Stores.Actions
             async (args, api) => await GenerationMetadataWindow.Open(args.element.GetStore(), args.asset, args.element, args.result));
 
         public static readonly AssetActionCreator<float> setHistoryDrawerHeight = new($"{slice}/setHistoryDrawerHeight");
+        public static readonly AssetActionCreator<float> setGenerationPaneWidth = new($"{slice}/setGenerationPaneWidth");
     }
 }

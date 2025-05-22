@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 using Unity.AI.Toolkit.Compliance;
 using UnityEditor;
 using UnityEngine;
@@ -71,7 +72,7 @@ namespace Unity.AI.Generators.Asset
                 try
                 {
                     Selection.activeObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets"); // null doesn't apparently force a refresh
-                    await Task.Yield();
+                    await EditorTask.Yield();
                 }
                 finally
                 {

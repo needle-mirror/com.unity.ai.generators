@@ -2,6 +2,7 @@
 using System.IO;
 using System.Threading.Tasks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEditor.Media;
 using UnityEngine;
@@ -103,7 +104,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
                 if (!Application.isPlaying)
                     EditorApplication.QueuePlayerLoopUpdate();
-                await Task.Yield();
+                await EditorTask.Yield();
             }
 
             // Determine the desired frame range.
@@ -169,7 +170,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
                         if (!Application.isPlaying)
                             EditorApplication.QueuePlayerLoopUpdate();
-                        await Task.Yield();
+                        await EditorTask.Yield();
                     }
 
                     RenderTexture.active = renderTexture;
@@ -182,7 +183,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
                     if (!Application.isPlaying)
                         EditorApplication.QueuePlayerLoopUpdate();
-                    await Task.Yield();
+                    await EditorTask.Yield();
                 }
 
                 RenderTexture.active = null;

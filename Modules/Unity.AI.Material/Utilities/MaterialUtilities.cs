@@ -24,8 +24,6 @@ namespace Unity.AI.Material.Services.Utilities
 
         static readonly Dictionary<CacheKey, IMaterialAdapter> k_Cache = new();
 
-        public const string mapsFolderSuffix = "_Generated Maps";
-
         public static bool IsBlank(this IMaterialAdapter material)
         {
             if (!material.AsObject)

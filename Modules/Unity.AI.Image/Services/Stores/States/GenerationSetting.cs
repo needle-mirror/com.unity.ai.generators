@@ -39,6 +39,7 @@ namespace Unity.AI.Image.Services.Stores.States
 
         public string pendingPing;
         public float historyDrawerHeight = 200;
+        public float generationPaneWidth = 280;
     }
 
     [Serializable]

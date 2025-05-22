@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -141,7 +142,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 while (AssetImporter.GetAtPath(destFileName) == null)
                 {
                     cts.Token.ThrowIfCancellationRequested();
-                    await Task.Yield();
+                    await EditorTask.Yield();
                 }
             }
             catch (OperationCanceledException)
@@ -252,7 +253,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 while (AssetImporter.GetAtPath(destFileName) == null)
                 {
                     cts.Token.ThrowIfCancellationRequested();
-                    await Task.Yield();
+                    await EditorTask.Yield();
                 }
             }
             catch (OperationCanceledException)
@@ -357,7 +358,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 while (AssetImporter.GetAtPath(destFileName) == null)
                 {
                     cts.Token.ThrowIfCancellationRequested();
-                    await Task.Yield();
+                    await EditorTask.Yield();
                 }
             }
             catch (OperationCanceledException)

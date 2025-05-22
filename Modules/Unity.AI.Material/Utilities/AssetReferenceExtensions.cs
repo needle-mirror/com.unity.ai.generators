@@ -16,11 +16,19 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static string GetMapsPath(string assetPath)
         {
+            var mapsFolderSuffix = k_MaterialMapsFolderSuffix;
+            var extension = Path.GetExtension(assetPath).ToLower();
+            if (extension == AssetUtils.terrainLayerExtension)
+                mapsFolderSuffix = k_TerrainMapsFolderSuffix;
+
             var destinationDirectoryName = Path.GetDirectoryName(assetPath);
             return string.IsNullOrEmpty(destinationDirectoryName)
                 ? string.Empty
-                : Path.Combine(destinationDirectoryName, $"{Path.GetFileNameWithoutExtension(assetPath)}{MaterialUtilities.mapsFolderSuffix}");
+                : Path.Combine(destinationDirectoryName, $"{Path.GetFileNameWithoutExtension(assetPath)}{mapsFolderSuffix}");
         }
+
+        const string k_MaterialMapsFolderSuffix = "_Generated Maps";
+        const string k_TerrainMapsFolderSuffix = "_Generated Terrain Maps";
 
         public static string GetMaterialName(this AssetReference asset) => Path.GetFileNameWithoutExtension(asset.GetPath());
 

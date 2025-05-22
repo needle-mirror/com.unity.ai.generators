@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Asset;
 using AiEditorToolsSdk.Components.Asset.Responses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
+using Unity.AI.Toolkit;
 using UnityEngine;
 
 namespace Unity.AI.Generators.Sdk
@@ -19,11 +20,11 @@ namespace Unity.AI.Generators.Sdk
 #if AI_TK_DEBUG_DUMP_STREAM
             stream = await DumpStreamToDisk(stream, "stream_dump");
 #endif
-            var assetResult = await assetComponent.CreateAssetUploadUrl();
+            var assetResult = await EditorTask.Run(() => assetComponent.CreateAssetUploadUrl());
 
             using var content = new StreamContent(stream);
             content.Headers.Add("x-ms-blob-type", "BlockBlob");
-            using var response = await client.PutAsync(assetResult.Result.Value.AssetUrl.Url, content);
+            using var response = await client.PutAsync(assetResult.Result.Value.AssetUrl.Url, content).ConfigureAwaitMainThread();
             response.EnsureSuccessStatusCode();
 
             return assetResult;

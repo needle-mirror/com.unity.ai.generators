@@ -9,6 +9,7 @@ using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -58,7 +59,7 @@ namespace Unity.AI.Animate.Components
 
                 this.Use(state => state.SelectGenerationValidationSettings(this), OnGenerationValidationSettingsChanged);
 
-                await Task.Yield();
+                await EditorTask.Yield();
                 await this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
             });
             this.Use(state => state.SelectGenerationValidationResult(this), OnGenerationValidationResultsChanged);
@@ -92,7 +93,7 @@ namespace Unity.AI.Animate.Components
         {
             try
             {
-                await Task.Delay(k_ReenableDelay, token);
+                await EditorTask.Delay(k_ReenableDelay, token);
                 if (!token.IsCancellationRequested)
                     this.Dispatch(GenerationResultsActions.setGenerationAllowed, new(this.GetAsset(), true));
             }

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Toolkit;
 using UnityEngine;
 
 namespace Unity.AI.Generators.Redux.Toolkit
@@ -117,7 +118,7 @@ namespace Unity.AI.Generators.Redux.Toolkit
             if (CacheItem.IsExpired())
             {
                 // Remove the cache item
-                await System.Threading.Tasks.Task.Delay(queryOptions.keepUnusedDataFor ?? 0);
+                await EditorTask.Delay(queryOptions.keepUnusedDataFor ?? 0);
                 if (CacheItem.IsExpired())
                     api.store.Dispatch(api.internalActions.ApiCacheRemove, cacheInfo.key);
             }

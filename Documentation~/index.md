@@ -11,9 +11,9 @@ Generators is a set of tools to create AI-generated assets from text input. Gene
 Before you can use the **AI** menu and tools in the Unity Editor, ensure that:
 
 * Your project is using Unity 6.2 (6000.2).
-* You [agreed and accepted](https://docs.unity3d.com/Manual/ai-menu.html) the terms and conditions on the **AI** menu in the Unity Editor.
+* You [agreed and accepted](https://docs.unity3d.com/6000.2/Documentation/Manual/ai-menu.html) the terms and conditions on the **AI** menu in the Unity Editor.
 
-For more information, refer to [AI menu in Unity Editor](https://docs.unity3d.com/Manual/ai-menu.html).
+For more information, refer to [AI menu in Unity Editor](https://docs.unity3d.com/6000.2/Documentation/Manual/ai-menu.html).
 
 Use the following topics to get started with using Generators.
 

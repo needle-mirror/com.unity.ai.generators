@@ -23,6 +23,7 @@ namespace Unity.AI.Sound.Services.Stores.Slices
                         state.generationSettings[action.context.asset] = slice(subState);
                     },
                     reducers => reducers
+                        .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
                         .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModelID = payload)
@@ -65,6 +66,8 @@ namespace Unity.AI.Sound.Services.Stores.Slices
                             recording = entry.Value.soundReference.recording,
                             overwriteSoundReferenceAsset = entry.Value.soundReference.overwriteSoundReferenceAsset
                         },
+                        generationPaneWidth = entry.Value.generationPaneWidth,
+                        historyDrawerHeight = entry.Value.historyDrawerHeight,
                     })
                 )
             });

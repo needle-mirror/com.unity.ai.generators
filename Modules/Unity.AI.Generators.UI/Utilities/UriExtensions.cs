@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
@@ -22,12 +23,12 @@ namespace Unity.AI.Generators.UI.Utilities
             try
             {
                 {
-                    using var response = await httpClient.GetAsync(sourceUri);
+                    using var response = await httpClient.GetAsync(sourceUri).ConfigureAwaitMainThread();
                     response.EnsureSuccessStatusCode();
 
                     {
                         await using var writeFileStream = FileIO.OpenWriteAsync(tempFilePath);
-                        await response.Content.CopyToAsync(writeFileStream);
+                        await response.Content.CopyToAsync(writeFileStream).ConfigureAwaitMainThread();
                     }
                 }
 

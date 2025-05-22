@@ -10,7 +10,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace Unity.AI.TerrainLayer.Windows
+namespace Unity.AI.Material.Windows
 {
     static class TerrainLayerGeneratorInspectorButton
     {
@@ -134,11 +134,18 @@ namespace Unity.AI.TerrainLayer.Windows
 
                 if (terrainData.terrainLayers.Length > 0)
                 {
-                    foreach (var terrainLayer in terrainData.terrainLayers)
+                    var terrainLayers = terrainData.terrainLayers;
+                    for (var index = 0; index < terrainLayers.Length; index++)
                     {
+                        var terrainLayer = terrainLayers[index];
                         var layerPath = AssetDatabase.GetAssetPath(terrainLayer);
-                        if (!string.IsNullOrEmpty(layerPath))
-                            MaterialGeneratorWindow.Display(layerPath);
+                        if (string.IsNullOrEmpty(layerPath))
+                        {
+                            terrainLayer = terrainLayers[index] = AssetUtils.CreateBlankTerrainLayer();
+                            terrainData.terrainLayers = terrainLayers;
+                            layerPath = AssetDatabase.GetAssetPath(terrainLayer);
+                        }
+                        MaterialGeneratorWindow.Display(layerPath);
                     }
                 }
                 else

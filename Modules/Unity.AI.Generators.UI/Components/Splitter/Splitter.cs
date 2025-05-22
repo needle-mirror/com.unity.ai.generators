@@ -14,11 +14,27 @@ namespace Unity.AI.Generators.UI
 
         const string k_DraggingUssClassName = "aitk-splitter--dragging";
 
-        public VisualElement topPane { get; set; }
+        const string k_VerticalUssClassName = "aitk-splitter--vertical";
 
-        public VisualElement bottomPane { get; set; }
+        const string k_HorizontalUssClassName = "aitk-splitter--horizontal";
 
-        public VisualElement paneContainer { get; set; }
+        public VisualElement firstPane { get; set; }
+
+        public VisualElement secondPane { get; set; }
+
+        public VisualElement container { get; set; }
+
+        public bool isFirstPaneFixed { get; set; }
+
+        public bool vertical
+        {
+            get => ClassListContains(k_VerticalUssClassName);
+            set
+            {
+                EnableInClassList(k_VerticalUssClassName, value);
+                EnableInClassList(k_HorizontalUssClassName, !value);
+            }
+        }
 
         public Splitter()
         {
@@ -28,6 +44,8 @@ namespace Unity.AI.Generators.UI
 
             var zone = this.Q<VisualElement>("zone");
             zone.AddManipulator(new Draggable(OnDragStart, OnDrag, OnDragEnd));
+
+            vertical = true;
         }
 
         public void Reset() => value = 0;
@@ -36,25 +54,55 @@ namespace Unity.AI.Generators.UI
 
         public void SetValueWithoutNotify(float newValue)
         {
-            if (topPane == null || bottomPane == null || paneContainer == null)
+            if (firstPane == null || secondPane == null || container == null)
                 return;
 
-            var topMinSize = topPane.resolvedStyle.minHeight.value;
-            var bottomMinSize = bottomPane.resolvedStyle.minHeight.value;
-            var totalSize = paneContainer.layout.height;
-            var isBottomVisible = bottomPane.resolvedStyle.display == DisplayStyle.Flex;
+            var firstMinSize = vertical ? firstPane.resolvedStyle.minHeight.value : firstPane.resolvedStyle.minWidth.value;
+            var secondMinSize = vertical ? secondPane.resolvedStyle.minHeight.value : secondPane.resolvedStyle.minWidth.value;
+            var totalSize = vertical ? container.layout.height : container.layout.width;
+            var isSecondVisible = secondPane.resolvedStyle.display == DisplayStyle.Flex;
 
-            if (isBottomVisible)
+            if (isSecondVisible)
             {
-                newValue = Mathf.Max(bottomMinSize, newValue);
-                newValue = Mathf.Min(totalSize - topMinSize, newValue);
-                bottomPane.style.height = newValue;
+                newValue = Mathf.Max(isFirstPaneFixed ? firstMinSize : secondMinSize, newValue);
+                newValue = Mathf.Min(totalSize - (isFirstPaneFixed ? secondMinSize : firstMinSize), newValue);
+                newValue = Mathf.Round(newValue * EditorGUIUtility.pixelsPerPoint) / EditorGUIUtility.pixelsPerPoint;
+                if (isFirstPaneFixed)
+                {
+                    if (vertical)
+                        firstPane.style.height = newValue;
+                    else
+                        firstPane.style.width = newValue;
+                }
+                else
+                {
+                    if (vertical)
+                        secondPane.style.height = newValue;
+                    else
+                        secondPane.style.width = newValue;
+                }
                 m_Value = newValue;
-                topPane.style.height = totalSize - newValue;
+                if (isFirstPaneFixed)
+                {
+                    if (vertical)
+                        secondPane.style.height = totalSize - newValue;
+                    else
+                        secondPane.style.width = totalSize - newValue;
+                }
+                else
+                {
+                    if (vertical)
+                        firstPane.style.height = totalSize - newValue;
+                    else
+                        firstPane.style.width = totalSize - newValue;
+                }
             }
             else
             {
-                topPane.style.height = new Length(100, LengthUnit.Percent);
+                if (vertical)
+                    firstPane.style.height = new Length(100, LengthUnit.Percent);
+                else
+                    firstPane.style.width = new Length(100, LengthUnit.Percent);
             }
         }
 
@@ -75,6 +123,12 @@ namespace Unity.AI.Generators.UI
 
         void OnDragEnd() => RemoveFromClassList(k_DraggingUssClassName);
 
-        void OnDrag(Vector3 delta) => value -= delta.y;
+        void OnDrag(Vector3 delta)
+        {
+            if (vertical)
+                value += delta.y * (isFirstPaneFixed ? 1 : -1);
+            else
+                value += delta.x * (isFirstPaneFixed ? 1 : -1);
+        }
     }
 }

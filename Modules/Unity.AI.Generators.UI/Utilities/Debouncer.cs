@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -27,7 +28,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
             try
             {
-                await Task.Delay(delayMilliseconds, tokenSource.Token);
+                await EditorTask.Delay(delayMilliseconds, tokenSource.Token);
                 action();
             }
             catch (OperationCanceledException)

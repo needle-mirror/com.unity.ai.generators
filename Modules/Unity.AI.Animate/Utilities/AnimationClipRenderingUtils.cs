@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -64,7 +65,7 @@ namespace Unity.AI.Animate.Services.Utilities
         {
             // Wait if we've reached the concurrency limit
             while (s_RenderConcurrency >= k_RenderMaxConcurrency)
-                await Task.Yield();
+                await EditorTask.Yield();
 
             // Increment concurrency counter
             ++s_RenderConcurrency;

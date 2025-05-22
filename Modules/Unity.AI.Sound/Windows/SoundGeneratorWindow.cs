@@ -75,7 +75,14 @@ namespace Unity.AI.Sound.Windows
                 titleContent.text = $"{Path.GetFileNameWithoutExtension(newPath)}";
         }
 
-        void OnEnable() => AssetRenameWatcher.OnAssetMoved += OnAssetMoved;
+        void OnEnable()
+        {
+            var aiIcon = EditorGUIUtility.FindTexture("AISparkle Icon");
+            if(aiIcon != null)
+                titleContent.image = aiIcon;
+
+            AssetRenameWatcher.OnAssetMoved += OnAssetMoved;
+        }
 
         void OnDisable() => AssetRenameWatcher.OnAssetMoved -= OnAssetMoved;
 

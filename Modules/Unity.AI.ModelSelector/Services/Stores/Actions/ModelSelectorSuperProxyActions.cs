@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.GenerativeModels.Responses;
-using Unity.AI.Generators.Redux;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using Logger = Unity.AI.Generators.Sdk.Logger;
@@ -79,7 +79,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                         projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                         unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true);
                     var generativeModelsComponent = builder.GenerativeModelsComponent();
-                    var modelResults = await generativeModelsComponent.GetGenerativeModelsList();
+                    var modelResults = await EditorTask.Run(() => generativeModelsComponent.GetGenerativeModelsList());
 
                     if (!modelResults.Batch.IsSuccessful)
                     {
@@ -92,7 +92,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                         return models;
                     }
 
-                    var favoritesResults = await generativeModelsComponent.GetGenerativeModelsFavoritesList();
+                    var favoritesResults = await EditorTask.Run(() => generativeModelsComponent.GetGenerativeModelsFavoritesList());
 
                     if (!favoritesResults.Batch.IsSuccessful)
                     {

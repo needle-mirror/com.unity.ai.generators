@@ -24,6 +24,7 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         state.generationSettings[action.context.asset] = slice(subState);
                     },
                     reducers => reducers
+                        .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
                         .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
@@ -90,6 +91,7 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         replaceRefinementAsset = entry.Value.replaceRefinementAsset,
                         upscaleFactor = entry.Value.upscaleFactor,
                         historyDrawerHeight = entry.Value.historyDrawerHeight,
+                        generationPaneWidth = entry.Value.generationPaneWidth,
                         imageReferences = entry.Value.imageReferences.Select(imageReference => imageReference with {
                             strength = imageReference.strength,
                             asset = imageReference.asset,

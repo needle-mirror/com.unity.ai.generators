@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
@@ -15,6 +14,7 @@ using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -240,7 +240,7 @@ namespace Unity.AI.Animate.Components
                 return;
 
             if (animationClipResult.IsValid() && !AnimationClipCache.Peek(animationClipResult.uri))
-                await Task.Yield();
+                await EditorTask.Yield();
 
             var animationClip = await animationClipResult.GetAnimationClip();
             if (animationClip == null)
@@ -266,9 +266,6 @@ namespace Unity.AI.Animate.Components
 
             image.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
             image.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
-
-            progress.EnableInClassList("image-scale-to-fit", resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height);
-            progress.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
         }
 
         public void OnScreenScaleFactorChanged(ScreenScaleFactor _) => OnGeometryChanged(null);

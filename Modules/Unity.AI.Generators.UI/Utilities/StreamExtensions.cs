@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -56,7 +57,7 @@ namespace Unity.AI.Generators.UI.Utilities
             else
             {
                 using var tempStream = new MemoryStream();
-                await input.CopyToAsync(tempStream);
+                await input.CopyToAsync(tempStream).ConfigureAwaitMainThread();
                 result = tempStream.ToArray();
             }
 

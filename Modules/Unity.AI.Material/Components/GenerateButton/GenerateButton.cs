@@ -13,6 +13,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
+using Unity.AI.Toolkit;
 
 namespace Unity.AI.Material.Components
 {
@@ -57,7 +58,7 @@ namespace Unity.AI.Material.Components
 
                 this.Use(state => state.SelectGenerationValidationSettings(this), OnGenerationValidationSettingsChanged);
 
-                await Task.Yield();
+                await EditorTask.Yield();
                 await this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
             });
             this.Use(state => state.SelectGenerationValidationResult(this), OnGenerationValidationResultsChanged);
@@ -91,7 +92,7 @@ namespace Unity.AI.Material.Components
         {
             try
             {
-                await Task.Delay(k_ReenableDelay, token);
+                await EditorTask.Delay(k_ReenableDelay, token);
                 if (!token.IsCancellationRequested)
                     this.Dispatch(GenerationResultsActions.setGenerationAllowed, new(this.GetAsset(), true));
             }

@@ -21,10 +21,15 @@ namespace Unity.AI.Material.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
-            this.Q<Splitter>().Bind(
+            this.Q<Splitter>("vertical-splitter").Bind(
                 this,
                 GenerationSettingsActions.setHistoryDrawerHeight,
                 Selectors.SelectHistoryDrawerHeight);
+
+            this.Q<Splitter>("horizontal-splitter").BindHorizontal(
+                this,
+                GenerationSettingsActions.setGenerationPaneWidth,
+                Selectors.SelectGenerationPaneWidth);
 
             this.UseAsset(SetAsset);
             this.UseArray(state => state.SelectGenerationFeedback(this), OnGenerationFeedbackChanged);

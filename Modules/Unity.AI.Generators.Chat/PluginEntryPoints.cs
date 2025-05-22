@@ -6,7 +6,6 @@ using Unity.AI.Sound.Windows;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Toolkit.Chat;
 using Unity.AI.Generators.UIElements.Extensions;
-using Unity.AI.TerrainLayer.Windows;
 using UnityEditor;
 using UnityEngine.UIElements;
 

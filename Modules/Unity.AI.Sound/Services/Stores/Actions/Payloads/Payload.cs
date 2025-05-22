@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Undo;
@@ -11,7 +10,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Sound.Services.Stores.Actions.Payloads
 {
     record AsssetContext(AssetReference asset);
-    record QuoteAudioData(AssetReference asset, GenerationSetting generationSetting, CancellationTokenSource cancellationTokenSource) : AsssetContext(asset);
+    record QuoteAudioData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateAudioData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadAudioData(AssetReference asset, List<Guid> ids, int taskID, GenerationMetadata generationMetadata, int[] customSeeds, bool autoApply = false) : AsssetContext(asset);
     record GenerationProgressData(int taskID, int count, float progress);

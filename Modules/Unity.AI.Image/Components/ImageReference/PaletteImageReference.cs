@@ -6,6 +6,7 @@ using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -56,7 +57,7 @@ namespace Unity.AI.Image.Components
                     return;
                 }
 
-                await Task.Yield();
+                await EditorTask.Yield();
                 var paletteAssetBytes = TextureUtils.CreatePaletteApproximation(await stream.ReadFullyAsync());
                 m_PaletteTexture.LoadImage(paletteAssetBytes);
                 m_ImagePalette.Q<Label>().SetShown(false);

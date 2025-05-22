@@ -21,6 +21,7 @@ namespace Unity.AI.Material.Services.Stores.States
         public PatternImageReference patternImageReference = new();
 
         public float historyDrawerHeight = 200;
+        public float generationPaneWidth = 280;
     }
 
     [Serializable]

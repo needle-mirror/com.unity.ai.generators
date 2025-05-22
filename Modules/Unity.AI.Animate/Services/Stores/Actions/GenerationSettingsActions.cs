@@ -45,5 +45,6 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         });
 
         public static readonly AssetActionCreator<float> setHistoryDrawerHeight = new($"{slice}/setHistoryDrawerHeight");
+        public static readonly AssetActionCreator<float> setGenerationPaneWidth = new($"{slice}/setGenerationPaneWidth");
     }
 }

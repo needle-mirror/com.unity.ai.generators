@@ -98,7 +98,13 @@ namespace Unity.AI.Generators.Asset
             // not context related...
             void OnGeometryChanged(GeometryChangedEvent evt)
             {
-                var supportHorizontal = evt.newRect.width > window.minSize.x * 1.4;
+                var minSize = 280f + 150f;
+                if (window.rootVisualElement.Q<VisualElement>("right-section") is { } right &&
+                    window.rootVisualElement.Q<VisualElement>("left-stack") is { } left)
+                {
+                    minSize = right.resolvedStyle.minWidth.value + left.resolvedStyle.minWidth.value;
+                }
+                var supportHorizontal = evt.newRect.width > minSize;
                 window.rootVisualElement.EnableInClassList("horizontal-layout", supportHorizontal);
                 window.rootVisualElement.EnableInClassList("vertical-layout", !supportHorizontal);
             }

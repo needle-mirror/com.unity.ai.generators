@@ -5,14 +5,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Generators.UI
 {
     class GenerationFileSystemWatcher : Manipulator
     {
-        static SynchronizationContext s_UnitySynchronizationContext;
-
         readonly IEnumerable<string> m_Suffixes;
         readonly string m_WatchPath;
         FileSystemWatcher m_Watcher;
@@ -26,45 +26,48 @@ namespace Unity.AI.Generators.UI
             m_Suffixes = suffixes;
             m_WatchPath = asset.GetGeneratedAssetsPath();
             m_OnRebuild = onRebuild;
-            s_UnitySynchronizationContext = SynchronizationContext.Current;
         }
 
-        void OnChanged(object sender, FileSystemEventArgs e) => s_UnitySynchronizationContext.Post(_ => Rebuild(), null);
+        async Task ScheduleRebuildOnMainThread()
+        {
+            await EditorThread.EnsureMainThreadAsync();
+            _ = Rebuild();
+        }
 
-        void OnCreated(object sender, FileSystemEventArgs e) => s_UnitySynchronizationContext.Post(_ => Rebuild(), null);
+        void OnChanged(object sender, FileSystemEventArgs e) => _ = ScheduleRebuildOnMainThread();
+        void OnCreated(object sender, FileSystemEventArgs e) => _ = ScheduleRebuildOnMainThread();
+        void OnDeleted(object sender, FileSystemEventArgs e) => _ = ScheduleRebuildOnMainThread();
+        void OnRenamed(object sender, RenamedEventArgs e) => _ = ScheduleRebuildOnMainThread();
 
-        void OnDeleted(object sender, FileSystemEventArgs e) => s_UnitySynchronizationContext.Post(_ => Rebuild(), null);
-
-        void OnRenamed(object sender, RenamedEventArgs e) => s_UnitySynchronizationContext.Post(_ => Rebuild(), null);
-
-        async void Rebuild(bool immediately = false)
+        async Task Rebuild(bool immediately = false)
         {
             m_RebuildCancellationTokenSource?.Cancel();
             m_RebuildCancellationTokenSource?.Dispose();
             m_RebuildCancellationTokenSource = new CancellationTokenSource();
 
+            var token = m_RebuildCancellationTokenSource.Token;
+
             try
             {
                 if (immediately)
-                    await Task.Yield(); // otherwise redux blows up
+                    await EditorTask.Yield(); // otherwise redux blows up
                 else
-                    await Task.Delay(k_DelayValue, m_RebuildCancellationTokenSource.Token);
+                    await EditorTask.Delay(k_DelayValue, token);
+
+                if (token.IsCancellationRequested)
+                    return;
+
                 RebuildNow();
             }
             catch (TaskCanceledException)
             {
-                // The task was canceled, do nothing
-            }
-            finally
-            {
-                m_RebuildCancellationTokenSource?.Dispose();
-                m_RebuildCancellationTokenSource = null;
+                // The task was canceled (either by new event or during UnregisterCallbacksFromTarget), do nothing
             }
         }
 
         void RebuildNow()
         {
-            if (m_Watcher == null)
+            if (m_Watcher is not { EnableRaisingEvents: true })
                 return;
             try
             {
@@ -84,7 +87,16 @@ namespace Unity.AI.Generators.UI
         {
             Directory.CreateDirectory(m_WatchPath);
 
-            m_Watcher?.Dispose();
+            if (m_Watcher != null)
+            {
+                m_Watcher.EnableRaisingEvents = false;
+                m_Watcher.Changed -= OnChanged;
+                m_Watcher.Created -= OnCreated;
+                m_Watcher.Deleted -= OnDeleted;
+                m_Watcher.Renamed -= OnRenamed;
+                m_Watcher.Dispose();
+            }
+
             m_Watcher = new FileSystemWatcher
             {
                 Path = m_WatchPath,
@@ -101,26 +113,31 @@ namespace Unity.AI.Generators.UI
             m_Watcher.Renamed += OnRenamed;
             m_Watcher.EnableRaisingEvents = true;
 
-            Rebuild(true);
+            _ = ScheduleRebuildOnMainThreadForInitial();
+        }
+
+        async Task ScheduleRebuildOnMainThreadForInitial()
+        {
+            await EditorThread.EnsureMainThreadAsync();
+            _ = Rebuild(immediately: true);
         }
 
         protected override void UnregisterCallbacksFromTarget()
         {
-            try
+            if (m_Watcher != null)
             {
-                m_Watcher?.Dispose();
-                m_RebuildCancellationTokenSource?.Cancel();
-                m_RebuildCancellationTokenSource?.Dispose();
-            }
-            catch (Exception)
-            {
-                // ignored
-            }
-            finally
-            {
+                m_Watcher.EnableRaisingEvents = false;
+                m_Watcher.Changed -= OnChanged;
+                m_Watcher.Created -= OnCreated;
+                m_Watcher.Deleted -= OnDeleted;
+                m_Watcher.Renamed -= OnRenamed;
+                m_Watcher.Dispose();
                 m_Watcher = null;
-                m_RebuildCancellationTokenSource = null;
             }
+
+            m_RebuildCancellationTokenSource?.Cancel();
+            m_RebuildCancellationTokenSource?.Dispose();
+            m_RebuildCancellationTokenSource = null;
         }
     }
 }

@@ -18,11 +18,16 @@ namespace Unity.AI.Image.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
-            this.Q<Splitter>().Bind(
+            this.Q<Splitter>("vertical-splitter").Bind(
                 this,
                 GenerationSettingsActions.setHistoryDrawerHeight,
                 Selectors.SelectHistoryDrawerHeight,
                 Selectors.SelectActiveReferences);
+
+            this.Q<Splitter>("horizontal-splitter").BindHorizontal(
+                this,
+                GenerationSettingsActions.setGenerationPaneWidth,
+                Selectors.SelectGenerationPaneWidth);
         }
     }
 }

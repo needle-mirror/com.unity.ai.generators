@@ -2,6 +2,7 @@
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit;
 using UnityEditor;
 
 namespace Unity.AI.Generators.Sdk
@@ -47,7 +48,7 @@ namespace Unity.AI.Generators.Sdk
             m_CtsForDisposal = new CancellationTokenSource();
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), m_CtsForDisposal.Token);
+                await EditorTask.Delay(1000, m_CtsForDisposal.Token);
                 if (m_AcquiredCount > 0)
                     return;
 

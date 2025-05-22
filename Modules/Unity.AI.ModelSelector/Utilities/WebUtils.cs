@@ -1,5 +1,5 @@
 ﻿#define UNITY_AI_OPEN_BETA
-using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -18,45 +18,93 @@ namespace Unity.AI.ModelSelector.Services.Utilities
 #endif
         public const string localEnvironment = "https://localhost:5050";
 
+        public const string accountEnvironmentKey = "AI_Toolkit_Account_Environment";
+        public const string animateEnvironmentKey = "AI_Toolkit_Animate_Environment";
+        public const string imageEnvironmentKey = "AI_Toolkit_Image_Environment";
+        public const string materialEnvironmentKey = "AI_Toolkit_Material_Environment";
+        public const string soundEnvironmentKey = "AI_Toolkit_Sound_Environment";
+
         internal static string selectedEnvironment { get; set; } = prodEnvironment;
     }
 
-    class StringInputWindow : EditorWindow
+    class EnvironmentInputWindow : EditorWindow
     {
         const string k_InternalMenu = "internal:";
 
-        [MenuItem(k_InternalMenu + "AI Toolkit/Internals/Set all Environments", false, 99)]
-        static void OverrideAllEnvironments() =>
-            StringInputWindow.ShowWindow("AI Toolkit Environment", url => {
-                EditorPrefs.SetString("AI_Toolkit_Account_Environment", url);
-                EditorPrefs.SetString("AI_Toolkit_Animate_Environment", url);
-                EditorPrefs.SetString("AI_Toolkit_Image_Environment", url);
-                EditorPrefs.SetString("AI_Toolkit_Material_Environment", url);
-                EditorPrefs.SetString("AI_Toolkit_Sound_Environment", url);
-            });
-
-        string m_InputText = WebUtils.prodEnvironment;
-        Action<string> m_OnConfirm;
-
-        public static void ShowWindow(string title, Action<string> onConfirm)
+        [MenuItem(k_InternalMenu + "AI Toolkit/Internals/Log Cloud Project Info")]
+        static void ShowProjectInfo()
         {
-            var window = GetWindow<StringInputWindow>(true, title, true);
-            window.minSize = new Vector2(399, 69);
-            window.maxSize = new Vector2(400, 80);
-            window.m_OnConfirm = onConfirm;
+            var traceID = "None";
+            try { traceID = Selection.activeObject ? AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(Selection.activeObject)) : traceID; }
+            catch { /* Ignored */ }
+
+            Debug.Log($"User ID: {CloudProjectSettings.userId}\n" +
+                $"User Name: {CloudProjectSettings.userName}\n" +
+                $"Organization Key: {CloudProjectSettings.organizationKey}\n" +
+                $"Organization ID: {CloudProjectSettings.organizationId}\n" +
+                $"Organization Name: {CloudProjectSettings.organizationName}\n" +
+                $"Cloud Project ID: {CloudProjectSettings.projectId}\n" +
+                $"Cloud Project Name: {CloudProjectSettings.projectName}\n" +
+                $"{WebUtils.accountEnvironmentKey}: {EditorPrefs.GetString(WebUtils.accountEnvironmentKey)}\n" +
+                $"{WebUtils.animateEnvironmentKey}: {EditorPrefs.GetString(WebUtils.animateEnvironmentKey)}\n" +
+                $"{WebUtils.imageEnvironmentKey}: {EditorPrefs.GetString(WebUtils.imageEnvironmentKey)}\n" +
+                $"{WebUtils.materialEnvironmentKey}: {EditorPrefs.GetString(WebUtils.materialEnvironmentKey)}\n" +
+                $"{WebUtils.soundEnvironmentKey}: {EditorPrefs.GetString(WebUtils.soundEnvironmentKey)}\n" +
+                $"(selected) Asset ID (trace ID): {traceID}");
+        }
+
+        [MenuItem(k_InternalMenu + "AI Toolkit/Internals/Set Environments", false, 99)]
+        static void ShowEnvironmentWindow() => ShowWindow("AI Toolkit Environment");
+
+        readonly List<(string key, string label)> m_EnvironmentPrefs = new()
+        {
+            (WebUtils.accountEnvironmentKey, "Account Environment"),
+            (WebUtils.animateEnvironmentKey, "Animate Environment"),
+            (WebUtils.imageEnvironmentKey, "Image Environment"),
+            (WebUtils.materialEnvironmentKey, "Material Environment"),
+            (WebUtils.soundEnvironmentKey, "Sound Environment"),
+        };
+
+        readonly Dictionary<string, bool> m_EnvironmentStates = new();
+        string m_InputText = WebUtils.prodEnvironment;
+
+        static void ShowWindow(string title)
+        {
+            var window = GetWindow<EnvironmentInputWindow>(true, title, true);
+            window.minSize = new Vector2(399, 200);
+            window.maxSize = new Vector2(400, 300);
+            window.InitializeEnvironmentStates();
             window.Show();
+        }
+
+        void InitializeEnvironmentStates()
+        {
+            m_EnvironmentStates.Clear();
+            foreach (var (key, _) in m_EnvironmentPrefs)
+            {
+                m_EnvironmentStates[key] = true;
+            }
         }
 
         void OnGUI()
         {
             EditorGUILayout.Space();
 
-            m_InputText = EditorGUILayout.TextField("Url:", m_InputText);
+            m_InputText = EditorGUILayout.TextField("Environment URL:", m_InputText);
             EditorGUILayout.Space();
 
+            EditorGUILayout.LabelField("Set Environment Per Tool:", EditorStyles.boldLabel);
+            foreach (var (key, label) in m_EnvironmentPrefs)
+                m_EnvironmentStates[key] = EditorGUILayout.Toggle(label, m_EnvironmentStates[key]);
+
+            EditorGUILayout.Space();
             if (GUILayout.Button("OK"))
             {
-                m_OnConfirm?.Invoke(m_InputText);
+                foreach (var (key, _) in m_EnvironmentPrefs)
+                {
+                    if (m_EnvironmentStates[key])
+                        EditorPrefs.SetString(key, m_InputText);
+                }
                 Close();
             }
         }

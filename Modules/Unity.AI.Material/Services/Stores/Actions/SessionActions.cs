@@ -26,13 +26,56 @@ namespace Unity.AI.Material.Services.Stores.Actions
             var originalMaterialResult = data.result;
             if (!originalMaterialResult.IsValid() || !originalMaterialResult.uri.IsFile || originalMaterialResult.IsFailed())
                 return;
-            var destFileName = AssetDatabase.GenerateUniqueAssetPath(data.asset.GetPath());
+            var destFileName = data.asset.GetPath();
 
             // clone the original asset
             if (!AssetUtils.supportedExtensions.Contains(Path.GetExtension(destFileName).ToLowerInvariant()))
                 destFileName = Path.ChangeExtension(destFileName, AssetUtils.materialExtension);
+            destFileName = AssetDatabase.GenerateUniqueAssetPath(destFileName);
             AssetDatabase.CopyAsset(data.asset.GetPath(), destFileName);
 
+            await PromoteGenerationAsync(data, destFileName, api);
+        });
+
+        public static readonly AsyncThunkCreatorWithArg<PromotedGenerationData> promoteGenerationToMaterial = new($"{slice}/promoteGenerationToMaterial", async (data, api) =>
+        {
+            var originalMaterialResult = data.result;
+            if (!originalMaterialResult.IsValid() || !originalMaterialResult.uri.IsFile || originalMaterialResult.IsFailed())
+                return;
+            var destFileName = data.asset.GetPath();
+
+            // clone or mutate the original asset
+            destFileName = Path.ChangeExtension(destFileName, AssetUtils.materialExtension);
+            destFileName = AssetDatabase.GenerateUniqueAssetPath(destFileName);
+            if (AssetDatabase.GetMainAssetTypeAtPath(data.asset.GetPath()) == typeof(UnityEngine.Material))
+                AssetDatabase.CopyAsset(data.asset.GetPath(), destFileName);
+            else
+                AssetUtils.CreateBlankMaterial(destFileName);
+
+            await PromoteGenerationAsync(data, destFileName, api);
+        });
+
+        public static readonly AsyncThunkCreatorWithArg<PromotedGenerationData> promoteGenerationToTerrainLayer = new($"{slice}/promoteGenerationToTerrainLayer", async (data, api) =>
+        {
+            var originalMaterialResult = data.result;
+            if (!originalMaterialResult.IsValid() || !originalMaterialResult.uri.IsFile || originalMaterialResult.IsFailed())
+                return;
+            var destFileName = data.asset.GetPath();
+
+            // clone or mutate the original asset
+            destFileName = Path.ChangeExtension(destFileName, AssetUtils.terrainLayerExtension);
+            destFileName = AssetDatabase.GenerateUniqueAssetPath(destFileName);
+            if (AssetDatabase.GetMainAssetTypeAtPath(data.asset.GetPath()) == typeof(UnityEngine.TerrainLayer))
+                AssetDatabase.CopyAsset(data.asset.GetPath(), destFileName);
+            else
+                AssetUtils.CreateBlankTerrainLayer(destFileName);
+
+            await PromoteGenerationAsync(data, destFileName, api);
+        });
+
+        static async Task PromoteGenerationAsync(PromotedGenerationData data, string destFileName, IStoreApi api)
+        {
+            var originalMaterialResult = data.result;
             var promotedMaterialResult = MaterialResult.FromPath(originalMaterialResult.uri.GetLocalPath());
             var promotedAsset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(destFileName) };
 
@@ -43,7 +86,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             MaterialGeneratorWindow.Display(destFileName);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedMaterialResult, true, false));
-        });
+        }
 
         public static readonly Func<(DragAndDropGenerationData data, IStoreApi api), AssetReference> promoteGenerationUnsafe = args =>
         {

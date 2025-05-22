@@ -168,10 +168,10 @@ namespace Unity.AI.Material.Services.Utilities
             }
 
             if (!list.Any(existing => existing.AreKeyFieldsEqual(data)))
-                return;
-
-            list.Add(data);
-            SaveInterruptedDownloads();
+            {
+                list.Add(data);
+                SaveInterruptedDownloads();
+            }
         }
 
         public static void RemoveInterruptedDownload(InterruptedDownloadData data)
