@@ -5,7 +5,7 @@
 }
 
 .border-selectable:hover {
-    background-color: #333333;
+    background-color: var(--unity-colors-default-background);
 }
 
 .model-tile.is-selected .border-selectable {

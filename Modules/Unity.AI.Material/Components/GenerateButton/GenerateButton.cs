@@ -7,6 +7,8 @@ using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
@@ -94,7 +96,7 @@ namespace Unity.AI.Material.Components
             {
                 await EditorTask.Delay(k_ReenableDelay, token);
                 if (!token.IsCancellationRequested)
-                    this.Dispatch(GenerationResultsActions.setGenerationAllowed, new(this.GetAsset(), true));
+                    this.Dispatch(GenerationActions.setGenerationAllowed, new(this.GetAsset(), true));
             }
             catch (TaskCanceledException)
             {

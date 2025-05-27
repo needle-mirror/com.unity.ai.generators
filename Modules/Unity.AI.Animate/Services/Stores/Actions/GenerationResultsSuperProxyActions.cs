@@ -26,6 +26,9 @@ using Random = UnityEngine.Random;
 using Task = System.Threading.Tasks.Task;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
+using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Logger = Unity.AI.Generators.Sdk.Logger;
@@ -61,7 +64,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 if (!success)
                 {
                     var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
-                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
                             new(false, AiResultErrorEnum.Unknown, 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
@@ -79,7 +82,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 if (!asset.Exists())
                 {
                     var messages = new[] { $"Error reason is 'Invalid Asset'." };
-                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
                             new(false, AiResultErrorEnum.Unknown, 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
@@ -101,7 +104,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 if (generativeModelID == Guid.Empty)
                 {
                     var messages = new[] { $"Error reason is 'Invalid Model'." };
-                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
                             new(false, AiResultErrorEnum.UnknownModel, 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
@@ -142,17 +145,17 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                         ? new[] { $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
                         : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
 
-                    api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                    api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
                             new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
 
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                api.Dispatch(GenerationActions.setGenerationValidationResult,
                     new(arg.asset,
                         new(quoteResults.Result.IsSuccessful,
-                            !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown,
+                            (!quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown),
                             quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
             }
             finally
@@ -166,7 +169,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             void SendValidatingMessage()
             {
                 var messages = new[] { "Validating generation inputs..." };
-                api.Dispatch(GenerationResultsActions.setGenerationValidationResult,
+                api.Dispatch(GenerationActions.setGenerationValidationResult,
                     new(arg.asset,
                         new(false, AiResultErrorEnum.Unknown, 0,
                             messages.Select(m => new GenerationFeedbackData(m)).ToList())));
@@ -191,18 +194,18 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
             Guid.TryParse(modelID, out var generativeModelID);
 
-            DispatchSkeletons(variations);
+            api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.taskID, i)).ToList()));
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0f);
-            SetProgress(progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
+            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.", null);
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
-                LogInvalidCloudProjectSettings();
+                api.DispatchInvalidCloudProjectMessage(arg.asset);
                 return;
             }
 
-            SetProgress(progress with { progress = 0.01f }, "Preparing request.");
+            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.", null);
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
@@ -215,7 +218,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     try
                     {
                         _ = ProgressUtils.RunFuzzyProgress(0.01f, 0.15f,
-                            value => SetProgress(progress with { progress = value }, "Converting video."),
+                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Converting video.", null),
                             1, progressTokenSource0.Token);
 
                         var videoClip = videoReference.asset.GetObject<VideoClip>();
@@ -229,12 +232,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                             unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
                         var assetComponent = builder.AssetComponent();
 
-                        if (!FinalizeStoreAsset(await assetComponent.StoreAssetWithResult(uploadStream, httpClientLease.client), out referenceVideoGuid))
+                        if (!api.DispatchStoreAssetMessage(arg.asset, await assetComponent.StoreAssetWithResult(uploadStream, httpClientLease.client), out referenceVideoGuid))
                             return;
                     }
                     catch
                     {
-                        SetProgress(progress with { progress = 1f }, "Failed.");
+                        api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", null);
                         throw;
                     }
                     finally
@@ -244,13 +247,15 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 }
             }
 
+            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true); // start focus control late because the video conversion does its own focus control (above)
+
             var ids = new List<Guid>();
             int[] customSeeds = {};
             using var progressTokenSource2 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.25f,
-                    value => SetProgress(progress with { progress = value }, "Sending request for motion."),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for motion.", editorFocus),
                     1, progressTokenSource2.Token);
 
                 var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
@@ -279,30 +284,34 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 var generateResults = await EditorTask.Run(() => animationComponent.GenerateAnimation(requests));
                 if (!generateResults.Batch.IsSuccessful)
                 {
-                    LogFailedBatchResult(generateResults);
+                    api.DispatchFailedBatchMessage(arg.asset, generateResults);
                     // we can simply return without throwing or additional logging because the error is already logged
                     return;
                 }
 
+                var once = false;
                 foreach (var generateResult in generateResults.Batch.Value.Where(v => !v.IsSuccessful))
                 {
-                    LogFailedResult(generateResult.Error);
-                    // we can simply return because the error is already logged and we rely on finally statements for cleanup
-                    return;
+                    if (!once)
+                        api.DispatchFailedBatchMessage(arg.asset, generateResults);
+                    once = true;
+
+                    api.DispatchFailedMessage(arg.asset, generateResult.Error);
                 }
 
-                cost = generateResults.Batch.Value.Sum(itemResult => itemResult.Value.PointsCost);
-                ids = generateResults.Batch.Value.Select(itemResult => itemResult.Value.JobId).ToList();
-                customSeeds = generateResults.Batch.Value.Select(result => result.Value.Request.Seed ?? -1).ToArray();
+                cost = generateResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
+                ids = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
+                customSeeds = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(result => result.Value.Request.Seed ?? -1).ToArray();
+                generationMetadata.w3CTraceId = generateResults.W3CTraceId;
             }
             catch
             {
-                SetProgress(progress with { progress = 1f }, "Failed.");
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
                 throw;
             }
             finally
             {
-                ReenableGenerateButton(); // after validation
+                api.Dispatch(GenerationActions.setGenerationAllowed, new(arg.asset, true)); // after validation
                 progressTokenSource2.Cancel();
             }
 
@@ -319,77 +328,14 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 throw new Exception("Some simulated client side failure.");
 
             await api.Dispatch(downloadAnimationClips, downloadAnimationData, CancellationToken.None);
-            return;
-
-            void SetProgress(GenerationProgressData payload, string description)
-            {
-                if (payload.taskID > 0)
-                    Progress.Report(payload.taskID, payload.progress, description);
-                api.Dispatch(GenerationResultsActions.setGenerationProgress, new GenerationsProgressData(arg.asset, payload));
-            }
-
-            void LogInvalidCloudProjectSettings()
-            {
-                api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
-                var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
-                foreach (var message in messages)
-                {
-                    Debug.Log(message);
-                    api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
-                }
-            }
-
-            void LogFailedBatchResult(BatchOperationResult<AnimationGenerateResult> results)
-            {
-                LogFailedResult(results.Batch.Error);
-                Debug.Log($"Trace Id {results.SdkTraceId} => {results.W3CTraceId}");
-            }
-
-            void LogFailedResult(AiOperationFailedResult result)
-            {
-                api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
-                var messages = result.Errors.Count == 0
-                    ? new[] { $"Error reason is '{result.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
-                    : result.Errors.Distinct().Select(m => $"{result.AiResponseError.ToString()}: {m}").ToArray();
-                foreach (var message in messages)
-                {
-                    Debug.Log(message);
-                    api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
-                }
-            }
-
-            bool FinalizeStoreAsset(OperationResult<BlobAssetResult> assetResults, out Guid assetGuid)
-            {
-                assetGuid = Guid.Empty;
-                if (!assetResults.Result.IsSuccessful)
-                {
-                    LogFailedResult(assetResults.Result.Error);
-                    Debug.Log($"Trace Id {assetResults.SdkTraceId} => {assetResults.W3CTraceId}");
-
-                    // caller can simply return without throwing or additional logging because the error is already logged and we rely on 'finally' statements for cleanup
-                    return false;
-                }
-                assetGuid = assetResults.Result.Value.AssetId;
-                if (LoggerUtilities.sdkLogLevel == 0)
-                    return true;
-                if (assetResults.Result.Value.Ttl.HasValue)
-                    Debug.Log($"Asset {assetGuid} has ttl {assetResults.Result.Value.Ttl}");
-                return true;
-            }
-
-            void ReenableGenerateButton() => api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
-
-            void DispatchSkeletons(int count)
-            {
-                var skeletons = Enumerable.Range(0, count).Select(i => new TextureSkeleton(arg.taskID, i)).ToList();
-                api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, skeletons));
-            }
         });
 
         class HandledFailureException : Exception { }
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAnimationsData> downloadAnimationClips = new($"{GenerationResultsActions.slice}/downloadAnimationsSuperProxy", async (arg, api) =>
         {
+            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true);
+
             var variations = arg.ids.Count;
 
             var skeletons = Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.taskID, i)).ToList();
@@ -397,17 +343,17 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0.25f);
 
-            SetProgress(progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.", editorFocus);
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
-                LogInvalidCloudProjectSettings();
+                api.DispatchInvalidCloudProjectMessage(arg.asset);
                 return;
             }
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            SetProgress(progress with { progress = 0.25f }, "Waiting for server.");
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus);
 
             List<AnimationClipResult> generatedAnimationClips;
 
@@ -416,11 +362,13 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true, defaultOperationTimeout: Constants.noTimeout);
             var assetComponent = builder.AssetComponent();
 
+            _ = EditorFocus.UpdateEditorAsync("Waiting for server...", TimeSpan.FromMilliseconds(50));
+
             using var progressTokenSource2 = new CancellationTokenSource();
             try
             {
-                _ = ProgressUtils.RunFuzzyProgress(0.26f, 0.75f,
-                    value => SetProgress(progress with { progress = 0.25f }, "Waiting for server."),
+                _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
+                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus),
                     variations, progressTokenSource2.Token);
 
                 var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
@@ -439,9 +387,9 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                         return AnimationClipResult.FromUrl(result.Result.Value.AssetUrl.Url);
 
                     if (result.Result.IsSuccessful)
-                        LogFailedDownload(new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
+                        api.DispatchFailedDownloadMessage(arg.asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
                     else
-                        LogFailedDownloadResult(result);
+                        api.DispatchFailedDownloadMessage(arg.asset, result);
                     throw new HandledFailureException();
                 }).ToList();
             }
@@ -452,7 +400,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
             catch
             {
-                SetProgress(progress with { progress = 1f }, "Failed.");
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
                 throw;
             }
             finally
@@ -476,12 +424,14 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     backupSuccess = await arg.asset.SaveToGeneratedAssets();
             }
 
+            _ = EditorFocus.UpdateEditorAsync("Downloading results...", TimeSpan.FromMilliseconds(50));
+
             // cache
             using var progressTokenSource4 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
-                    value => SetProgress(progress with { progress = value }, "Downloading results."),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results.", editorFocus),
                     1, progressTokenSource4.Token);
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
@@ -500,7 +450,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
             catch
             {
-                SetProgress(progress with { progress = 1f }, "Failed.");
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
                 throw;
             }
             finally
@@ -517,47 +467,13 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     api.Dispatch(GenerationResultsActions.setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(arg.asset, true));
             }
 
-            SetProgress(progress with { progress = 1f }, "Done.");
+            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.", editorFocus);
 
             // if you got here, no need to keep the potentially interrupted download
             GenerationRecoveryUtils.RemoveInterruptedDownload(arg);
-            return;
 
-            void SetProgress(GenerationProgressData payload, string description)
-            {
-                if (payload.taskID > 0)
-                    Progress.Report(payload.taskID, payload.progress, description);
-                api.Dispatch(GenerationResultsActions.setGenerationProgress, new GenerationsProgressData(arg.asset, payload));
-            }
-
-            void LogInvalidCloudProjectSettings()
-            {
-                api.Dispatch(GenerationResultsActions.setGenerationAllowed, new(arg.asset, true));
-                var messages = new[] { $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
-                foreach (var message in messages)
-                {
-                    Debug.Log(message);
-                    api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
-                }
-            }
-
-            void LogFailedDownloadResult<T>(OperationResult<T> result) where T : class
-            {
-                LogFailedDownload(result.Result.Error);
-                Debug.Log($"Trace Id {result.SdkTraceId} => {result.W3CTraceId}");
-            }
-
-            void LogFailedDownload(AiOperationFailedResult result)
-            {
-                var messages = result.Errors.Count == 0
-                    ? new[] { $"Error reason is '{result.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})." }
-                    : result.Errors.Distinct().Select(m => $"{result.AiResponseError.ToString()}: {m}").ToArray();
-                foreach (var message in messages)
-                {
-                    Debug.Log(message);
-                    api.Dispatch(GenerationResultsActions.addGenerationFeedback, new GenerationsFeedbackData(arg.asset, new GenerationFeedbackData(message)));
-                }
-            }
+            // ensure the file system watcher looks at the generations
+            GenerationFileSystemWatcher.EnsureFocus();
         });
     }
 }

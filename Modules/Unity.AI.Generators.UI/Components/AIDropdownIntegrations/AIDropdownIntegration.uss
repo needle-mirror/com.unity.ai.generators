@@ -7,5 +7,9 @@
 }
 
 .label-button .chevron {
+    --unity-image-tint-color: var(--unity-colors-dropdown-text);
+}
+
+.label-button .chevron {
     opacity: 0.5;
 }

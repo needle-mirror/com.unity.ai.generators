@@ -5,6 +5,8 @@ using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine;
@@ -38,7 +40,7 @@ namespace Unity.AI.Sound.Components
             foreach (var feedback in messages)
             {
                 this.ShowToast(feedback.message);
-                this.Dispatch(GenerationResultsActions.removeGenerationFeedback, this.GetAsset());
+                this.Dispatch(GenerationActions.removeGenerationFeedback, this.GetAsset());
             }
         }
     }

@@ -5,6 +5,7 @@ using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Undo;
 using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Payloads;
 using UnityEngine;
 
 namespace Unity.AI.Material.Services.Stores.States

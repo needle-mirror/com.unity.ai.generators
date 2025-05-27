@@ -13,6 +13,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Toolkit;

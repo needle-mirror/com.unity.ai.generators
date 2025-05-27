@@ -1,29 +1,19 @@
 using System;
 using System.Collections.Generic;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Material.Services.Undo;
 using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.UI.Payloads;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Material.Services.Stores.Actions.Payloads
 {
-    record AsssetContext(AssetReference asset);
     record QuoteMaterialsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadMaterialsData(AssetReference asset, List<Dictionary<MapType, Guid>> ids, int[] customSeeds, int taskID = 0, GenerationMetadata generationMetadata = null, bool autoApply = false) : AsssetContext(asset);
-    record GenerationProgressData(int taskID, int count, float progress);
-    record GenerationsProgressData(AssetReference asset, GenerationProgressData progress) : AsssetContext(asset);
-    record GenerationFeedbackData(string message);
-    record GenerationsFeedbackData(AssetReference asset, GenerationFeedbackData feedback) : AsssetContext(asset);
     record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, bool negativePrompt, string model, int variations, RefinementMode mode, int referenceCount) : AsssetContext(asset);
-    record GenerationValidationResult(bool success, AiResultErrorEnum error, int cost, List<GenerationFeedbackData> feedback);
-    record GenerationsValidationResult(AssetReference asset, GenerationValidationResult result) : AsssetContext(asset);
-    record GenerationResultData(AssetReference asset, GenerationResult result) : AsssetContext(asset);
     record GenerationDataWindowArgs(AssetReference asset, VisualElement element, MaterialResult result) : AsssetContext(asset);
-    record GenerationAllowedData(AssetReference asset, bool allowed) : AsssetContext(asset);
-    record GeneratedResultVisibleData(AssetReference asset, string elementID, int count) : AsssetContext(asset);
     record GenerationMaterials(AssetReference asset, List<MaterialResult> materials) : AsssetContext(asset);
     record GenerationSkeletons(AssetReference asset, List<MaterialSkeleton> skeletons) : AsssetContext(asset);
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);

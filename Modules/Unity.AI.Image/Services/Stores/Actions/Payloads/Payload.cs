@@ -1,17 +1,16 @@
 using System;
 using System.Collections.Generic;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.UI.Payloads;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Stores.Actions.Payloads
 {
-    record AsssetContext(AssetReference asset);
     record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadImagesData(
@@ -23,16 +22,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
         bool replaceBlankAsset,
         bool replaceRefinementAsset,
         int[] customSeeds) : AsssetContext(asset);
-    record GenerationProgressData(int taskID, int count, float progress);
-    record GenerationsProgressData(AssetReference asset, GenerationProgressData progress) : AsssetContext(asset);
-    record GenerationFeedbackData(string message);
-    record GenerationsFeedbackData(AssetReference asset, GenerationFeedbackData feedback) : AsssetContext(asset);
     record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, bool negativePrompt, string model, int variations, RefinementMode mode, int activeReferencesBitmask, int validReferencesBitmask) : AsssetContext(asset);
-    record GenerationValidationResult(bool success, AiResultErrorEnum error, int cost, List<GenerationFeedbackData> feedback);
-    record GenerationsValidationResult(AssetReference asset, GenerationValidationResult result) : AsssetContext(asset);
-    record GenerationResultData(AssetReference asset, GenerationResult result) : AsssetContext(asset);
-    record GenerationAllowedData(AssetReference asset, bool allowed) : AsssetContext(asset);
-    record GeneratedResultVisibleData(AssetReference asset, string elementID, int count) : AsssetContext(asset);
     record GenerationTextures(AssetReference asset, List<TextureResult> textures) : AsssetContext(asset);
     record GenerationSkeletons(AssetReference asset, List<TextureSkeleton> skeletons) : AsssetContext(asset);
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);

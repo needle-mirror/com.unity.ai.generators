@@ -6,6 +6,7 @@ using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Payloads;
 using UnityEngine;
 
 namespace Unity.AI.Image.Services.Stores.States

@@ -5,6 +5,7 @@ using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Undo;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Payloads;
 using UnityEngine;
 
 namespace Unity.AI.Animate.Services.Stores.States

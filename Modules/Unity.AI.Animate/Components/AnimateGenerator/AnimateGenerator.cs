@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Unity.AI.Animate.Services.Stores.Actions;
-using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine.UIElements;
@@ -37,7 +38,7 @@ namespace Unity.AI.Animate.Components
             foreach (var feedback in messages)
             {
                 this.ShowToast(feedback.message);
-                this.Dispatch(GenerationResultsActions.removeGenerationFeedback, this.GetAsset());
+                this.Dispatch(GenerationActions.removeGenerationFeedback, this.GetAsset());
             }
         }
     }

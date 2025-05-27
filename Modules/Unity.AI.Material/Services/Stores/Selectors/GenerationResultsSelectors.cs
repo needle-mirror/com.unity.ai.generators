@@ -10,6 +10,7 @@ using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Payloads;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Material.Services.Stores.Selectors

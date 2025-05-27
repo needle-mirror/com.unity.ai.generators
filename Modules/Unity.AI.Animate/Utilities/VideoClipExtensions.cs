@@ -72,7 +72,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
             // Determine original and output resolutions.
             // Note that VideoClip does not directly expose width/height in runtime,
-            // so here we assume the clip’s imported width and height are available.
+            // so here we assume the clip's imported width and height are available.
             var originalSize = new Vector2Int((int)clip.width, (int)clip.height);
             var maxRes = new Vector2Int(1920, 1080);
             var outputSize = GetScaledResolution(originalSize, maxRes);
@@ -83,28 +83,18 @@ namespace Unity.AI.Animate.Services.Utilities
 
             var prepareProgress = 1f;
 
-            var isFocused = true;
-
-            void OnFocusChanged(bool focus)
-            {
-                isFocused = focus;
-                if (isFocused)
-                    EditorUtility.ClearProgressBar();
-            }
-
-            EditorApplication.focusChanged += OnFocusChanged;
+            // Using EditorFocusScope to manage focus state and background processing
+            using var focusScope = new EditorFocusScope();
 
             // Start preparing the video.
             videoPlayer.Prepare();
             while (!videoPlayer.isPrepared)
             {
                 // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
-                if (!isFocused && EditorUtility.DisplayCancelableProgressBar("Preparing video converter", "Preparing video...", 1 - (prepareProgress /= 2)))
+                if (focusScope.ShowProgressOrCancelIfUnfocused("Preparing video converter", "Preparing video...", 1 - (prepareProgress /= 2)))
                     throw new OperationCanceledException();
 
-                if (!Application.isPlaying)
-                    EditorApplication.QueuePlayerLoopUpdate();
-                await EditorTask.Yield();
+                await focusScope.UpdatePlayerAsync();
             }
 
             // Determine the desired frame range.
@@ -144,10 +134,6 @@ namespace Unity.AI.Animate.Services.Utilities
             var tempOutputPath = Path.GetFullPath(FileUtil.GetUniqueTempPathInProject());
             tempOutputPath = Path.ChangeExtension(tempOutputPath, outputFormat == Format.MP4 ? ".mp4" : ".webm");
 
-            var previousRunInBackground = Application.runInBackground;
-            Application.runInBackground = true;
-
-            try
             {
                 // Create the encoder.
                 using var encoder = new MediaEncoder(tempOutputPath, videoTrackAttributes);
@@ -162,15 +148,13 @@ namespace Unity.AI.Animate.Services.Utilities
                     while (videoPlayer.frame < frame)
                     {
                         // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
-                        if (!isFocused && EditorUtility.DisplayCancelableProgressBar("Converting video", $"Converting {frame}/{endFrame} ({videoPlayer.frame})", frame / (float)endFrame))
+                        if (focusScope.ShowProgressOrCancelIfUnfocused("Converting video", $"Converting {frame}/{endFrame} ({videoPlayer.frame})", frame / (float)endFrame))
                             throw new OperationCanceledException();
 
                         videoPlayer.Play();
                         videoPlayer.Pause();
 
-                        if (!Application.isPlaying)
-                            EditorApplication.QueuePlayerLoopUpdate();
-                        await EditorTask.Yield();
+                        await focusScope.UpdatePlayerAsync();
                     }
 
                     RenderTexture.active = renderTexture;
@@ -190,12 +174,6 @@ namespace Unity.AI.Animate.Services.Utilities
                 RenderTexture.ReleaseTemporary(renderTexture);
                 tempTex.SafeDestroy();
                 go.SafeDestroy();
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                Application.runInBackground = previousRunInBackground;
-                EditorApplication.focusChanged -= OnFocusChanged;
             }
 
             return FileIO.OpenFileStream(tempOutputPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096,

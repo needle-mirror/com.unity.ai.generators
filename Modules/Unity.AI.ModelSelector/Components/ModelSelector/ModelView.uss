@@ -41,6 +41,7 @@
 .back-button-image {
     background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.ModelSelector/Icons/CaretLeft.png");
     -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: var(--unity-colors-button-text);
 }
 
 .model-details-grid .unity-image {

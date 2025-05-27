@@ -1,5 +1,6 @@
 ﻿#define UNITY_AI_OPEN_BETA
 using System.Collections.Generic;
+using Unity.AI.Generators.UI.Actions;
 using UnityEditor;
 using UnityEngine;
 
@@ -45,18 +46,18 @@ namespace Unity.AI.ModelSelector.Services.Utilities
                 $"Organization Name: {CloudProjectSettings.organizationName}\n" +
                 $"Cloud Project ID: {CloudProjectSettings.projectId}\n" +
                 $"Cloud Project Name: {CloudProjectSettings.projectName}\n" +
-                $"{WebUtils.accountEnvironmentKey}: {EditorPrefs.GetString(WebUtils.accountEnvironmentKey)}\n" +
-                $"{WebUtils.animateEnvironmentKey}: {EditorPrefs.GetString(WebUtils.animateEnvironmentKey)}\n" +
-                $"{WebUtils.imageEnvironmentKey}: {EditorPrefs.GetString(WebUtils.imageEnvironmentKey)}\n" +
-                $"{WebUtils.materialEnvironmentKey}: {EditorPrefs.GetString(WebUtils.materialEnvironmentKey)}\n" +
-                $"{WebUtils.soundEnvironmentKey}: {EditorPrefs.GetString(WebUtils.soundEnvironmentKey)}\n" +
+                $"{WebUtils.accountEnvironmentKey}: {EditorPrefs.GetString(WebUtils.accountEnvironmentKey, WebUtils.prodEnvironment)}\n" +
+                $"{WebUtils.animateEnvironmentKey}: {EditorPrefs.GetString(WebUtils.animateEnvironmentKey, WebUtils.prodEnvironment)}\n" +
+                $"{WebUtils.imageEnvironmentKey}: {EditorPrefs.GetString(WebUtils.imageEnvironmentKey, WebUtils.prodEnvironment)}\n" +
+                $"{WebUtils.materialEnvironmentKey}: {EditorPrefs.GetString(WebUtils.materialEnvironmentKey, WebUtils.prodEnvironment)}\n" +
+                $"{WebUtils.soundEnvironmentKey}: {EditorPrefs.GetString(WebUtils.soundEnvironmentKey, WebUtils.prodEnvironment)}\n" +
                 $"(selected) Asset ID (trace ID): {traceID}");
         }
 
         [MenuItem(k_InternalMenu + "AI Toolkit/Internals/Set Environments", false, 99)]
         static void ShowEnvironmentWindow() => ShowWindow("AI Toolkit Environment");
 
-        readonly List<(string key, string label)> m_EnvironmentPrefs = new()
+        static readonly List<(string key, string label)> k_EnvironmentPrefs = new()
         {
             (WebUtils.accountEnvironmentKey, "Account Environment"),
             (WebUtils.animateEnvironmentKey, "Animate Environment"),
@@ -71,8 +72,8 @@ namespace Unity.AI.ModelSelector.Services.Utilities
         static void ShowWindow(string title)
         {
             var window = GetWindow<EnvironmentInputWindow>(true, title, true);
-            window.minSize = new Vector2(399, 200);
-            window.maxSize = new Vector2(400, 300);
+            window.minSize = new Vector2(499, 200);
+            window.maxSize = new Vector2(500, 300);
             window.InitializeEnvironmentStates();
             window.Show();
         }
@@ -80,7 +81,7 @@ namespace Unity.AI.ModelSelector.Services.Utilities
         void InitializeEnvironmentStates()
         {
             m_EnvironmentStates.Clear();
-            foreach (var (key, _) in m_EnvironmentPrefs)
+            foreach (var (key, _) in k_EnvironmentPrefs)
             {
                 m_EnvironmentStates[key] = true;
             }
@@ -94,19 +95,41 @@ namespace Unity.AI.ModelSelector.Services.Utilities
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("Set Environment Per Tool:", EditorStyles.boldLabel);
-            foreach (var (key, label) in m_EnvironmentPrefs)
+            foreach (var (key, label) in k_EnvironmentPrefs)
+            {
+                var currentValue = EditorPrefs.GetString(key, WebUtils.prodEnvironment);
+                EditorGUILayout.BeginHorizontal();
                 m_EnvironmentStates[key] = EditorGUILayout.Toggle(label, m_EnvironmentStates[key]);
+                EditorGUILayout.LabelField($"({currentValue})", GUILayout.Width(300));
+                EditorGUILayout.EndHorizontal();
+            }
 
             EditorGUILayout.Space();
+            EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("OK"))
             {
-                foreach (var (key, _) in m_EnvironmentPrefs)
+                foreach (var (key, _) in k_EnvironmentPrefs)
                 {
-                    if (m_EnvironmentStates[key])
+                    if (!m_EnvironmentStates[key])
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(m_InputText))
                         EditorPrefs.SetString(key, m_InputText);
+                    else
+                        EditorPrefs.DeleteKey(key);
                 }
                 Close();
             }
+            if (GUILayout.Button("Reset All"))
+            {
+                foreach (var (key, _) in k_EnvironmentPrefs)
+                    EditorPrefs.DeleteKey(key);
+                Close();
+            }
+            EditorGUILayout.EndHorizontal();
         }
+
+        [InitializeOnLoadMethod]
+        static void RegisterHook() => GenerationActions.selectedEnvironment = () => WebUtils.selectedEnvironment;
     }
 }

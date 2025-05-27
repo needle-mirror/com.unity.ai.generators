@@ -7,6 +7,8 @@ using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine.UIElements;
@@ -40,7 +42,7 @@ namespace Unity.AI.Material.Components
             foreach (var feedback in messages)
             {
                 this.ShowToast(feedback.message);
-                this.Dispatch(GenerationResultsActions.removeGenerationFeedback, this.GetAsset());
+                this.Dispatch(GenerationActions.removeGenerationFeedback, this.GetAsset());
             }
         }
 

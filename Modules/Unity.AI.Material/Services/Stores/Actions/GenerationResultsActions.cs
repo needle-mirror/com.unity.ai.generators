@@ -13,6 +13,8 @@ using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.Toolkit;
@@ -27,11 +29,6 @@ namespace Unity.AI.Material.Services.Stores.Actions
     static class GenerationResultsActions
     {
         public static readonly string slice = "generationResults";
-        public static Creator<GenerationAllowedData> setGenerationAllowed => new($"{slice}/setGenerationAllowed");
-        public static Creator<GenerationsProgressData> setGenerationProgress => new($"{slice}/setGenerationProgress");
-        public static Creator<GenerationsFeedbackData> addGenerationFeedback => new($"{slice}/addGenerationFeedback");
-        public static Creator<GenerationsValidationResult> setGenerationValidationResult => new($"{slice}/setGenerationValidationResult");
-        public static Creator<AssetReference> removeGenerationFeedback => new($"{slice}/removeGenerationFeedback");
         public static Creator<GenerationMaterials> setGeneratedMaterials => new($"{slice}/setGeneratedMaterials");
 
         static bool s_SetGeneratedMaterialsAsyncMutex = false;
@@ -320,7 +317,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             SkeletonExtensions.Acquire(taskID);
             try
             {
-                api.Dispatch(setGenerationAllowed, new(asset, false));
+                api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var generationSetting = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
                 await api.Dispatch(GenerationResultsSuperProxyActions.generateMaterialsSuperProxy,

@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using Unity.AI.Image.Services.Stores.Actions;
-using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.UI;
+using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEngine.UIElements;
 
@@ -20,7 +20,7 @@ namespace Unity.AI.Image.Components
             foreach (var feedback in messages)
             {
                 parent?.ShowToast(feedback.message);
-                this.Dispatch(GenerationResultsActions.removeGenerationFeedback, this.GetAsset());
+                this.Dispatch(GenerationActions.removeGenerationFeedback, this.GetAsset());
             }
         }
     }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Redux.Services;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Generators.UIElements.Core;
 using UnityEngine;
 
 namespace Unity.AI.Generators.Redux
@@ -144,9 +145,13 @@ namespace Unity.AI.Generators.Redux
             // Delay action if a dispatch happens while dispatching to avoid infinite loops
             if (m_IsDispatching)
             {
+                ExceptionUtilities.LogRedux($"Delaying action [{action.type}] -- Dispatching while dispatching.");
                 m_DispatchQueue.Queue(this, action, slices);
                 return;
             }
+
+            if (!m_DispatchQueue.isProcessing)
+                ExceptionUtilities.LogRedux($"Dispatching [{action.type}]");
 
             foreach (var slice in slices)
             {

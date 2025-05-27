@@ -14,8 +14,6 @@ namespace Unity.AI.Generators.Asset
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class EditorWindowExtensions
     {
-        const string k_ImageEnhanceIcon = "Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/Enhance.png";
-
         static Texture2D s_Icon;
         static AssetReference s_NextAssetContext = new();
 
@@ -171,7 +169,8 @@ namespace Unity.AI.Generators.Asset
                 window.SetAssetContext(asset);
             }
             if (!s_Icon)
-                s_Icon = AssetDatabase.LoadAssetAtPath<Texture2D>(k_ImageEnhanceIcon);
+                s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
+
             window.titleContent = new GUIContent(title, s_Icon);
 
             return window;
@@ -202,7 +201,7 @@ namespace Unity.AI.Generators.Asset
             if (store != null)
                 window.rootVisualElement.ProvideContext(StoreExtensions.storeKey, store);
             if (!s_Icon)
-                s_Icon = AssetDatabase.LoadAssetAtPath<Texture2D>(k_ImageEnhanceIcon);
+                s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
             window.titleContent = new GUIContent(title, s_Icon);
 
             return window;
@@ -233,7 +232,7 @@ namespace Unity.AI.Generators.Asset
             }
             window.rootVisualElement.ProvideContext(StoreExtensions.storeKey, store);
             if (!s_Icon)
-                s_Icon = AssetDatabase.LoadAssetAtPath<Texture2D>(k_ImageEnhanceIcon);
+                s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
             window.titleContent = new GUIContent(title, s_Icon);
             window.SetAssetContext(asset);
 

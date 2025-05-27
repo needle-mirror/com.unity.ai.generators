@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.9",
+  "version": "1.0.0-pre.10",
   "unity": "6000.2",
   "unityRelease": "0a9",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.9"
+    "com.unity.ai.toolkit": "1.0.0-pre.10"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.9"
+    "com.unity.ai.generators.tests": "1.0.0-pre.10"
   },
   "_upm": {
-    "changelog": "### Added\n\n- Added support for Editor paused play mode.\n- Added a 'Promote to Terrain Layer' right-click action for material generations.\n\n### Changed\n\n- The horizontal window splitter is now draggable.\n- Reduced minimum reference image size from 32x32 to 2x2. Smaller images are now automatically upscaled before generation.\n\n### Fixed\n\n- Fixed window icon display in the light UI style/theme.\n- Fixed issues with resuming interrupted downloads during material generation.\n- Fixed the AI button's documentation menu link.\n- Optimized generation point cost quote when no model is selected.\n\n### Removed\n\n- Removed resize handles from the model selector."
+    "changelog": "### Changed\n\n- Implemented an attempt to refresh the cloud access token when making generation requests, if Unity Hub is running.\n\n### Fixed\n\n- Corrected display issues with the model selector, particularly in the light UI theme (e.g., background, info display).\n- Implemented various UI refinements across light and dark themes for improved visual consistency and usability (e.g., icon colors, hover states, element styling, text capitalization).\n- Resolved an issue where generation processes would stall or not progress when the Editor window was out of focus."
   },
   "upmCi": {
-    "footprint": "3e6677f4d17a4fb47da9c780d72d8de9fc4495c4"
+    "footprint": "42ee4602b58d608c136055fd5455de93b9bc03ff"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "9a3309b4c2b2e8a78c07b1675e65707281db03c6"
+    "revision": "9fba010d5c7cd4faa710f4cde9f3dc95aef26690"
   }
 }

@@ -5,6 +5,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Actions;
 using UnityEngine;
 
 namespace Unity.AI.Image.Services.Stores.Slices
@@ -15,23 +16,23 @@ namespace Unity.AI.Image.Services.Stores.Slices
             GenerationResultsActions.slice,
             new GenerationResults(),
             reducers => reducers
-                .Add(GenerationResultsActions.setGenerationAllowed, (state, payload) => state.generationResults.Ensure(payload.asset).generationAllowed = payload.allowed)
-                .Add(GenerationResultsActions.setGenerationProgress, (state, payload) => {
+                .Add(GenerationActions.setGenerationAllowed, (state, payload) => state.generationResults.Ensure(payload.asset).generationAllowed = payload.allowed)
+                .Add(GenerationActions.setGenerationProgress, (state, payload) => {
                     var results = state.generationResults.Ensure(payload.asset);
                     results.generationProgress = new[]{payload.progress}.Concat(results.generationProgress)
                         .GroupBy(tr => tr.taskID)
                         .Select(group => group.First())
                         .ToList();
                 })
-                .Add(GenerationResultsActions.addGenerationFeedback, (state, payload) => {
+                .Add(GenerationActions.addGenerationFeedback, (state, payload) => {
                     var results = state.generationResults.Ensure(payload.asset);
                     results.generationFeedback = results.generationFeedback.Append(payload.feedback).ToList();
                 })
-                .Add(GenerationResultsActions.removeGenerationFeedback, (state, asset) => {
+                .Add(GenerationActions.removeGenerationFeedback, (state, asset) => {
                     var results = state.generationResults.Ensure(asset);
                     results.generationFeedback = results.generationFeedback.Skip(1).ToList();
                 })
-                .Add(GenerationResultsActions.setGenerationValidationResult, (state, payload) => {
+                .Add(GenerationActions.setGenerationValidationResult, (state, payload) => {
                     var results = state.generationResults.Ensure(payload.asset);
                     results.generationValidation = payload.result;
                 })
