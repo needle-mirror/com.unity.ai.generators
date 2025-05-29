@@ -28,8 +28,31 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static async Task<bool> IsBlank(this AssetReference asset)
         {
+            if (IsOneByOnePixel(asset))
+                return true;
+
             // look at the file directly as the texture is likely not be readable
             return TextureUtils.AreAllPixelsSameColor(await FileIO.ReadAllBytesAsync(asset.GetPath()));
+        }
+
+        public static bool IsOneByOnePixel(this AssetReference asset)
+        {
+            var importer = AssetImporter.GetAtPath(asset.GetPath()) as TextureImporter;
+            if (importer == null)
+                return false;
+
+            importer.GetSourceTextureWidthAndHeight(out var width, out var height);
+
+            return width == 1 && height == 1;
+        }
+
+        public static async Task<bool> IsOneByOnePixelOrLikelyBlank(this AssetReference asset)
+        {
+            if (IsOneByOnePixel(asset))
+                return true;
+
+            try { return new FileInfo(asset.GetPath()).Length < 25 * 1024 && TextureUtils.AreAllPixelsSameColor(await FileIO.ReadAllBytesAsync(asset.GetPath())); }
+            catch { return false; }
         }
 
         public static bool IsSkydome(this AssetReference asset)

@@ -52,7 +52,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             var selectedModelID = api.State.SelectSelectedModelID(element);
             var operations = api.State.SelectRefinementOperations(element);
             // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Image, operations.ToArray());
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, new[] { ModalityEnum.Image, ModalityEnum.Texture2d }, operations.ToArray());
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 

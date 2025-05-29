@@ -56,7 +56,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             var generationSetting = arg.api.State.SelectGenerationSetting(asset);
             var mode = generationSetting.SelectRefinementMode();
-            var modelID = arg.api.State.SelectSelectedModelID(asset);
+            var model = arg.api.State.SelectSelectedModel(asset);
             var dimensions = generationSetting.SelectImageDimensionsVector2();
             var refs = generationSetting.SelectImageReferencesByRefinement();
             var activeReferencesBitmask = arg.api.State.SelectActiveReferencesBitMask(asset);
@@ -67,7 +67,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             for (var i = 0; i < arg.payload.types.Length; i++)
             {
                 var type = arg.payload.types[i];
-                var cacheKey = new CanAddReferencesKey(type, true, false, modelID, activeReferencesBitmask);
+                var cacheKey = new CanAddReferencesKey(type, true, false, model?.id, activeReferencesBitmask);
 
                 // Check if we have a cached result
                 if (k_CanAddReferencesCache.TryGetValue(cacheKey, out var canAdd))
@@ -103,7 +103,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         defaultOperationTimeout: Constants.mandatoryTimeout);
 
                     var imageComponent = builder.ImageComponent();
-                    Guid.TryParse(modelID, out var generativeModelID);
+                    Guid.TryParse(model?.id, out var generativeModelID);
 
                     var requestBuilder = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, null);
                     var textPrompt = new TextPrompt("reference test", "");
@@ -114,6 +114,10 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         var currentMask = activeReferencesBitmask | (1 << (int)type);
                         try
                         {
+                            // an early out, this is hacking but the backend reports that PromptImage is supported but it's only for PBR, not for Image.
+                            if (model is { modality: ModalityEnum.Texture2d, provider: ProviderEnum.Unity } && type == ImageReferenceType.PromptImage)
+                                throw new UnhandledReferenceCombinationException();
+
                             var request = requestBuilder.GenerateWithReferences(textPrompt,
                                 IsActive(ImageReferenceType.PromptImage) ? new (Guid.NewGuid(), refs[mode][ImageReferenceType.PromptImage].strength) : null,
                                 IsActive(ImageReferenceType.StyleImage) ? new (Guid.NewGuid(), refs[mode][ImageReferenceType.StyleImage].strength) : null,
@@ -127,7 +131,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         }
                         catch (UnhandledReferenceCombinationException)
                         {
-                            k_CanAddReferencesCache[new CanAddReferencesKey(type, true, false, modelID, activeReferencesBitmask)] = false;
+                            k_CanAddReferencesCache[new CanAddReferencesKey(type, true, false, model?.id, activeReferencesBitmask)] = false;
                             results[index] = false;
                         }
 
@@ -168,7 +172,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                     if (isSuccess != null)
                     {
-                        k_CanAddReferencesCache[new CanAddReferencesKey(type, true, false, modelID, activeReferencesBitmask)] = isSuccess.Value;
+                        k_CanAddReferencesCache[new CanAddReferencesKey(type, true, false, model?.id, activeReferencesBitmask)] = isSuccess.Value;
                         results[index] = isSuccess.Value;
                     }
                     else

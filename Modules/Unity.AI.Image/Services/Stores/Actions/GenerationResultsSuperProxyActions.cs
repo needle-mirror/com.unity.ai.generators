@@ -129,6 +129,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 {
                     case RefinementMode.Recolor:
                     {
+                        if (!await api.State.SelectHasAssetToRefine(asset))
+                        {
+                            var messages = new[] { $"Error reason is 'Blank Asset'." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.Unknown, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         Guid.TryParse(api.State.SelectRecolorModel(), out var recolorModelID);
 
                         var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
@@ -152,6 +162,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     }
                     case RefinementMode.Pixelate:
                     {
+                        if (!await api.State.SelectHasAssetToRefine(asset))
+                        {
+                            var messages = new[] { $"Error reason is 'Blank Asset'." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.Unknown, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var requests = ImageTransformRequestBuilder.Initialize().Pixelate(new Pixelate(assetGuid, pixelateResizeToTargetSize,
                             pixelateTargetSize, pixelatePixelBlockSize, pixelateMode, pixelateOutlineThickness)).AsSingleInAList();
                         quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
@@ -159,6 +179,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     }
                     case RefinementMode.Inpaint:
                     {
+                        if (!await api.State.SelectHasAssetToRefine(asset))
+                        {
+                            var messages = new[] { $"Error reason is 'Blank Asset'." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.Unknown, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         if (generativeModelID == Guid.Empty)
                         {
                             var messages = new[] { $"Error reason is 'Invalid Model'." };
@@ -179,6 +209,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     }
                     case RefinementMode.RemoveBackground:
                     {
+                        if (!await api.State.SelectHasAssetToRefine(asset))
+                        {
+                            var messages = new[] { $"Error reason is 'Blank Asset'." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.Unknown, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(assetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                         quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));
@@ -186,6 +226,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     }
                     case RefinementMode.Upscale:
                     {
+                        if (!await api.State.SelectHasAssetToRefine(asset))
+                        {
+                            var messages = new[] { $"Error reason is 'Blank Asset'." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset,
+                                    new(false, AiResultErrorEnum.Unknown, 0,
+                                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
                         var request = ImageTransformRequestBuilder.Initialize().Upscale(new(assetGuid, upscaleFactor, null, null));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                         quoteResults = await EditorTask.Run(() => imageComponent.TransformQuote(requests, Constants.realtimeTimeout, cancellationTokenSource.Token));

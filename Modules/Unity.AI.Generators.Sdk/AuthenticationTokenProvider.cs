@@ -10,6 +10,14 @@ namespace Unity.AI.Generators.Sdk
 {
     class AuthenticationTokenProvider : IUnityAuthenticationTokenProvider
     {
+        const string k_UnityHubUriScheme = "unityhub://";
+        const string k_UnityHubLoginDomain = "login";
+
+        // Track the last time the URL was opened
+        static DateTime s_LastUrlOpenTime = DateTime.MinValue;
+        static readonly TimeSpan k_URLOpenCooldown = TimeSpan.FromMinutes(1);
+        static bool s_LastStatus = true;
+
         readonly int m_MainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
 
         string m_Token = CloudProjectSettings.accessToken;
@@ -22,19 +30,28 @@ namespace Unity.AI.Generators.Sdk
             var tcs = new TaskCompletionSource<bool>();
             CloudProjectSettings.RefreshAccessToken(callbackStatus => tcs.TrySetResult(callbackStatus));
 
-            const int timeoutSeconds = 10;
+            // Check if enough time has passed since the last URL open
+            var currentTime = DateTime.Now;
+            if (currentTime - s_LastUrlOpenTime >= k_URLOpenCooldown)
+            {
+                // Open URL and update the timestamp
+                Application.OpenURL($"{k_UnityHubUriScheme}{k_UnityHubLoginDomain}");
+                s_LastUrlOpenTime = currentTime;
+            }
+
+            const int timeoutSeconds = 30;
             var completedTask = await Task.WhenAny(tcs.Task, EditorTask.Delay((int)TimeSpan.FromSeconds(timeoutSeconds).TotalMilliseconds));
             if (completedTask == tcs.Task)
             {
+                m_Token = CloudProjectSettings.accessToken;
+
                 var status = await tcs.Task;
                 if (status)
-                {
-                    m_Token = CloudProjectSettings.accessToken;
                     Debug.Log("Access token refreshed successfully.");
-                    return Result<string>.Ok(m_Token);
-                }
+                else if (s_LastStatus)
+                    Debug.LogError("Token refresh failed or was not needed.");
 
-                Debug.LogError($"Token refresh failed or was not needed.");
+                s_LastStatus = status;
                 return Result<string>.Ok(m_Token);
             }
 

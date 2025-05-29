@@ -52,7 +52,7 @@ namespace Unity.AI.Image.Components
                 }
             };
 
-            this.Use(state => state.SelectSelectedModelID(this), _ => MarkDirty());
+            this.Use(state => state.SelectSelectedModel(this)?.id, _ => MarkDirty());
             this.UseArray(state => state.SelectActiveReferencesTypes(this), _ => MarkDirty());
         }
 

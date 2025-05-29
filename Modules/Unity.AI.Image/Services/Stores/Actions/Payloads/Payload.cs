@@ -6,6 +6,7 @@ using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -22,7 +23,17 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
         bool replaceBlankAsset,
         bool replaceRefinementAsset,
         int[] customSeeds) : AsssetContext(asset);
-    record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, bool negativePrompt, string model, int variations, RefinementMode mode, int activeReferencesBitmask, int validReferencesBitmask) : AsssetContext(asset);
+    record GenerationValidationSettings(
+        AssetReference asset,
+        bool valid,
+        bool prompt,
+        bool negativePrompt,
+        string model,
+        int variations,
+        RefinementMode mode,
+        int activeReferencesBitmask,
+        int validReferencesBitmask,
+        long baseImageBytesTimeStampUtcTicks) : AsssetContext(asset);
     record GenerationTextures(AssetReference asset, List<TextureResult> textures) : AsssetContext(asset);
     record GenerationSkeletons(AssetReference asset, List<TextureSkeleton> skeletons) : AsssetContext(asset);
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);

@@ -16,7 +16,7 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
             Add(CreateStandardLabel("Animation", () => EditorApplication.ExecuteMenuItem("Assets/Create/Animation/Generate Animation Clip")));
             Add(CreateStandardLabel("Material", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Material")));
             Add(CreateStandardLabel("Sound", () => EditorApplication.ExecuteMenuItem("Assets/Create/Audio/Generate Audio Clip")));
-            Add(CreateStandardLabel("Sprite", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Sprite")));
+            Add(CreateStandardLabel("Sprite", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Sprite"))); // use this one, and not the one in 2D/ as it is not guaranteed to exist
             Add(CreateStandardLabel("Texture", () => EditorApplication.ExecuteMenuItem("Assets/Create/Rendering/Generate Texture 2D"), false));
         }
 

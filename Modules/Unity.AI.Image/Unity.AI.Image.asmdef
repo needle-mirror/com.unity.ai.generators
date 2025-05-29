@@ -28,6 +28,10 @@
     ],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [{
+        "name": "com.unity.2d.enhancers",
+        "expression": "",
+        "define": "ENHANCERS_2D_PRESENT"
+    }],
     "noEngineReferences": false
 }

@@ -4,6 +4,26 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.11] - 2025-05-29
+
+### Added
+
+- Added Unity Texture 2D model to model selector for textures and images.
+- Added points count quote generate button tooltip.
+
+### Changed
+
+- Run Unity Hub if it isn't running when refreshing the cloud access token.
+- Disallow remove background on small and empty images.
+
+### Removed
+
+- Removed extra generate sprite menuitem when enhancers package is installed
+
+### Fixed
+
+- Fixed text to motion finger muscle names
+
 ## [1.0.0-pre.10] - 2025-05-27
 
 ### Changed

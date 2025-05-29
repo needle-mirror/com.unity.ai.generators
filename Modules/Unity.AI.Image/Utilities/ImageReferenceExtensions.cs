@@ -119,7 +119,7 @@ namespace Unity.AI.Image.Services.Utilities
             e.Use(state => state.SelectImageReferenceIsActive(e, e.type), isActive => {
                 e.EnableInClassList("hide-image-reference", !isActive);
             });
-            e.Use(state => state.SelectSelectedModelID(e), _ => {
+            e.Use(state => state.SelectSelectedModel(e)?.id, _ => {
                 if (!e.GetState().SelectImageReferenceAllowed(e, e.type))
                     e.schedule.Execute(() => e.Dispatch(GenerationSettingsActions.setImageReferenceActive, new (e.type, false)));
             });

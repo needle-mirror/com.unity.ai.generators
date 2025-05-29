@@ -83,14 +83,36 @@ namespace Unity.AI.Animate.Motion
             // Muscles
             for (var i = 0; i < muscleCurves.Length; i++)
             {
-                // The HumanTrait.MuscleName array or a similar approach
-                // can be used for correct muscle property names
                 var muscleName = HumanTrait.MuscleName[i];
+                // Fix hand muscle names to match Unity's standard format
+                muscleName = FixHandMuscleName(muscleName);
                 clip.SetCurve("", typeof(Animator), muscleName, muscleCurves[i]);
             }
 
             // Ensure we fix quaternion boundary issues
             clip.EnsureQuaternionContinuity();
+        }
+        
+        /// <summary>
+        /// Transforms standard muscle names to Unity's expected format for finger muscles.
+        /// e.g.: "Left Index 1 Stretched" becomes "LeftHand.Index.1 Stretched"
+        /// </summary>
+        static string FixHandMuscleName(string name)
+        {
+            var newName = name;
+            newName = newName.Replace("Left Index ", "LeftHand.Index.");
+            newName = newName.Replace("Left Middle ", "LeftHand.Middle.");
+            newName = newName.Replace("Left Ring ", "LeftHand.Ring.");
+            newName = newName.Replace("Left Thumb ", "LeftHand.Thumb.");
+            newName = newName.Replace("Left Little ", "LeftHand.Little.");
+            
+            newName = newName.Replace("Right Index ", "RightHand.Index.");
+            newName = newName.Replace("Right Middle ", "RightHand.Middle.");
+            newName = newName.Replace("Right Ring ", "RightHand.Ring.");
+            newName = newName.Replace("Right Thumb ", "RightHand.Thumb.");
+            newName = newName.Replace("Right Little ", "RightHand.Little.");
+            
+            return newName;
         }
     }
 }

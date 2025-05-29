@@ -74,12 +74,12 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Image },
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Image, ModalityEnum.Texture2d },
                 state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Image },
+            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Image, ModalityEnum.Texture2d },
                 state.SelectRefinementOperations(element).ToArray());
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
@@ -207,6 +207,22 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static byte[] SelectUnsavedAssetBytes(this GenerationSetting setting) => setting.unsavedAssetBytes.data;
         public static byte[] SelectUnsavedAssetBytes(this IState state, VisualElement element) => state.SelectGenerationSetting(element).unsavedAssetBytes.data;
         public static UnsavedAssetBytesSettings SelectUnsavedAssetBytesSettings(this IState state, VisualElement element) => state.SelectGenerationSetting(element).unsavedAssetBytes;
+
+        public static async Task<bool> SelectHasAssetToRefine(this IState state, VisualElement element) => await state.SelectHasAssetToRefine(element.GetAsset());
+        public static async Task<bool> SelectHasAssetToRefine(this IState state, AssetReference asset)
+        {
+            var setting = state.SelectGenerationSetting(asset);
+            var unsavedAssetBytes = setting.SelectUnsavedAssetBytes();
+            if (unsavedAssetBytes is { Length: > 0 })
+                return true;
+
+            var currentSelection = state.SelectSelectedGeneration(asset);
+            var generations = state.SelectGeneratedTextures(asset);
+            if (generations.Contains(currentSelection) && currentSelection.IsValid())
+                return true;
+
+            return asset.IsValid() && !await asset.IsOneByOnePixelOrLikelyBlank();
+        }
 
         public static async Task<Stream> SelectUnsavedAssetStreamWithFallback(this IState state, VisualElement element) => await state.SelectUnsavedAssetStreamWithFallback(element.GetAsset());
         public static async Task<Stream> SelectUnsavedAssetStreamWithFallback(this IState state, AssetReference asset)
@@ -464,7 +480,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var mode = settings.SelectRefinementMode();
             var activeReferencesBitMask = state.SelectActiveReferencesBitMask(element);
             var validReferencesBitMask = state.SelectValidReferencesBitMask(element);
-            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, activeReferencesBitMask, validReferencesBitMask);
+            var baseImageBytesTimeStamp = state.SelectBaseImageBytesTimestamp(element);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, activeReferencesBitMask,
+                validReferencesBitMask, baseImageBytesTimeStamp.lastWriteTimeUtcTicks);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

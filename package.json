@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.10",
+  "version": "1.0.0-pre.11",
   "unity": "6000.2",
   "unityRelease": "0a9",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.10"
+    "com.unity.ai.toolkit": "1.0.0-pre.11"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.10"
+    "com.unity.ai.generators.tests": "1.0.0-pre.11"
   },
   "_upm": {
-    "changelog": "### Changed\n\n- Implemented an attempt to refresh the cloud access token when making generation requests, if Unity Hub is running.\n\n### Fixed\n\n- Corrected display issues with the model selector, particularly in the light UI theme (e.g., background, info display).\n- Implemented various UI refinements across light and dark themes for improved visual consistency and usability (e.g., icon colors, hover states, element styling, text capitalization).\n- Resolved an issue where generation processes would stall or not progress when the Editor window was out of focus."
+    "changelog": "### Added\n\n- Added Unity Texture 2D model to model selector for textures and images.\n- Added points count quote generate button tooltip.\n\n### Changed\n\n- Run Unity Hub if it isn't running when refreshing the cloud access token.\n- Disallow remove background on small and empty images.\n\n### Removed\n\n- Removed extra generate sprite menuitem when enhancers package is installed\n\n### Fixed\n\n- Fixed text to motion finger muscle names"
   },
   "upmCi": {
-    "footprint": "42ee4602b58d608c136055fd5455de93b9bc03ff"
+    "footprint": "fd51636de6642b256b4826d814fc06a2b5c32ddb"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "9fba010d5c7cd4faa710f4cde9f3dc95aef26690"
+    "revision": "58a98373fdaf0202fd803a74f17c71a88a19fb0f"
   }
 }

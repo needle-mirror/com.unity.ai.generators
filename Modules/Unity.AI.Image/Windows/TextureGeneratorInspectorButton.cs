@@ -18,14 +18,14 @@ namespace Unity.AI.Image.Windows
         public static void GenerateImage() => OnAssetGenerationRequest(new[] { Selection.activeObject });
 
         public static bool GenerateImageValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
-
+#if !ENHANCERS_2D_PRESENT
         [MenuItem("Assets/Create/2D/Generate Sprite", false, -1000)]
         public static void Empty2dSpriteMenu() => CreateAndNameSprite();
 
         [MenuItem("Assets/Create/2D/Generate Sprite", true)]
         static bool ValidateEmpty2dSpriteMenu() => Account.settings.AiGeneratorsEnabled;
-
-        [MenuItem("Assets/Create/Rendering/Generate Sprite", false, -1000)]
+#endif
+        [MenuItem("Assets/Create/Rendering/Generate Sprite", false, -1000)] // menuitem required for Unity.AI.Generators.UI.AIDropdownIntegrations
         public static void EmptySpriteMenu() => CreateAndNameSprite();
 
         [MenuItem("Assets/Create/Rendering/Generate Sprite", true)]
