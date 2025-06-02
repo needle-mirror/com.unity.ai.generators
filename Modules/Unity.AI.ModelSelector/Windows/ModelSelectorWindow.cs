@@ -11,11 +11,16 @@ using UnityEngine.UIElements;
 
 namespace Unity.AI.ModelSelector.Windows
 {
-    class ModelSelectorWindow : EditorWindow
+    class ModelSelectorWindow : EditorWindow, IAssetEditorWindow
     {
+        TaskCompletionSource<bool> m_TaskCompletionSource;
+        ModelView m_View;
+        static IStore s_LastStore;
+
         public static async Task Open(IStore store)
         {
             var window = EditorWindowExtensions.CreateWindow<ModelSelectorWindow>(store, "Select AI Model", false);
+            window.store = store;
             window.minSize = new Vector2(950, 832);
             window.maxSize = new Vector2(950, 832);
             window.ShowAuxWindow();
@@ -39,15 +44,36 @@ namespace Unity.AI.ModelSelector.Windows
         public static async Task<string> Open(VisualElement parent, string selectedModelID, ModalityEnum modality, OperationSubTypeEnum[] operations) =>
             await Open(parent, selectedModelID, new[] { modality }, operations);
 
-        TaskCompletionSource<bool> m_TaskCompletionSource;
-
         void CreateGUI()
         {
-            var view = new ModelView();
-            view.onDismissRequested += Close;
-            rootVisualElement.Add(view);
+            this.EnsureContext();
+            if (m_View == null)
+            {
+                m_View = new ModelView();
+                m_View.onDismissRequested += Close;
+            }
+            if (!rootVisualElement.Contains(m_View))
+                rootVisualElement.Add(m_View);
         }
 
         void OnDestroy() => m_TaskCompletionSource?.TrySetResult(true);
+
+        public AssetReference asset
+        {
+            get => new ();
+            set {}
+        }
+
+        public bool isLocked
+        {
+            get => false;
+            set {}
+        }
+
+        public IStore store
+        {
+            get => s_LastStore;
+            private set => s_LastStore = value;
+        }
     }
 }

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
@@ -31,7 +33,14 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                     .AddCase(ModelSelectorActions.init).With((_, payload) => payload.payload.modelSelectorSlice with { }),
                 state => state with {
                     settings = state.settings with {
-                        models = state.settings.models,
+                        models = state.settings.models.Select(model => model with {
+                            tags = new List<string>(model.tags),
+                            thumbnails = new List<string>(model.thumbnails),
+                            operations = new List<OperationSubTypeEnum>(model.operations),
+                            operationCombinations = model.operationCombinations.Select(combination =>
+                                new List<OperationSubTypeEnum>(combination)).ToList(),
+                            imageSizes = model.imageSizes.Select(size => size with {}).ToList()
+                        }).ToList(),
                         environment = state.settings.environment,
                         lastModelDiscoveryTimestamp = state.settings.lastModelDiscoveryTimestamp
                     },

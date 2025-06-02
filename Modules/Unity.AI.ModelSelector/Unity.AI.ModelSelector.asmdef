@@ -7,7 +7,8 @@
         "GUID:014b346a84d6445cad431c8b47c25633",
         "GUID:44bd0c6211084984a742675e77a87c50",
         "GUID:869cb80e36ef2c24ea3b6347dabee597",
-        "GUID:5a241fc381813534d9cc6d07eb989239"
+        "GUID:5a241fc381813534d9cc6d07eb989239",
+        "GUID:a67048a276c1b495097ecef74afc68d2"
     ],
     "includePlatforms": [
         "Editor"
@@ -20,6 +21,12 @@
     ],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.toolkit",
+            "expression": "[0,1.0.0)",
+            "define": "UNITY_AI_OPEN_BETA"
+        }
+    ],
     "noEngineReferences": false
 }

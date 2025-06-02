@@ -306,7 +306,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static bool SelectImageReferenceIsActive(this ImageReferenceSettings imageReference) => imageReference.isActive;
         public static bool SelectImageReferenceAllowed(this IState state, VisualElement element, ImageReferenceType type) => true;
         public static bool SelectImageReferenceIsClear(this IState state, VisualElement element, ImageReferenceType type) =>
-            !state.SelectGenerationSetting(element).imageReferences[(int)type].asset.IsValid() && state.SelectImageReferenceDoodle(element, type) == null;
+            !state.SelectGenerationSetting(element).imageReferences[(int)type].asset.IsValid() &&
+            state.SelectImageReferenceDoodle(element, type) is not { Length: not 0 };
+
         public static bool SelectImageReferenceIsValid(this IState state, VisualElement element, ImageReferenceType type) =>
             state.SelectGenerationSetting(element).SelectImageReference(type).SelectImageReferenceIsValid();
         public static bool SelectImageReferenceIsValid(this ImageReferenceSettings imageReference) => imageReference.isActive &&
@@ -350,14 +352,14 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return setting.pixelateSettings.outlineThickness;
         }
 
-        static readonly ImmutableArray<int[]> k_DefaultModelSettingsResolutions = new( new []{ new[] { 1024, 1024 } });
+        static readonly ImmutableArray<ImageDimensions> k_DefaultModelSettingsResolutions = new(new []{ new ImageDimensions { width = 1024, height = 1024 } });
 
         public static IEnumerable<string> SelectModelSettingsResolutions(this IState state, VisualElement element)
         {
             var imageSizes = state.SelectSelectedModel(element)?.imageSizes;
-            if (imageSizes == null || imageSizes.Length == 0)
-                imageSizes = k_DefaultModelSettingsResolutions;
-            return imageSizes.Select(size => $"{size[0]} x {size[1]}");
+            if (imageSizes == null || !imageSizes.Any())
+                imageSizes = new List<ImageDimensions>(k_DefaultModelSettingsResolutions);
+            return imageSizes.Select(size => $"{size.width} x {size.height}");
         }
 
         public static string SelectImageDimensions(this IState state, VisualElement element)

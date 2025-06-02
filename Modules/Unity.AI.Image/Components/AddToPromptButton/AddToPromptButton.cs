@@ -22,7 +22,7 @@ namespace Unity.AI.Image.Components
     {
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Image/Components/AddToPromptButton/AddToPromptButton.uxml";
 
-        GenericDropdownMenu m_AllowedOperatorsMenu;
+        DropdownMenu m_AllowedOperatorsMenu;
         readonly Button m_AddToPrompt;
 
         bool m_HasItems;
@@ -44,7 +44,7 @@ namespace Unity.AI.Image.Components
                 {
                     while (!m_HasItems)
                         await EditorTask.Yield();
-                    m_AllowedOperatorsMenu.DropDown(m_AddToPrompt.worldBound, m_AddToPrompt, false);
+                    m_AllowedOperatorsMenu.Show(m_AddToPrompt.worldBound);
                 }
                 finally
                 {
@@ -71,7 +71,7 @@ namespace Unity.AI.Image.Components
             }
         }
 
-        void AddItemToMenu(ImageReferenceType type, bool itemVisible, bool enabled, AssetActionCreator<ImageReferenceActiveData> setImageReferenceIsActive)
+        void AddItemToMenu(ImageReferenceType type, bool itemVisible, bool enabled, bool active, AssetActionCreator<ImageReferenceActiveData> setImageReferenceIsActive)
         {
             if (!itemVisible)
                 return;
@@ -81,15 +81,17 @@ namespace Unity.AI.Image.Components
             m_HasItems = true;
             if (enabled)
             {
-                m_AllowedOperatorsMenu.AddItem(text, false, () =>
-                {
-                    this.Dispatch(setImageReferenceIsActive, new ImageReferenceActiveData(type, true));
-                    this.Dispatch(GenerationSettingsActions.setPendingPing, type.GetImageReferenceName());
-                });
+                m_AllowedOperatorsMenu.AppendAction(text, _ => {
+                        this.Dispatch(setImageReferenceIsActive, new ImageReferenceActiveData(type, !active));
+                        if (!active)
+                            this.Dispatch(GenerationSettingsActions.setPendingPing, type.GetImageReferenceName());
+                    },
+                    _ => DropdownMenuAction.Status.Normal,
+                    active);
             }
             else
             {
-                m_AllowedOperatorsMenu.AddDisabledItem(text, false);
+                m_AllowedOperatorsMenu.AppendAction(text, _ => { }, _ => DropdownMenuAction.Status.Disabled, active);
             }
         }
 
@@ -111,11 +113,11 @@ namespace Unity.AI.Image.Components
             m_IsDirty = false;
             m_HasItems = false;
 
-            m_AllowedOperatorsMenu = new GenericDropdownMenu();
+            m_AllowedOperatorsMenu = new DropdownMenu();
             for (var i = 0; i < typesToValidate.Length; i++)
             {
-                AddItemToMenu(typesToValidate[i], true, !this.GetState().SelectImageReferenceIsActive(this, typesToValidate[i]) && results[i],
-                    GenerationSettingsActions.setImageReferenceActive);
+                var isActive = this.GetState().SelectImageReferenceIsActive(this, typesToValidate[i]);
+                AddItemToMenu(typesToValidate[i], true, results[i], isActive, GenerationSettingsActions.setImageReferenceActive);
             }
 
             m_AddToPrompt.SetEnabled(!m_IsDirty);

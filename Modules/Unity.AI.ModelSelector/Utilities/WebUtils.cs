@@ -1,6 +1,7 @@
-﻿#define UNITY_AI_OPEN_BETA
+﻿using System;
 using System.Collections.Generic;
 using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Toolkit.Accounts.Services;
 using UnityEditor;
 using UnityEngine;
 
@@ -119,12 +120,18 @@ namespace Unity.AI.ModelSelector.Services.Utilities
                         EditorPrefs.DeleteKey(key);
                 }
                 Close();
+
+                Account.settings.Refresh();
+                Account.pointsBalance.Refresh();
             }
             if (GUILayout.Button("Reset All"))
             {
                 foreach (var (key, _) in k_EnvironmentPrefs)
                     EditorPrefs.DeleteKey(key);
                 Close();
+
+                Account.settings.Refresh();
+                Account.pointsBalance.Refresh();
             }
             EditorGUILayout.EndHorizontal();
         }

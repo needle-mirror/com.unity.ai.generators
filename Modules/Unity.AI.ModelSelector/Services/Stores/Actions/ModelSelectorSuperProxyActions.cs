@@ -35,8 +35,10 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 baseModelId = info.BaseModelId == Guid.Empty ? null : info.BaseModelId.ToString(),
                 isFavorite = isFavorite,
                 operations = info.OperationSubTypes.SelectMany(r => r).Distinct().ToList(),
-                nativeResolution = new []{info.NativeResolutionWidth, info.NativeResolutionHeight},
-                imageSizes = info.ImageSizes.Select(r => new []{r.Width, r.Height}).Append(new []{info.NativeResolutionWidth, info.NativeResolutionHeight}).OrderBy(r => r[0]).ToArray(),
+                nativeResolution = new ImageDimensions { width = info.NativeResolutionWidth, height = info.NativeResolutionHeight },
+                imageSizes = info.ImageSizes.Select(r => new ImageDimensions { width = r.Width, height = r.Height })
+                    .Append(new ImageDimensions { width = info.NativeResolutionWidth, height = info.NativeResolutionHeight })
+                    .OrderBy(r => r.width).ToList(),
             };
 
             if (model.thumbnails.Count == 0 && !string.IsNullOrWhiteSpace(model.icon))
