@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
@@ -17,9 +15,22 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                         if (action.payload is { Count: > 0 })
                             state.settings.models = action.payload; })
                     .Add(ModelSelectorActions.setEnvironment, (state, payload) => state.settings.environment = payload)
+                    .Add(ModelSelectorActions.setModelFavorite, (state, payload) =>
+                    {
+                        var model = state.settings.models.FirstOrDefault(m => m.id == payload.modelId);
+                        if (model != null)
+                            model.isFavorite = payload.isFavorite;
+                    })
+                    .Add(ModelSelectorActions.setModelFavoriteProcessing, (state, payload) =>
+                    {
+                        var model = state.settings.models.FirstOrDefault(m => m.id == payload.modelId);
+                        if (model != null)
+                            model.favoriteProcessing = payload.favoriteProcessing;
+                    })
+                    .Add(ModelSelectorActions.setFilters, (state, payload) => state.settings.filters = payload)
+                    .Add(ModelSelectorActions.setSortMode, (state, payload) => state.settings.sortMode = payload)
+                    .Add(ModelSelectorActions.setSearchQuery, (state, payload) => state.settings.filters.searchQuery = payload)
                     .Add(ModelSelectorActions.setLastSelectedModelID, (state, payload) => state.lastSelectedModelID = payload)
-                    .Add(ModelSelectorActions.setLastSelectedModalities, (state, payload) => state.lastSelectedModalities = payload)
-                    .Add(ModelSelectorActions.setLastOperationSubTypes, (state, payload) => state.lastSelectedOperations = payload)
                     .Add(ModelSelectorActions.setLastUsedSelectedModelID, (state, payload) =>
                     {
                         if (string.IsNullOrEmpty(payload))
@@ -34,19 +45,29 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                 state => state with {
                     settings = state.settings with {
                         models = state.settings.models.Select(model => model with {
-                            tags = new List<string>(model.tags),
-                            thumbnails = new List<string>(model.thumbnails),
-                            operations = new List<OperationSubTypeEnum>(model.operations),
-                            operationCombinations = model.operationCombinations.Select(combination =>
-                                new List<OperationSubTypeEnum>(combination)).ToList(),
-                            imageSizes = model.imageSizes.Select(size => size with {}).ToList()
+                            tags = model.tags,
+                            thumbnails = model.thumbnails,
+                            isFavorite = model.isFavorite,
+                            favoriteProcessing = model.favoriteProcessing,
+                            operations = model.operations,
+                            operationCombinations = model.operationCombinations,
+                            imageSizes = model.imageSizes
                         }).ToList(),
                         environment = state.settings.environment,
-                        lastModelDiscoveryTimestamp = state.settings.lastModelDiscoveryTimestamp
+                        lastModelDiscoveryTimestamp = state.settings.lastModelDiscoveryTimestamp,
+                        sortMode = state.settings.sortMode,
+                        filters = state.settings.filters with
+                        {
+                            modalities = state.settings.filters.modalities.ToArray(),
+                            operations = state.settings.filters.operations.ToArray(),
+                            tags = state.settings.filters.tags.ToArray(),
+                            providers = state.settings.filters.providers.ToArray(),
+                            baseModelIds = state.settings.filters.baseModelIds.ToArray(),
+                            misc = state.settings.filters.misc.ToArray(),
+                            searchQuery = state.settings.filters.searchQuery
+                        }
                     },
                     lastSelectedModelID = state.lastSelectedModelID,
-                    lastSelectedModalities = state.lastSelectedModalities,
-                    lastSelectedOperations = state.lastSelectedOperations.ToArray(),
                     lastUsedModels = new SerializableDictionary<string, string>(state.lastUsedModels),
                     modelPopularityScore = new SerializableDictionary<string, int>(state.modelPopularityScore)
                 });

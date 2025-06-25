@@ -31,7 +31,6 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var settings = state.SelectGenerationSettings().generationSettings;
             return settings.Ensure(asset);
         }
-        public static GenerationSetting SelectGenerationSetting2(IState state, VisualElement element) => state.SelectGenerationSetting(element.GetAsset());
         public static GenerationSetting SelectGenerationSetting(this IState state, VisualElement element) => state.SelectGenerationSetting(element.GetAsset());
 
         public static string SelectSelectedModelID(this IState state, VisualElement element) => state.SelectSelectedModelID(element.GetAsset());
@@ -44,6 +43,22 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         {
             var mode = setting.SelectRefinementMode();
             return setting.selectedModels.Ensure(mode).modelID;
+        }
+
+        public static string SelectSelectedModelName(this GenerationSetting setting)
+        {
+            // The model settings are shared between all generation settings. We can use the modelID to find the model.
+            // Normally we try to use the store from the window context, but here we have a design flaw and will
+            // use the shared store instead of modifying the setting argument which could be risky for serialization and dictionary lookups.
+            // Suggestion: we could add an overload to MakeMetadata that takes the store as an argument and passes it here
+            var store = SessionPersistence.SharedStore.Store;
+            if (store?.State == null)
+                return null;
+
+            var modelID = setting.SelectSelectedModelID();
+            var modelSettings = store.State.SelectModelSettingsWithModelId(modelID);
+
+            return modelSettings?.name;
         }
 
         public static ModelSettings SelectSelectedModel(this IState state, VisualElement element) => state.SelectSelectedModel(element.GetAsset());
@@ -122,13 +137,14 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             if (!string.IsNullOrEmpty(generationMetadata.refinementMode))
                 text += $"Operation: {generationMetadata.refinementMode.AddSpaceBeforeCapitalLetters()}\n";
 
-            if (!string.IsNullOrEmpty(generationMetadata.model))
+            var modelSettings = state.SelectModelSettings(generationMetadata);
+            if (!string.IsNullOrEmpty(modelSettings?.name))
             {
-                var modelSettings = state.SelectModelSettings(generationMetadata);
-                if (!string.IsNullOrEmpty(modelSettings?.name))
-                {
-                    text += $"Model: {modelSettings.name}\n";
-                }
+                text += $"Model: {modelSettings.name}\n";
+            }
+            else if(!string.IsNullOrEmpty(generationMetadata.modelName))
+            {
+                text += $"Model: {generationMetadata.modelName}\n";
             }
 
             text = text.TrimEnd();
@@ -367,14 +383,14 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var dimension = state.SelectGenerationSetting(element).imageDimensions;
             var resolutions = state.SelectModelSettingsResolutions(element)?.ToList();
             if (resolutions == null || resolutions.Count == 0)
-                return "1024 x 1024";
+                return $"{k_DefaultModelSettingsResolutions[0].width} x {k_DefaultModelSettingsResolutions[0].height}";
             return resolutions.Contains(dimension) ? dimension : resolutions[0];
         }
 
         public static Vector2Int SelectImageDimensionsVector2(this GenerationSetting setting)
         {
             if (string.IsNullOrEmpty(setting.imageDimensions))
-                return new Vector2Int(1024, 1024);
+                return new Vector2Int(k_DefaultModelSettingsResolutions[0].width, k_DefaultModelSettingsResolutions[0].height);
 
             var dimensionsSplit = setting.imageDimensions.Split(" x ");
 
@@ -383,8 +399,8 @@ namespace Unity.AI.Image.Services.Stores.Selectors
 
             if (width == 0 || height == 0)
             {
-                width = 1024;
-                height = 1024;
+                width = k_DefaultModelSettingsResolutions[0].width;
+                height = k_DefaultModelSettingsResolutions[0].height;
             }
 
             var dimensions = new Vector2Int(width, height);
@@ -483,8 +499,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var activeReferencesBitMask = state.SelectActiveReferencesBitMask(element);
             var validReferencesBitMask = state.SelectValidReferencesBitMask(element);
             var baseImageBytesTimeStamp = state.SelectBaseImageBytesTimestamp(element);
+            var modelsTimeStamp = ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state);
             return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, activeReferencesBitMask,
-                validReferencesBitMask, baseImageBytesTimeStamp.lastWriteTimeUtcTicks);
+                validReferencesBitMask, baseImageBytesTimeStamp.lastWriteTimeUtcTicks, modelsTimeStamp);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

@@ -8,7 +8,7 @@ namespace Unity.AI.ModelTrainer.Windows
 {
     class ModelTrainerWindow : EditorWindow
     {
-        [MenuItem("Window/AI/Model Trainer", false, 2)]
+        [MenuItem("internal:Window/AI/Model Trainer", false, 2)]
         public static void Display()
         {
             var window = GetWindow<ModelTrainerWindow>("Model Trainer");

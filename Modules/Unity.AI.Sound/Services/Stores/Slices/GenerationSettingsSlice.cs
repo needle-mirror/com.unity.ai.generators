@@ -6,6 +6,7 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 
 namespace Unity.AI.Sound.Services.Stores.Slices
 {
@@ -25,7 +26,6 @@ namespace Unity.AI.Sound.Services.Stores.Slices
                     reducers => reducers
                         .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
-                        .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModelID = payload)
                         .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt = payload)
                         .Add(GenerationSettingsActions.setNegativePrompt, (state, payload) => state.negativePrompt = payload)
@@ -47,11 +47,11 @@ namespace Unity.AI.Sound.Services.Stores.Slices
                     if (state.generationSettings.ContainsKey(payload.payload))
                         state.generationSettings.Remove(payload.payload);
                     return state with { };
-                }),
+                })
+                .AddCase(ModelSelectorActions.setLastModelDiscoveryTimestamp).With((state, _) => state with { }),
             state => state with {
                 generationSettings = new SerializableDictionary<AssetReference, GenerationSetting>(
                     state.generationSettings.ToDictionary(kvp => kvp.Key, entry => entry.Value with {
-                        lastModelDiscoveryTime = entry.Value.lastModelDiscoveryTime,
                         selectedModelID = entry.Value.selectedModelID,
                         prompt = entry.Value.prompt,
                         negativePrompt = entry.Value.negativePrompt,

@@ -12,7 +12,16 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
     record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadAnimationsData(AssetReference asset, List<Guid> ids, int[] customSeeds, int taskID = 0, GenerationMetadata generationMetadata = null, bool autoApply = false) : AsssetContext(asset);
-    record GenerationValidationSettings(AssetReference asset, bool valid, bool prompt, string model, int roundedFrameDuration, int variations, RefinementMode mode, int referenceCount) : AsssetContext(asset);
+    record GenerationValidationSettings(
+        AssetReference asset,
+        bool valid,
+        bool prompt,
+        string model,
+        int roundedFrameDuration,
+        int variations,
+        RefinementMode mode,
+        int referenceCount,
+        long modelsSelectorTimeStampUtcTicks) : AsssetContext(asset);
     record GenerationDataWindowArgs(AssetReference asset, VisualElement element, AnimationClipResult result) : AsssetContext(asset);
     record GenerationAnimations(AssetReference asset, List<AnimationClipResult> animations) : AsssetContext(asset);
     record GenerationSkeletons(AssetReference asset, List<TextureSkeleton> skeletons) : AsssetContext(asset);

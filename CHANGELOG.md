@@ -4,6 +4,33 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.13] - 2025-06-25
+
+### Added
+
+- Added model favoriting.
+
+### Changed
+
+- Changed default variation count to 1.
+- Changed Save icon in the Sound edition tool.
+
+### Fixed
+
+- Fixed selected model when model list changes.
+- Fixed Base Models filter.
+- Fixed some missing quaternion normalization in generated animations.
+- Fixed an issue where generation processes would stall or not progress when the Editor window was out of focus.
+- Fixed terrain brushes not refreshing when generated.
+- Fixed some light mode styles.
+- Fixed missing model name on historical generation data.
+
+### Removed
+
+- Removed model trainer menu item.
+- Removed AI Sparkle icon from the window tab of the Sound edition tool.
+- Removed unused seed input from video to motion.
+
 ## [1.0.0-pre.12] - 2025-06-02
 
 ### Fixed

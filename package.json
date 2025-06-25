@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.12",
+  "version": "1.0.0-pre.13",
   "unity": "6000.2",
-  "unityRelease": "0a9",
+  "unityRelease": "0b4",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.12"
+    "com.unity.ai.toolkit": "1.0.0-pre.13"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.12"
+    "com.unity.ai.generators.tests": "1.0.0-pre.13"
   },
   "_upm": {
-    "changelog": "### Fixed\n\n- Fixed image generators not showing all available aspect ratios.\n- Fixed clear reference button being active with nothing to clear.\n- Fixed reference image dropdown style."
+    "changelog": "### Added\n\n- Added model favoriting.\n\n### Changed\n\n- Changed default variation count to 1.\n- Changed Save icon in the Sound edition tool.\n\n### Fixed\n\n- Fixed selected model when model list changes.\n- Fixed Base Models filter.\n- Fixed some missing quaternion normalization in generated animations.\n- Fixed an issue where generation processes would stall or not progress when the Editor window was out of focus.\n- Fixed terrain brushes not refreshing when generated.\n- Fixed some light mode styles.\n- Fixed missing model name on historical generation data.\n\n### Removed\n\n- Removed model trainer menu item.\n- Removed AI Sparkle icon from the window tab of the Sound edition tool.\n- Removed unused seed input from video to motion."
   },
   "upmCi": {
-    "footprint": "4f41e9e10f553ac2194837e5b643ccfa474a9576"
+    "footprint": "71a73de1257f817168e676b7eb41568a23122428"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "c93aa122b88641251cbb8a94f553cd3299e2e2ea"
+    "revision": "5e35507f4857a6a81e55422aff69264d67c82af4"
   }
 }

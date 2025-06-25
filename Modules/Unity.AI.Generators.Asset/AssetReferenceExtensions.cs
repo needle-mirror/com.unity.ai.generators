@@ -58,27 +58,13 @@ namespace Unity.AI.Generators.Asset
             AssetDatabase.SetLabels(asset, labelList.ToArray());
             AssetDatabase.Refresh(); // Force refresh to ensure the label is applied, this is done very sparingly
 
-            if (Selection.activeObject != asset || asset is not AudioClip)
-                return;
-
-            _ = RefreshInspector();
-            return;
-
-            async Task RefreshInspector()
+            try
             {
-                if (Selection.activeObject != asset)
-                    return;
-
-                try
-                {
-                    Selection.activeObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets"); // null doesn't apparently force a refresh
-                    await EditorTask.Yield();
-                }
-                finally
-                {
-                    Selection.activeObject = asset;
-                }
+                // special asset inspector handling, not critical
+                if (asset is AudioClip)
+                    _ = RefreshInspector(asset);
             }
+            catch { /* ignored */ }
         }
 
         public static bool FixObjectName(this AssetReference asset)
@@ -143,7 +129,34 @@ namespace Unity.AI.Generators.Asset
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
             var asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
             asset.EnableGenerationLabel();
+
+            try
+            {
+                // special asset inspector handling, not critical
+                if (BrushAssetWrapper.IsBrushAsset(Selection.activeObject))
+                    _ = RefreshInspector(Selection.activeObject);
+                else if (BrushAssetWrapper.IsTerrainAsset(Selection.activeObject))
+                    BrushAssetWrapper.RefreshTerrainBrushes(AssetDatabase.LoadMainAssetAtPath(asset.GetPath()));
+            }
+            catch { /* ignored */ }
+
             return true;
+        }
+
+        static async Task RefreshInspector(UnityEngine.Object asset)
+        {
+            if (Selection.activeObject != asset)
+                return;
+
+            try
+            {
+                Selection.activeObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets"); // null doesn't apparently force a refresh
+                await EditorTask.Delay(50);
+            }
+            finally
+            {
+                Selection.activeObject = asset;
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 
 namespace Unity.AI.Material.Services.Stores.Slices
 {
@@ -23,7 +24,6 @@ namespace Unity.AI.Material.Services.Stores.Slices
                         state.generationSettings[action.context.asset] = slice(subState);
                     },
                     reducers => reducers
-                        .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
                         .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
@@ -47,11 +47,11 @@ namespace Unity.AI.Material.Services.Stores.Slices
                     if (state.generationSettings.ContainsKey(payload.payload))
                         state.generationSettings.Remove(payload.payload);
                     return state with { };
-                }),
+                })
+                .AddCase(ModelSelectorActions.setLastModelDiscoveryTimestamp).With((state, _) => state with { }),
             state => state with {
                 generationSettings = new SerializableDictionary<AssetReference, GenerationSetting>(
                     state.generationSettings.ToDictionary(kvp => kvp.Key, entry => entry.Value with {
-                        lastModelDiscoveryTime = entry.Value.lastModelDiscoveryTime,
                         selectedModels = new SerializableDictionary<RefinementMode, ModelSelection>(
                             entry.Value.selectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
                                 modelID = kvp.Value.modelID

@@ -7,6 +7,7 @@ using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.ModelSelector.Services.Stores.Actions;
 
 namespace Unity.AI.Image.Services.Stores.Slices
 {
@@ -26,7 +27,6 @@ namespace Unity.AI.Image.Services.Stores.Slices
                     reducers => reducers
                         .Add(GenerationSettingsActions.setGenerationPaneWidth, (state, payload) => state.generationPaneWidth = payload)
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
-                        .Add(GenerationSettingsActions.setLastModelDiscoveryTime, (state, payload) => state.lastModelDiscoveryTime = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
                         .Add(GenerationSettingsActions.setUnsavedAssetBytes, (state, payload) => state.ApplyUnsavedAssetBytes(payload))
                         .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt = payload)
@@ -71,11 +71,11 @@ namespace Unity.AI.Image.Services.Stores.Slices
                     if (state.generationSettings.ContainsKey(payload.payload))
                         state.generationSettings.Remove(payload.payload);
                     return state with { };
-                }),
+                })
+                .AddCase(ModelSelectorActions.setLastModelDiscoveryTimestamp).With((state, _) => state with { }),
             state => state with {
                 generationSettings = new SerializableDictionary<AssetReference, GenerationSetting>(
                     state.generationSettings.ToDictionary(kvp => kvp.Key, entry => entry.Value with {
-                        lastModelDiscoveryTime = entry.Value.lastModelDiscoveryTime,
                         selectedModels = new SerializableDictionary<RefinementMode, ModelSelection>(
                             entry.Value.selectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
                                 modelID = kvp.Value.modelID
@@ -104,4 +104,5 @@ namespace Unity.AI.Image.Services.Stores.Slices
                 )
             });
     }
+
 }

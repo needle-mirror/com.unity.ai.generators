@@ -1,3 +1,13 @@
+:root {
+    --favorite-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/d_Favorites.png");
+    --favorite-selected-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/d_FavoritesSelected.png");
+}
+
+.light-theme {
+    --favorite-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/Favorites.png");
+    --favorite-selected-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/FavoritesSelected.png");
+}
+
 .model-tile-icon {
     left: 10px;
     top: 10px;
@@ -10,4 +20,32 @@
 
 .model-tile.is-selected .border-selectable {
     border-color: var(--aitk-colors-selected);
+}
+.model-tile.is-selected .model-tile-icon {
+    background-color: var(--aitk-colors-selected);
+}
+
+.model-tile:hover .model-tile-favorite-button,
+.is-favorite .model-tile-favorite-button {
+    display: flex;
+    opacity: 0.8;
+}
+
+.is-favorite .model-tile-favorite-button {
+    opacity: 1;
+}
+
+.model-tile-favorite-button > .unity-image {
+    --unity-image: var(--favorite-icon);
+}
+
+.is-favorite .model-tile-favorite-button > .unity-image {
+    --unity-image: var(--favorite-selected-icon);
+}
+
+#favorite-spinner > .spinner {
+    min-width: 16px;
+    min-height: 16px;
+    max-width: 16px;
+    max-height: 16px;
 }

@@ -10,6 +10,7 @@
       * [Use custom seed to generate consistent sprites](xref:custom-seed)
       * [Remove unwanted elements with negative prompts](xref:negative-prompt)
       * [Generate and assign assets with the Object Picker](xref:asset-picker)
+      * [Choose the right model with the Model Picker](xref:model-picker)
 * [Texture2D Generator](xref:texture2d-overview)
    * [Generate Texture2D asset with a prompt](xref:generate-texture2d)
    * [Generate window](xref:generate-window)
@@ -31,3 +32,4 @@
    * [Use the PBR tab](xref:material-pbr)
    * [Use the Upscale tab](xref:material-upscale)
    * [Manage generated material](xref:material-manage)
+* [Terrain Layer Generator](xref:terrain-overview)

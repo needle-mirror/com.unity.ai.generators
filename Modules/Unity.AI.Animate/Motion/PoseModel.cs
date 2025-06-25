@@ -90,7 +90,13 @@ namespace Unity.AI.Animate.Motion
             {
                 var from = a.local[i];
                 var to = b.local[i];
-                local[i] = InterpolateRigid(from, to, t);
+
+                // Normalize quaternion for continuity before interpolation
+                var normalizedTo = new RigidTransform(
+                    MotionUtilities.NormalizeQuaternionContinuity(from.rot, to.rot),
+                    to.pos);
+
+                local[i] = InterpolateRigid(from, normalizedTo, t);
             }
         }
 

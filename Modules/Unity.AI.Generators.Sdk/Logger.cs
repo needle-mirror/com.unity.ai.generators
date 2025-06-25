@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -6,47 +7,53 @@ namespace Unity.AI.Generators.Sdk
 {
     class Logger : AiEditorToolsSdk.Domain.Abstractions.Services.ILogger
     {
-        readonly int m_MainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
-
         public void LogDebug(string message)
         {
-            if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                return;
             if (LoggerUtilities.sdkLogLevel == 0)
                 return;
-            Debug.Log(message);
+
+            EditorTask.RunOnMainThread(() =>
+            {
+                Debug.Log(message);
+            });
         }
 
         public void LogDebug(Exception exception, string message)
         {
-            if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                return;
             if (LoggerUtilities.sdkLogLevel == 0)
                 return;
-            Debug.Log(message);
-            LoggerUtilities.LogExceptionAsLog(exception);
+
+            EditorTask.RunOnMainThread(() =>
+            {
+                Debug.Log(message);
+                LoggerUtilities.LogExceptionAsLog(exception);
+            });
         }
         public void LogDebug(Exception exception)
         {
-            if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                return;
             if (LoggerUtilities.sdkLogLevel == 0)
                 return;
-            LoggerUtilities.LogExceptionAsLog(exception);
+
+            EditorTask.RunOnMainThread(() =>
+            {
+                LoggerUtilities.LogExceptionAsLog(exception);
+            });
         }
 
         public void LogPublicInformation(string message)
         {
-            if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                return;
-            Debug.Log(message);
+            EditorTask.RunOnMainThread(() =>
+            {
+                Debug.Log(message);
+            });
         }
 
         public void LogPublicError(string message)
         {
-            if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                return;
-            Debug.LogError(message);
+            EditorTask.RunOnMainThread(() =>
+            {
+                Debug.LogError(message);
+            });
         }
     }
 

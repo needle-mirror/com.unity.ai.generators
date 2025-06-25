@@ -142,7 +142,13 @@ namespace Unity.AI.Animate.Services.Utilities
                 return new GenerationMetadata { asset = asset.guid };
 
             return new GenerationMetadata
-                { prompt = setting.prompt, negativePrompt = setting.negativePrompt, model = setting.SelectSelectedModelID(), asset = asset.guid };
+            {
+                    prompt = setting.prompt,
+                    negativePrompt = setting.negativePrompt,
+                    model = setting.SelectSelectedModelID(),
+                    modelName = setting.SelectSelectedModelName(),
+                    asset = asset.guid
+            };
         }
 
         public static bool IsValid(this AnimationClipResult animationClipResult) => animationClipResult?.uri != null && animationClipResult.uri.IsAbsoluteUri;

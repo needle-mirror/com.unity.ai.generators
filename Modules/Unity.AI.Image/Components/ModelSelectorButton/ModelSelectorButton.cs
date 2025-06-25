@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.AI.Generators.Redux;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
@@ -6,6 +7,7 @@ using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -52,15 +54,7 @@ namespace Unity.AI.Image.Components
                     m_Button.SetEnabled(m_Enabled);
                 }
             });
-            // ReSharper disable once AsyncVoidLambda
-            this.UseStoreApi(async store =>
-            {
-                var success = await WebUtilities.WaitForCloudProjectSettings();
-                if (!success)
-                    return;
-                await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
-                this.Dispatch(GenerationSettingsActions.setLastModelDiscoveryTime, Time.time);
-            });
+            this.UseStoreApi(DiscoverModels);
             this.Use(state => state.SelectShouldAutoAssignModel(this), payload =>
             {
                 m_Button.SetEnabled(!payload.should);
@@ -71,6 +65,23 @@ namespace Unity.AI.Image.Components
                 if (!string.IsNullOrEmpty(autoAssignModel?.id))
                     this.Dispatch(GenerationSettingsActions.setSelectedModelID, (payload.mode, autoAssignModel.id));
             });
+        }
+
+        static bool s_Mutex = false;
+
+        async static void DiscoverModels(IStoreApi store)
+        {
+            try
+            {
+                while (s_Mutex)
+                    await EditorTask.Yield();
+                s_Mutex = true;
+                await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
+            }
+            finally
+            {
+                s_Mutex = false;
+            }
         }
     }
 }

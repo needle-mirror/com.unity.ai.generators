@@ -17,7 +17,6 @@ namespace Unity.AI.Image.Services.Stores.Actions
     {
         public static readonly string slice = "generationSettings";
 
-        public static AssetActionCreator<float> setLastModelDiscoveryTime => new($"{slice}/setLastModelDiscoveryTime");
         public static AssetActionCreator<(RefinementMode mode, string modelID)> setSelectedModelID => new($"{slice}/{nameof(setSelectedModelID)}");
         public static AssetActionCreator<string> setPrompt => new($"{slice}/setPrompt");
         public static AssetActionCreator<string> setNegativePrompt => new($"{slice}/setNegativePrompt");

@@ -24,12 +24,12 @@ namespace Unity.AI.Generators.UI.Actions
         public static Creator<AssetReference> removeGenerationFeedback => new($"{slice}/removeGenerationFeedback");
         public static Creator<GenerationsValidationResult> setGenerationValidationResult => new($"{slice}/setGenerationValidationResult");
 
-        public static Func<string> selectedEnvironment = null;
+        public static Func<AsyncThunkApi<bool>, string> selectedEnvironment = null;
 
-        public static void DispatchProgress(this AsyncThunkApi<bool> api, AssetReference asset, GenerationProgressData payload, string description,
-            EditorFocusScope editorFocus = null)
+        public static void DispatchProgress(this AsyncThunkApi<bool> api, AssetReference asset, GenerationProgressData payload, string description, bool backgroundReport = true)
         {
-            editorFocus?.ShowProgressOrCancelIfUnfocused("Editor background worker", description, payload.progress);
+            if (backgroundReport)
+                EditorFocusScope.ShowProgressOrCancelIfUnfocused("Editor background worker", description, payload.progress);
 
             if (payload.taskID > 0)
                 Progress.Report(payload.taskID, payload.progress, description);
@@ -87,7 +87,7 @@ namespace Unity.AI.Generators.UI.Actions
         {
             var selectedEnv = string.Empty;
             if (selectedEnvironment != null)
-                selectedEnv = selectedEnvironment();
+                selectedEnv = selectedEnvironment(api);
 
             api.Dispatch(setGenerationAllowed, new(asset, true));
             var messages = result.Errors.Count == 0
@@ -111,7 +111,7 @@ namespace Unity.AI.Generators.UI.Actions
         {
             var selectedEnv = string.Empty;
             if (selectedEnvironment != null)
-                selectedEnv = selectedEnvironment();
+                selectedEnv = selectedEnvironment(api);
 
             var messages = result.Errors.Count == 0
                 ? new[] { $"Received '{result.AiResponseError.ToString()}' from url '{selectedEnv}'." }

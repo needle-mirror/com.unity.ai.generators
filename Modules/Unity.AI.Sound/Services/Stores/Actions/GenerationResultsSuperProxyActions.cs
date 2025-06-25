@@ -181,7 +181,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<GenerateAudioData> generateAudioClips = new($"{GenerationResultsActions.slice}/generateAudioClipsSuperProxy", async (arg, api) =>
         {
-            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true);
+            using var editorFocus = new EditorFocusScope();
 
             var asset = new AssetReference { guid = arg.asset.guid };
 
@@ -193,7 +193,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.taskID, i)).ToList()));
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0f);
-            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
@@ -203,7 +203,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.");
 
             var duration = generationSetting.SelectGenerableDuration();
             var prompt = generationSetting.SelectPrompt();
@@ -230,7 +230,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.01f, 0.25f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for sound.", editorFocus),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for sound."),
                     1, progressTokenSource1.Token);
 
                 // fixme: if overwriteSoundReferenceAsset is false AND we have a recording I don't think this works, should work more like a doodle
@@ -281,7 +281,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -310,7 +310,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAudioData> downloadAudioClips = new($"{GenerationResultsActions.slice}/downloadAudioClipsSuperProxy", async (arg, api) =>
         {
-            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true);
+            using var editorFocus = new EditorFocusScope();
 
             var variations = arg.ids.Count;
 
@@ -319,7 +319,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0.25f);
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
@@ -329,7 +329,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
             List<AudioClipResult> generatedAudioClips;
 
@@ -338,13 +338,11 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true, defaultOperationTimeout: Constants.noTimeout);
             var assetComponent = builder.AssetComponent();
 
-            _ = EditorFocus.UpdateEditorAsync("Waiting for server...", TimeSpan.FromMilliseconds(50));
-
             using var progressTokenSource2 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
-                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus),
+                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource2.Token);
 
                 var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
@@ -376,7 +374,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -400,14 +398,12 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     backupSuccess = await arg.asset.SaveToGeneratedAssets();
             }
 
-            _ = EditorFocus.UpdateEditorAsync("Downloading results...", TimeSpan.FromMilliseconds(50));
-
             // cache
             using var progressTokenSource4 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.95f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results.", editorFocus),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."),
                     1, progressTokenSource4.Token);
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
@@ -426,7 +422,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -441,7 +437,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 try
                 {
                     _ = ProgressUtils.RunFuzzyProgress(0.95f, 0.99f,
-                        value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Processing results.", editorFocus),
+                        value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Processing results."),
                         1, progressTokenSource5.Token);
 
                     var postProcessTasks = arg.generationMetadata.hasReference
@@ -463,13 +459,10 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     api.Dispatch(GenerationResultsActions.setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(arg.asset, true));
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
             // if you got here, no need to keep the potentially interrupted download
             GenerationRecoveryUtils.RemoveInterruptedDownload(arg);
-
-            // ensure the file system watcher looks at the generations
-            GenerationFileSystemWatcher.EnsureFocus();
         });
     }
 }

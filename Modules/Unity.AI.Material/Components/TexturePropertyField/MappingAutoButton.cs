@@ -22,7 +22,10 @@ namespace Unity.AI.Material.Components
 
             var button = this.Q<Button>();
             if (button != null)
+            {
                 button.clickable = new Clickable(() => this.Dispatch(GenerationResultsActions.autodetectMaterialMapping, new(this.GetAsset(), true)));
+                button.AddStyleSheetBasedOnEditorSkin();
+            }
         }
     }
 }

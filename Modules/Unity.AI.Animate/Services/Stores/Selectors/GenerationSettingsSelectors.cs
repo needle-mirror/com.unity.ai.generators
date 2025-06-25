@@ -43,6 +43,22 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             return setting.selectedModels.Ensure(mode).modelID;
         }
 
+        public static string SelectSelectedModelName(this GenerationSetting setting)
+        {
+            // The model settings are shared between all generation settings. We can use the modelID to find the model.
+            // Normally we try to use the store from the window context, but here we have a design flaw and will
+            // use the shared store instead of modifying the setting argument which could be risky for serialization and dictionary lookups.
+            // Suggestion: we could add an overload to MakeMetadata that takes the store as an argument and passes it here
+            var store = SessionPersistence.SharedStore.Store;
+            if (store?.State == null)
+                return null;
+
+            var modelID = setting.SelectSelectedModelID();
+            var modelSettings = store.State.SelectModelSettingsWithModelId(modelID);
+
+            return modelSettings?.name;
+        }
+
         public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
         {
             var mode = state.SelectRefinementMode(asset);
@@ -99,13 +115,14 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             if (!string.IsNullOrEmpty(generationMetadata.negativePrompt))
                 text += $"Negative prompt: {generationMetadata.negativePrompt}\n";
 
-            if (!string.IsNullOrEmpty(generationMetadata.model))
+            var modelSettings = state.SelectModelSettings(generationMetadata);
+            if (!string.IsNullOrEmpty(modelSettings?.name))
             {
-                var modelSettings = state.SelectModelSettings(generationMetadata);
-                if (!string.IsNullOrEmpty(modelSettings?.name))
-                {
-                    text += $"Model: {modelSettings.name}\n";
-                }
+                text += $"Model: {modelSettings.name}\n";
+            }
+            else if(!string.IsNullOrEmpty(generationMetadata.modelName))
+            {
+                text += $"Model: {generationMetadata.modelName}\n";
             }
 
             text = text.TrimEnd();
@@ -178,7 +195,8 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
             var referenceCount = state.SelectActiveReferencesCount(element);
-            return new GenerationValidationSettings(asset, asset.Exists(), prompt, model, duration, variations, mode, referenceCount);
+            var modelsTimeStamp = ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, model, duration, variations, mode, referenceCount, modelsTimeStamp);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

@@ -9,7 +9,7 @@ using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;
 
-namespace Unity.AI.ImageEditor.Services.Utilities
+namespace Unity.AI.Image.Services.Utilities
 {
     [Serializable]
     record InterruptedDownloadData : IInterruptedDownloadData
@@ -41,7 +41,7 @@ namespace Unity.AI.ImageEditor.Services.Utilities
         [MenuItem(k_LoadInterruptedDownloads, false, 1000)]
         static void ReLoadInterruptedDownloads() => EditorUtility.RequestScriptReload();
 
-        static SerializableDictionary<string, List<InterruptedDownloadData>> s_InterruptedDownloadsByEnv;
+        internal static SerializableDictionary<string, List<InterruptedDownloadData>> s_InterruptedDownloadsByEnv;
 
         static GenerationRecoveryUtils() => LoadInterruptedDownloads();
 
@@ -121,7 +121,7 @@ namespace Unity.AI.ImageEditor.Services.Utilities
             }
         }
 
-        static void SaveInterruptedDownloads()
+        internal static void SaveInterruptedDownloads()
         {
             var json = JsonUtility.ToJson(s_InterruptedDownloadsByEnv, true);
             var directory = System.IO.Path.GetDirectoryName(InterruptedDownloadsFilePath);

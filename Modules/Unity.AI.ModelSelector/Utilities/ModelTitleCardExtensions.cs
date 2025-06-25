@@ -39,6 +39,9 @@ namespace Unity.AI.ModelSelector.Services.Utilities
             {
                 modelProviderIcon.image = AssetDatabase.LoadAssetAtPath<Texture2D>(k_UnityLogo);
                 modelProviderIcon.EnableInClassList("hide", model.provider != ProviderEnum.Unity);
+
+                card.AddStyleSheetBasedOnEditorSkin();
+                modelProviderIcon.EnableInClassList("icon-tint-primary-color", model.provider == ProviderEnum.Unity);
             }
 
             switch (model.provider)

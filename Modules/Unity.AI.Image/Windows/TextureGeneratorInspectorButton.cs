@@ -24,6 +24,9 @@ namespace Unity.AI.Image.Windows
 
         [MenuItem("Assets/Create/2D/Generate Sprite", true)]
         static bool ValidateEmpty2dSpriteMenu() => Account.settings.AiGeneratorsEnabled;
+#else
+        [MenuItem("Assets/Create/2D/Sprites/Generate Sprite", true)]
+        static bool ValidateEmpty2dSpriteEnhancersMenu() => Account.settings.AiGeneratorsEnabled;
 #endif
         [MenuItem("Assets/Create/Rendering/Generate Sprite", false, -1000)] // menuitem required for Unity.AI.Generators.UI.AIDropdownIntegrations
         public static void EmptySpriteMenu() => CreateAndNameSprite();

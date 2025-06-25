@@ -19,6 +19,7 @@ Toolbar {
     background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Play.png");
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
+    background-size: 80% 80%;
 }
 
 .toolbar-play.is-selected {
@@ -32,35 +33,35 @@ Toolbar {
     background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/AudioLoopOff.png");
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
-    background-size: 80% 80%;
+    background-size: 70% 70%;
 }
 
 .toolbar-loop.is-selected {
     background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/AudioLoopOn.png");
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
-    background-size: 80% 80%;
+    background-size: 70% 70%;
 }
 
 .toolbar-envelope {
     background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Envelope.png");
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
-    background-size: 90% 90%;
+    background-size: 80% 80%;
 }
 
 .toolbar-trim {
     background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Trim.png");
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
-    background-size: 90% 90%;
+    background-size: 80% 80%;
 }
 
 .toolbar-save {
-    background-image: resource("Packages/com.unity.ai.generators/Modules/Unity.AI.Sound/Icons/Save.png");
+    background-image: resource("Save");
     -unity-background-scale-mode: scale-to-fit;
     -unity-background-image-tint-color: var(--unity-colors-default-text);
-    background-size: 90% 90%;
+    background-size: 80% 80%;
     margin-right: 24px;
 }
 
@@ -72,7 +73,11 @@ Toolbar {
     height: 18px;
 }
 
-.time-ruler,
 .zoom-button {
-    font-size: 14px;
+    height: 100%;
+    padding: 4px;
+}
+
+SoundEnvelopeZoomButton {
+    margin: 3px;
 }

@@ -9,7 +9,6 @@ using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
-using Unity.AI.ImageEditor.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;

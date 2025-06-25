@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -124,7 +125,19 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             elements[nextIndex].Focus();
+        }
 
+        public static void AddStyleSheetBasedOnEditorSkin(this VisualElement element)
+        {
+            var styleSheetPath = "Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/StyleSheets/ColorsUtilitiesLight.uss";
+            if (EditorGUIUtility.isProSkin)
+                styleSheetPath = "Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/StyleSheets/ColorsUtilitiesDark.uss";
+
+            var styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(styleSheetPath);
+            if (!element.styleSheets.Contains(styleSheet))
+            {
+                element.styleSheets.Add(styleSheet);
+            }
         }
     }
 }

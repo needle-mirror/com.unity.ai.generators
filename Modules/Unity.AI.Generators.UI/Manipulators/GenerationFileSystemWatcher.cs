@@ -140,7 +140,5 @@ namespace Unity.AI.Generators.UI
             m_RebuildCancellationTokenSource?.Dispose();
             m_RebuildCancellationTokenSource = null;
         }
-
-        public static void EnsureFocus() => _ = EditorFocus.UpdateEditorAsync("Previewing generation(s)...", TimeSpan.FromSeconds(1));
     }
 }

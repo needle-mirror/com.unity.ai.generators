@@ -10,6 +10,7 @@ namespace Unity.AI.Generators.UI.Utilities
         public string prompt;
         public string negativePrompt;
         public string model;
+        public string modelName;
         public int customSeed = -1;
         public string w3CTraceId;
     }

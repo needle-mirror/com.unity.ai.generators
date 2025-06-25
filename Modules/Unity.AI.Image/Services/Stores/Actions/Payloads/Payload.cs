@@ -33,7 +33,8 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
         RefinementMode mode,
         int activeReferencesBitmask,
         int validReferencesBitmask,
-        long baseImageBytesTimeStampUtcTicks) : AsssetContext(asset);
+        long baseImageBytesTimeStampUtcTicks,
+        long modelsSelectorTimeStampUtcTicks) : AsssetContext(asset);
     record GenerationTextures(AssetReference asset, List<TextureResult> textures) : AsssetContext(asset);
     record GenerationSkeletons(AssetReference asset, List<TextureSkeleton> skeletons) : AsssetContext(asset);
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);

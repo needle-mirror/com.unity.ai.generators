@@ -8,10 +8,9 @@ namespace Unity.AI.Material.Services.Stores.States
     record GenerationSetting
     {
         public SerializableDictionary<RefinementMode, ModelSelection> selectedModels = new();
-        public float lastModelDiscoveryTime = 0;
         public string prompt = "";
         public string negativePrompt = "";
-        public int variationCount = 2;
+        public int variationCount = 1;
         public bool useCustomSeed;
         public int customSeed;
         public RefinementMode refinementMode;

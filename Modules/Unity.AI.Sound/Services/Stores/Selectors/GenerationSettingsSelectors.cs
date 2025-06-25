@@ -36,6 +36,22 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 
         public static string SelectSelectedModelID(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).selectedModelID;
 
+        public static string SelectSelectedModelName(this GenerationSetting setting)
+        {
+            // The model settings are shared between all generation settings. We can use the modelID to find the model.
+            // Normally we try to use the store from the window context, but here we have a design flaw and will
+            // use the shared store instead of modifying the setting argument which could be risky for serialization and dictionary lookups.
+            // Suggestion: we could add an overload to MakeMetadata that takes the store as an argument and passes it here
+            var store = SessionPersistence.SharedStore.Store;
+            if (store?.State == null)
+                return null;
+
+            var modelID = setting.selectedModelID;
+            var modelSettings = store.State.SelectModelSettingsWithModelId(modelID);
+
+            return modelSettings?.name;
+        }
+
         public static (bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
             (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Sound }, null),
                 timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
@@ -70,13 +86,14 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             if (!string.IsNullOrEmpty(generationMetadata.negativePrompt))
                 text += $"Negative prompt: {generationMetadata.negativePrompt}\n";
 
-            if (!string.IsNullOrEmpty(generationMetadata.model))
+            var modelSettings = state.SelectModelSettings(generationMetadata);
+            if (!string.IsNullOrEmpty(modelSettings?.name))
             {
-                var modelSettings = state.SelectModelSettings(generationMetadata);
-                if (!string.IsNullOrEmpty(modelSettings?.name))
-                {
-                    text += $"Model: {modelSettings.name}\n";
-                }
+                text += $"Model: {modelSettings.name}\n";
+            }
+            else if(!string.IsNullOrEmpty(generationMetadata.modelName))
+            {
+                text += $"Model: {generationMetadata.modelName}\n";
             }
 
             text = text.TrimEnd();
@@ -189,7 +206,8 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             var duration = settings.SelectRoundedFrameDuration();
             var variations = settings.SelectVariationCount();
             var referenceCount = state.SelectActiveReferencesCount(element);
-            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, duration, variations, referenceCount);
+            var modelsTimeStamp = ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state);
+            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, duration, variations, referenceCount, modelsTimeStamp);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;

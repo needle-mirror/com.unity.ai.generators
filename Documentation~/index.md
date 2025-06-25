@@ -11,7 +11,7 @@ Generators is a set of tools to create AI-generated assets from text input. Gene
 Before you can use the **AI** menu and tools in the Unity Editor, ensure that:
 
 * Your project is using Unity 6.2 (6000.2).
-* You [agreed and accepted](https://docs.unity3d.com/6000.2/Documentation/Manual/ai-menu.html) the terms and conditions on the **AI** menu in the Unity Editor.
+* You agreed and accepted the terms and conditions on the **AI** menu in the Unity Editor.
 
 For more information, refer to [AI menu in Unity Editor](https://docs.unity3d.com/6000.2/Documentation/Manual/ai-menu.html).
 
@@ -25,6 +25,7 @@ Use the following topics to get started with using Generators.
 | [Sound Generator](xref:sound-intro) | Learn how to create custom audio clips from text-to-sound models or reference audio clips. |
 | [Animation Generator](xref:animation-intro) | Learn how to create animation clips directly from text or video inputs. |
 | [Material Generator](xref:material-overview) | Learn how to create realistic materials for 3D objects based on text-based prompts and reference images. |
+| [Terrain Layer Generator](xref:terrain-overview) | Learn how to generate and apply Terrain-compatible materials directly to Unity Terrain Layers with text-based prompts. |
 
 ## Additional resources
 

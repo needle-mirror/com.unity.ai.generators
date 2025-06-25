@@ -149,7 +149,7 @@ namespace Unity.AI.Generators.Asset
         /// <param name="title">Window title</param>
         /// <typeparam name="T">Window type</typeparam>
         /// <returns></returns>
-        public static T CreateAssetWindow<T>(AssetReference asset, string title = null) where T: EditorWindow, IAssetEditorWindow
+        public static T CreateAssetWindow<T>(AssetReference asset, string title = null, bool useAiIcon = true) where T: EditorWindow, IAssetEditorWindow
         {
             T window = null;
             var windows = Resources.FindObjectsOfTypeAll<T>();
@@ -168,10 +168,14 @@ namespace Unity.AI.Generators.Asset
             {
                 window.SetAssetContext(asset);
             }
+
             if (!s_Icon)
                 s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
 
-            window.titleContent = new GUIContent(title, s_Icon);
+            if(useAiIcon)
+                window.titleContent = new GUIContent(title, s_Icon);
+            else
+                window.titleContent = new GUIContent(title);
 
             return window;
         }
@@ -184,7 +188,7 @@ namespace Unity.AI.Generators.Asset
         /// <param name="storeOwner">Is this window the store owner</param>
         /// <typeparam name="T">Window type</typeparam>
         /// <returns></returns>
-        public static T CreateWindow<T>(IStore store, string title = null, bool storeOwner = true) where T: EditorWindow
+        public static T CreateWindow<T>(IStore store, string title = null, bool storeOwner = true, bool useAiIcon = true) where T: EditorWindow
         {
             T window = null;
             var windows = Resources.FindObjectsOfTypeAll<T>();
@@ -200,7 +204,7 @@ namespace Unity.AI.Generators.Asset
             }
             if (store != null)
                 window.rootVisualElement.ProvideContext(StoreExtensions.storeKey, store);
-            if (!s_Icon)
+            if (useAiIcon && !s_Icon)
                 s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
             window.titleContent = new GUIContent(title, s_Icon);
 
@@ -216,7 +220,7 @@ namespace Unity.AI.Generators.Asset
         /// <param name="storeOwner">Is this window the store owner</param>
         /// <typeparam name="T">Window type</typeparam>
         /// <returns></returns>
-        public static T CreateWindow<T>(IStore store, AssetReference asset, string title = null, bool storeOwner = true) where T: EditorWindow
+        public static T CreateWindow<T>(IStore store, AssetReference asset, string title = null, bool storeOwner = true, bool useAiIcon = true) where T: EditorWindow
         {
             T window = null;
             var windows = Resources.FindObjectsOfTypeAll<T>();
@@ -231,7 +235,7 @@ namespace Unity.AI.Generators.Asset
                     window.rootVisualElement.RegisterCallback<DetachFromPanelEvent>(_ => ((Store)store)?.Dispose());
             }
             window.rootVisualElement.ProvideContext(StoreExtensions.storeKey, store);
-            if (!s_Icon)
+            if (useAiIcon && !s_Icon)
                 s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
             window.titleContent = new GUIContent(title, s_Icon);
             window.SetAssetContext(asset);

@@ -88,11 +88,38 @@ namespace Unity.AI.Animate.Motion
                 muscleName = FixHandMuscleName(muscleName);
                 clip.SetCurve("", typeof(Animator), muscleName, muscleCurves[i]);
             }
-
-            // Ensure we fix quaternion boundary issues
-            clip.EnsureQuaternionContinuity();
         }
-        
+
+        /// <summary>
+        /// Ensures quaternion continuity by flipping quaternions if needed to ensure
+        /// the shortest interpolation path. This helps prevent quaternion flips in animations.
+        /// </summary>
+        /// <param name="quaternions">Array of quaternions to normalize</param>
+        public static void EnsureQuaternionContinuity(Quaternion[] quaternions)
+        {
+            if (quaternions is not { Length: > 1 })
+                return;
+
+            for (var i = 1; i < quaternions.Length; i++)
+            {
+                // Calculate dot product between adjacent quaternions
+                var dot = Quaternion.Dot(quaternions[i-1], quaternions[i]);
+
+                // If dot product is negative, the quaternions are in opposite hemispheres
+                // Flip the current quaternion to ensure smooth interpolation
+                if (dot < 0f)
+                {
+                    quaternions[i] = new Quaternion(-quaternions[i].x, -quaternions[i].y, -quaternions[i].z, -quaternions[i].w);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures quaternion continuity relative to a reference quaternion
+        /// </summary>
+        public static Quaternion NormalizeQuaternionContinuity(Quaternion reference, Quaternion target) =>
+            Quaternion.Dot(reference, target) < 0f ? new Quaternion(-target.x, -target.y, -target.z, -target.w) : target;
+
         /// <summary>
         /// Transforms standard muscle names to Unity's expected format for finger muscles.
         /// e.g.: "Left Index 1 Stretched" becomes "LeftHand.Index.1 Stretched"
@@ -105,13 +132,13 @@ namespace Unity.AI.Animate.Motion
             newName = newName.Replace("Left Ring ", "LeftHand.Ring.");
             newName = newName.Replace("Left Thumb ", "LeftHand.Thumb.");
             newName = newName.Replace("Left Little ", "LeftHand.Little.");
-            
+
             newName = newName.Replace("Right Index ", "RightHand.Index.");
             newName = newName.Replace("Right Middle ", "RightHand.Middle.");
             newName = newName.Replace("Right Ring ", "RightHand.Ring.");
             newName = newName.Replace("Right Thumb ", "RightHand.Thumb.");
             newName = newName.Replace("Right Little ", "RightHand.Little.");
-            
+
             return newName;
         }
     }

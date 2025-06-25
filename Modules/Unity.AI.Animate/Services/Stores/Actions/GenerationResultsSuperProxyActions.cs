@@ -197,7 +197,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.taskID, i)).ToList()));
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0f);
-            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.", null);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
@@ -205,7 +205,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 return;
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.", null);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.");
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
@@ -218,7 +218,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     try
                     {
                         _ = ProgressUtils.RunFuzzyProgress(0.01f, 0.15f,
-                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Converting video.", null),
+                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Converting video.",
+                                false), // video conversion does its own background reporting
                             1, progressTokenSource0.Token);
 
                         var videoClip = videoReference.asset.GetObject<VideoClip>();
@@ -237,7 +238,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     }
                     catch
                     {
-                        api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", null);
+                        api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                         throw;
                     }
                     finally
@@ -247,7 +248,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 }
             }
 
-            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true); // start focus control late because the video conversion does its own focus control (above)
+            using var editorFocus = new EditorFocusScope(); // start focus control late because the video conversion does its own focus control (above)
 
             var ids = new List<Guid>();
             int[] customSeeds = {};
@@ -255,7 +256,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.25f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for motion.", editorFocus),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for motion."),
                     1, progressTokenSource2.Token);
 
                 var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
@@ -306,7 +307,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -334,7 +335,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAnimationsData> downloadAnimationClips = new($"{GenerationResultsActions.slice}/downloadAnimationsSuperProxy", async (arg, api) =>
         {
-            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true);
+            using var editorFocus = new EditorFocusScope();
 
             var variations = arg.ids.Count;
 
@@ -343,7 +344,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0.25f);
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
@@ -353,7 +354,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
             List<AnimationClipResult> generatedAnimationClips;
 
@@ -362,13 +363,11 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true, defaultOperationTimeout: Constants.noTimeout);
             var assetComponent = builder.AssetComponent();
 
-            _ = EditorFocus.UpdateEditorAsync("Waiting for server...", TimeSpan.FromMilliseconds(50));
-
             using var progressTokenSource2 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
-                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus),
+                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource2.Token);
 
                 var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
@@ -400,7 +399,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -424,14 +423,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     backupSuccess = await arg.asset.SaveToGeneratedAssets();
             }
 
-            _ = EditorFocus.UpdateEditorAsync("Downloading results...", TimeSpan.FromMilliseconds(50));
-
             // cache
             using var progressTokenSource4 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results.", editorFocus),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."),
                     1, progressTokenSource4.Token);
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
@@ -450,7 +447,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -467,13 +464,10 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     api.Dispatch(GenerationResultsActions.setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(arg.asset, true));
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
             // if you got here, no need to keep the potentially interrupted download
             GenerationRecoveryUtils.RemoveInterruptedDownload(arg);
-
-            // ensure the file system watcher looks at the generations
-            GenerationFileSystemWatcher.EnsureFocus();
         });
     }
 }

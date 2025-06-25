@@ -24,8 +24,13 @@ namespace Unity.AI.Generators.Sdk
 
         public async Task<Result<string>> ForceRefreshToken()
         {
+            return await EditorTask.RunOnMainThread(async () => await ForceRefreshTokenInternal());
+        }
+
+        async Task<Result<string>> ForceRefreshTokenInternal()
+        {
             if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                return await GetToken();
+                throw new InvalidOperationException("ForceRefreshTokenInternal must be called from the main thread.");
 
             var tcs = new TaskCompletionSource<bool>();
             CloudProjectSettings.RefreshAccessToken(callbackStatus => tcs.TrySetResult(callbackStatus));
@@ -59,8 +64,10 @@ namespace Unity.AI.Generators.Sdk
             return Result<string>.Fail();
         }
 
-        public Task<Result<string>> GetToken() => Task.FromResult(System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId
-            ? Result<string>.Ok(m_Token)
-            : Result<string>.Ok(m_Token = CloudProjectSettings.accessToken));
+        public async Task<Result<string>> GetToken()
+        {
+            return await EditorTask.RunOnMainThread(
+                () => Task.FromResult(Result<string>.Ok(m_Token = CloudProjectSettings.accessToken)));
+        }
     }
 }

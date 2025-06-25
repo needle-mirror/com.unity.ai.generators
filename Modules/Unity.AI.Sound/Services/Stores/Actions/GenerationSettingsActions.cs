@@ -17,7 +17,6 @@ namespace Unity.AI.Sound.Services.Stores.Actions
     {
         public static readonly string slice = "generationSettings";
 
-        public static AssetActionCreator<float> setLastModelDiscoveryTime => new($"{slice}/setLastModelDiscoveryTime");
         public static AssetActionCreator<string> setSelectedModelID => new($"{slice}/setSelectedModelID");
         public static AssetActionCreator<string> setPrompt => new($"{slice}/{nameof(setPrompt)}");
         public static AssetActionCreator<string> setNegativePrompt => new($"{slice}/{nameof(setNegativePrompt)}");

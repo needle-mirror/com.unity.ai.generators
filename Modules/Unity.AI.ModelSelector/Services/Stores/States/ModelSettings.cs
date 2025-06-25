@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using AiEditorToolsSdk.Components.Common.Enums;
-using Unity.AI.Generators.UI.Utilities;
 
 namespace Unity.AI.ModelSelector.Services.Stores.States
 {
@@ -30,5 +29,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public List<ImageDimensions> imageSizes = new[]{ new ImageDimensions { width = 1024, height = 1024 } }.ToList();
         public string baseModelId;
         public bool isFavorite;
+        public bool favoriteProcessing;
     }
 }

@@ -109,6 +109,14 @@ namespace Unity.AI.Image.Windows
         {
             m_ModelSettings = m_Store?.State?.SelectModelSettings(m_GenerationMetadata);
             var modelName = m_ModelSettings?.name;
+            if (string.IsNullOrEmpty(modelName))
+            {
+                if(!string.IsNullOrEmpty(m_GenerationMetadata.modelName))
+                    modelName = m_GenerationMetadata.modelName;
+                else
+                    modelName = "Invalid Model";
+            }
+
             var modelContainer = this.Q<VisualElement>(className: "model-container");
             var modelMetadata = this.Q<Label>("model-metadata");
             var modelCopyButton = this.Q<Button>("copy-model-button");
@@ -117,10 +125,11 @@ namespace Unity.AI.Image.Windows
             modelMetadata.text = modelName;
             modelCopyButton.clicked += () =>
             {
-                EditorGUIUtility.systemCopyBuffer = m_ModelSettings?.id;
+                EditorGUIUtility.systemCopyBuffer = m_GenerationMetadata?.model;
             };
             modelUseButton.clicked += UseModel;
-            modelContainer.EnableInClassList("hidden", string.IsNullOrEmpty(m_ModelSettings?.id));
+            modelUseButton.SetEnabled(m_ModelSettings.IsValid());
+            modelContainer.EnableInClassList("hidden", string.IsNullOrEmpty(modelName));
         }
 
         void InitPrompt()

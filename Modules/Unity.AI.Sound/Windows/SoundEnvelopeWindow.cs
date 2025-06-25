@@ -17,7 +17,7 @@ namespace Unity.AI.Sound.Windows
         public static void Display(string assetPath)
         {
             var asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
-            var window = EditorWindowExtensions.CreateAssetWindow<SoundEnvelopeWindow>(asset, $"Edit {Path.GetFileNameWithoutExtension(assetPath)}");
+            var window = EditorWindowExtensions.CreateAssetWindow<SoundEnvelopeWindow>(asset, $"Edit {Path.GetFileNameWithoutExtension(assetPath)}", false);
             window.minSize = new Vector2(640, 480);
             window.maxSize = new Vector2(3840, 2160);
             window.Show();
@@ -79,10 +79,7 @@ namespace Unity.AI.Sound.Windows
 
         void OnEnable()
         {
-            var aiIcon = EditorGUIUtility.FindTexture("AISparkle Icon");
-            if(aiIcon != null)
-                titleContent.image = aiIcon;
-
+            titleContent.image = null;
             AssetRenameWatcher.OnAssetMoved += OnAssetMoved;
         }
 

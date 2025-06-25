@@ -4,7 +4,7 @@ uid: material-overview
 
 # Material Generator
 
-Material Generator uses machine learning to create realistic materials for 3D objects based on text-based prompts and reference images. You can simulate lifelike surfaces, such as wood, metal, brick, and others. 
+Material Generator uses machine learning to create realistic materials for 3D objects based on text-based prompts and reference images. You can simulate lifelike surfaces, such as wood, metal, brick, and others.
 
 You can apply the generated materials directly to objects in your **Scene** view and adjust them using different material maps and settings.
 
@@ -23,3 +23,4 @@ Use the following topics to get started with using Material Generator.
 
 * [Generate material with a prompt](xref:material-generate-prompt)
 * [Use the PBR tab](xref:material-pbr)
+* [Terrain Layer Generator](xref:terrain-overview)

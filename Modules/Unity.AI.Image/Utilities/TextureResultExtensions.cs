@@ -94,6 +94,7 @@ namespace Unity.AI.Image.Services.Utilities
                         negativePrompt = setting.negativePrompt,
                         refinementMode = setting.refinementMode.ToString(),
                         model = setting.SelectSelectedModelID(),
+                        modelName = setting.SelectSelectedModelName(),
                         asset = asset.guid,
                         customSeed = customSeed,
                         doodles = GetDoodlesForGenerationMetadata(setting).ToArray()

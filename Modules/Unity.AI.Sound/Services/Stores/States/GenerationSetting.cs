@@ -7,10 +7,9 @@ namespace Unity.AI.Sound.Services.Stores.States
     record GenerationSetting
     {
         public string selectedModelID = "";
-        public float lastModelDiscoveryTime = 0;
         public string prompt = "";
         public string negativePrompt = "";
-        public int variationCount = 4;
+        public int variationCount = 1;
         public float duration = 10;
         public bool useCustomSeed;
         public int customSeed;

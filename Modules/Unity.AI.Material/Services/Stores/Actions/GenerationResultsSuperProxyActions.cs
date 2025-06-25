@@ -218,7 +218,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<GenerateMaterialsData> generateMaterialsSuperProxy = new($"{GenerationResultsActions.slice}/generateMaterialSuperProxy", async (arg, api) =>
         {
-            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true);
+            using var editorFocus = new EditorFocusScope();
 
             var asset = new AssetReference { guid = arg.asset.guid };
 
@@ -232,7 +232,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, Enumerable.Range(0, variations).Select(i => new MaterialSkeleton(arg.taskID, i)).ToList()));
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0f);
-            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
@@ -242,7 +242,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.");
 
             var prompt = generationSetting.SelectPrompt();
             var negativePrompt = generationSetting.SelectNegativePrompt();
@@ -273,7 +273,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     case RefinementMode.Upscale:
                     {
                         _ = ProgressUtils.RunFuzzyProgress(0.02f, 0.25f,
-                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for upscale.", editorFocus),
+                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for upscale."),
                             1, progressTokenSource0.Token);
 
                         await using var assetStream = await ReferenceAssetStream(api.State, asset);
@@ -320,7 +320,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     case RefinementMode.Pbr:
                     {
                         _ = ProgressUtils.RunFuzzyProgress(0.02f, 0.25f,
-                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for pbr.", editorFocus),
+                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for pbr."),
                             1, progressTokenSource0.Token);
 
                         await using var assetStream = await PromptAssetStream(api.State, asset);
@@ -375,7 +375,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     case RefinementMode.Generation:
                     {
                         _ = ProgressUtils.RunFuzzyProgress(0.02f, 0.25f,
-                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for albedo.", editorFocus),
+                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request for albedo."),
                             1, progressTokenSource0.Token);
 
                         // Generate
@@ -430,7 +430,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             {
                 AbortCleanup(materialGenerations);
 
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -465,7 +465,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<DownloadMaterialsData> downloadMaterialsSuperProxy = new($"{GenerationResultsActions.slice}/downloadMaterialsSuperProxy", async (arg, api) =>
         {
-            using var editorFocus = new EditorFocusScope(onlyWhenPlayingPaused: true);
+            using var editorFocus = new EditorFocusScope();
 
             var variations = arg.ids.Count;
 
@@ -474,7 +474,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             var progress = new GenerationProgressData(arg.taskID, variations, 0.25f);
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
@@ -484,7 +484,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
             var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
                 projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
@@ -493,13 +493,11 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             Dictionary<Guid, Dictionary<MapType, TextureResult>> generatedTextures;
 
-            _ = EditorFocus.UpdateEditorAsync("Waiting for server...", TimeSpan.FromMilliseconds(50));
-
             using var progressTokenSource3 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
-                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.", editorFocus),
+                    _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource3.Token);
 
                 var jobIdList = arg.ids
@@ -542,7 +540,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             }
             catch
             {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.", editorFocus);
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }
             finally
@@ -564,14 +562,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             List<MaterialResult> generatedMaterials;
 
-            _ = EditorFocus.UpdateEditorAsync("Downloading results...", TimeSpan.FromMilliseconds(50));
-
             // cache
             using var progressTokenSource4 = new CancellationTokenSource();
             try
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results.", editorFocus),
+                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."),
                     1, progressTokenSource4.Token);
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
@@ -638,15 +634,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     api.Dispatch(GenerationResultsActions.setReplaceWithoutConfirmation, new ReplaceWithoutConfirmationData(arg.asset, true));
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.", editorFocus);
+            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
             // if you got here, no need to keep the potentially interrupted download
             foreach (var generatedMaterial in arg.ids)
                 GenerationRecoveryUtils.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
             GenerationRecoveryUtils.RemoveInterruptedDownload(arg);
-
-            // ensure the file system watcher looks at the generations
-            GenerationFileSystemWatcher.EnsureFocus();
         });
 
         public static async Task<Stream> ReferenceAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(await state.SelectReferenceAssetStreamWithFallback(asset));

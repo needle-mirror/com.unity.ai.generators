@@ -54,130 +54,144 @@ namespace Unity.AI.Animate.Services.Utilities
                 throw new ArgumentOutOfRangeException(nameof(startTime), "Invalid time range specified.");
             }
 
-            // Create a temporary GameObject with a VideoPlayer.
-            var go = new GameObject("VideoClipConversionPlayer");
-            var videoPlayer = go.AddComponent<VideoPlayer>();
-
-            // Configure the VideoPlayer.
-            videoPlayer.playOnAwake = false;
-            videoPlayer.source = VideoSource.VideoClip;
-            videoPlayer.clip = clip;
-            videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
-            videoPlayer.sendFrameReadyEvents = true;
-            videoPlayer.renderMode = VideoRenderMode.RenderTexture;
-            videoPlayer.isLooping = false;
-            videoPlayer.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime;
-            videoPlayer.skipOnDrop = false;
-            videoPlayer.playbackSpeed = 10f;
-
-            // Determine original and output resolutions.
-            // Note that VideoClip does not directly expose width/height in runtime,
-            // so here we assume the clip's imported width and height are available.
-            var originalSize = new Vector2Int((int)clip.width, (int)clip.height);
-            var maxRes = new Vector2Int(1920, 1080);
-            var outputSize = GetScaledResolution(originalSize, maxRes);
-
-            // Create a render texture for rendering the clip.
-            var renderTexture = RenderTexture.GetTemporary(outputSize.x, outputSize.y, 0, RenderTextureFormat.ARGB32);
-            videoPlayer.targetTexture = renderTexture;
-
-            var prepareProgress = 1f;
-
-            // Using EditorFocusScope to manage focus state and background processing
-            using var focusScope = new EditorFocusScope();
-
-            // Start preparing the video.
-            videoPlayer.Prepare();
-            while (!videoPlayer.isPrepared)
+            var previousRunInBackground = Application.runInBackground;
+            try
             {
-                // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
-                if (focusScope.ShowProgressOrCancelIfUnfocused("Preparing video converter", "Preparing video...", 1 - (prepareProgress /= 2)))
-                    throw new OperationCanceledException();
+                Application.runInBackground = true;
 
-                await focusScope.UpdatePlayerAsync();
-            }
+                // Create a temporary GameObject with a VideoPlayer.
+                var go = new GameObject("VideoClipConversionPlayer");
+                var videoPlayer = go.AddComponent<VideoPlayer>();
 
-            // Determine the desired frame range.
-            // (Assumes clip.frameRate is the effective rate.)
-            var frameRate = clip.frameRate;
-            var startFrame = (long)(startTime * frameRate);
-            var endFrame = (long)(endTime * frameRate);
+                // Configure the VideoPlayer.
+                videoPlayer.playOnAwake = false;
+                videoPlayer.source = VideoSource.VideoClip;
+                videoPlayer.clip = clip;
+                videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
+                videoPlayer.sendFrameReadyEvents = true;
+                videoPlayer.renderMode = VideoRenderMode.RenderTexture;
+                videoPlayer.isLooping = false;
+                videoPlayer.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime;
+                videoPlayer.skipOnDrop = false;
+                videoPlayer.playbackSpeed = 10f;
 
-            // Clamp the end frame ... (for a safety measure, using frameCount if available)
-            if (videoPlayer.frameCount > 0)
-                endFrame = Math.Min(endFrame, (long)videoPlayer.frameCount);
+                // Determine original and output resolutions.
+                // Note that VideoClip does not directly expose width/height in runtime,
+                // so here we assume the clip's imported width and height are available.
+                var originalSize = new Vector2Int((int)clip.width, (int)clip.height);
+                var maxRes = new Vector2Int(1920, 1080);
+                var outputSize = GetScaledResolution(originalSize, maxRes);
 
-            // Configure the video track attributes for the encoder.
-            var videoTrackAttributes = outputFormat switch
-            {
-                Format.MP4 => new VideoTrackEncoderAttributes(new H264EncoderAttributes
+                // Create a render texture for rendering the clip.
+                var renderTexture = RenderTexture.GetTemporary(outputSize.x, outputSize.y, 0, RenderTextureFormat.ARGB32);
+                videoPlayer.targetTexture = renderTexture;
+
+                var prepareProgress = 1f;
+
+                // Start preparing the video.
+                videoPlayer.Prepare();
+                while (!videoPlayer.isPrepared)
                 {
-                    gopSize = 25,
-                    numConsecutiveBFrames = 2,
-                    profile = VideoEncodingProfile.H264High
-                }),
-                Format.WEBM => new VideoTrackEncoderAttributes(new VP8EncoderAttributes
-                {
-                    keyframeDistance = 25
-                }),
-                _ => throw new ArgumentOutOfRangeException(nameof(outputFormat), outputFormat, "Unsupported codec")
-            };
-
-            videoTrackAttributes.frameRate = GetRationalFrameRate(frameRate);
-            videoTrackAttributes.width = (uint)outputSize.x;
-            videoTrackAttributes.height = (uint)outputSize.y;
-            videoTrackAttributes.includeAlpha = false;
-            videoTrackAttributes.bitRateMode = VideoBitrateMode.High;
-            videoTrackAttributes.targetBitRate = (uint)(8f * 1_000_000);
-
-            // Get a temporary file path for the output.
-            var tempOutputPath = Path.GetFullPath(FileUtil.GetUniqueTempPathInProject());
-            tempOutputPath = Path.ChangeExtension(tempOutputPath, outputFormat == Format.MP4 ? ".mp4" : ".webm");
-
-            {
-                // Create the encoder.
-                using var encoder = new MediaEncoder(tempOutputPath, videoTrackAttributes);
-
-                var tempTex = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGBA32, false);
-
-                // Loop from startFrame to endFrame (exclusive) and add each frame.
-                for (var frame = startFrame; frame < endFrame - 1; frame++)
-                {
-                    videoPlayer.frame = frame;
-
-                    while (videoPlayer.frame < frame)
-                    {
-                        // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
-                        if (focusScope.ShowProgressOrCancelIfUnfocused("Converting video", $"Converting {frame}/{endFrame} ({videoPlayer.frame})", frame / (float)endFrame))
-                            throw new OperationCanceledException();
-
-                        videoPlayer.Play();
-                        videoPlayer.Pause();
-
-                        await focusScope.UpdatePlayerAsync();
-                    }
-
-                    RenderTexture.active = renderTexture;
-                    tempTex.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
-                    tempTex.Apply();
-
-                    RenderTexture.active = null;
-
-                    encoder.AddFrame(tempTex);
+                    // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
+                    if (EditorFocusScope.ShowProgressOrCancelIfUnfocused("Preparing video converter", "Preparing video...", 1 - (prepareProgress /= 2)))
+                        throw new OperationCanceledException();
 
                     if (!Application.isPlaying)
                         EditorApplication.QueuePlayerLoopUpdate();
+
                     await EditorTask.Yield();
                 }
 
-                RenderTexture.active = null;
-                RenderTexture.ReleaseTemporary(renderTexture);
-                tempTex.SafeDestroy();
-                go.SafeDestroy();
-            }
+                // Determine the desired frame range.
+                // (Assumes clip.frameRate is the effective rate.)
+                var frameRate = clip.frameRate;
+                var startFrame = (long)(startTime * frameRate);
+                var endFrame = (long)(endTime * frameRate);
 
-            return FileIO.OpenFileStream(tempOutputPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096,
-                (deleteOutputOnClose ? FileOptions.DeleteOnClose : FileOptions.None) | FileOptions.Asynchronous);
+                // Clamp the end frame ... (for a safety measure, using frameCount if available)
+                if (videoPlayer.frameCount > 0)
+                    endFrame = Math.Min(endFrame, (long)videoPlayer.frameCount);
+
+                // Configure the video track attributes for the encoder.
+                var videoTrackAttributes = outputFormat switch
+                {
+                    Format.MP4 => new VideoTrackEncoderAttributes(new H264EncoderAttributes
+                    {
+                        gopSize = 25,
+                        numConsecutiveBFrames = 2,
+                        profile = VideoEncodingProfile.H264High
+                    }),
+                    Format.WEBM => new VideoTrackEncoderAttributes(new VP8EncoderAttributes
+                    {
+                        keyframeDistance = 25
+                    }),
+                    _ => throw new ArgumentOutOfRangeException(nameof(outputFormat), outputFormat, "Unsupported codec")
+                };
+
+                videoTrackAttributes.frameRate = GetRationalFrameRate(frameRate);
+                videoTrackAttributes.width = (uint)outputSize.x;
+                videoTrackAttributes.height = (uint)outputSize.y;
+                videoTrackAttributes.includeAlpha = false;
+                videoTrackAttributes.bitRateMode = VideoBitrateMode.High;
+                videoTrackAttributes.targetBitRate = (uint)(8f * 1_000_000);
+
+                // Get a temporary file path for the output.
+                var tempOutputPath = Path.GetFullPath(FileUtil.GetUniqueTempPathInProject());
+                tempOutputPath = Path.ChangeExtension(tempOutputPath, outputFormat == Format.MP4 ? ".mp4" : ".webm");
+
+                {
+                    // Create the encoder.
+                    using var encoder = new MediaEncoder(tempOutputPath, videoTrackAttributes);
+
+                    var tempTex = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGBA32, false);
+
+                    // Loop from startFrame to endFrame (exclusive) and add each frame.
+                    for (var frame = startFrame; frame < endFrame - 1; frame++)
+                    {
+                        videoPlayer.frame = frame;
+
+                        while (videoPlayer.frame < frame)
+                        {
+                            // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
+                            if (EditorFocusScope.ShowProgressOrCancelIfUnfocused("Converting video", $"Converting {frame}/{endFrame} ({videoPlayer.frame})",
+                                    frame / (float)endFrame))
+                                throw new OperationCanceledException();
+
+                            videoPlayer.Play();
+                            videoPlayer.Pause();
+
+                            if (!Application.isPlaying)
+                                EditorApplication.QueuePlayerLoopUpdate();
+
+                            await EditorTask.Yield();
+                        }
+
+                        RenderTexture.active = renderTexture;
+                        tempTex.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+                        tempTex.Apply();
+
+                        RenderTexture.active = null;
+
+                        encoder.AddFrame(tempTex);
+
+                        if (!Application.isPlaying)
+                            EditorApplication.QueuePlayerLoopUpdate();
+                        await EditorTask.Yield();
+                    }
+
+                    RenderTexture.active = null;
+                    RenderTexture.ReleaseTemporary(renderTexture);
+                    tempTex.SafeDestroy();
+                    go.SafeDestroy();
+                }
+
+                return FileIO.OpenFileStream(tempOutputPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096,
+                    (deleteOutputOnClose ? FileOptions.DeleteOnClose : FileOptions.None) | FileOptions.Asynchronous);
+            }
+            finally
+            {
+                Application.runInBackground = previousRunInBackground;
+            }
         }
 
         /// <summary>

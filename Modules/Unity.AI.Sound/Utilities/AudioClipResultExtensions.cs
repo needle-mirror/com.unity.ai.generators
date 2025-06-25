@@ -147,6 +147,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 prompt = setting.prompt,
                 negativePrompt = setting.negativePrompt,
                 model = setting.selectedModelID,
+                modelName = setting.SelectSelectedModelName(),
                 asset = asset.guid,
                 duration = setting.SelectDuration(),
                 autoTrim = setting.SelectShouldAutoTrim(),

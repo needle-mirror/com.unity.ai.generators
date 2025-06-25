@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Material.Services.Stores.States;
 using UnityEditor;
@@ -23,14 +25,25 @@ namespace Unity.AI.Material.Services.SessionPersistence
         }
 
         bool m_IsDirty;
+        CancellationTokenSource m_SaveTokenSource;
 
-        void MarkDirty()
+        public void MarkDirty()
         {
             m_IsDirty = true;
-            Debouncer.DebounceAction(debounceKey, SaveSettings);
+            _ = DebounceSettingsSave();
         }
 
-        void SaveSettings()
+        public async Task DebounceSettingsSave(int delayMilliseconds = 250)
+        {
+            var oldTokenSource = m_SaveTokenSource;
+            m_SaveTokenSource = new CancellationTokenSource();
+
+            await GeneratorSettingsUtility.DebounceSettingsSave(oldTokenSource, SaveSettings,
+                ex => Debug.LogWarning($"Error during material generator settings save: {ex}"),
+                delayMilliseconds);
+        }
+
+        public void SaveSettings()
         {
             if (!m_IsDirty)
                 return;
@@ -44,14 +57,19 @@ namespace Unity.AI.Material.Services.SessionPersistence
         void OnDisable()
         {
             EditorApplication.quitting -= OnEditorQuitting;
-            Debouncer.Cancel(debounceKey);
+
+            // Cancel any pending save
+            if (m_SaveTokenSource != null)
+            {
+                m_SaveTokenSource.Cancel();
+                m_SaveTokenSource.Dispose();
+                m_SaveTokenSource = null;
+            }
 
             if (m_IsDirty)
                 SaveSettings();
         }
 
         void OnEditorQuitting() => SaveSettings();
-
-        string debounceKey => GetType().FullName;
     }
 }

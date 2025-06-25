@@ -45,11 +45,6 @@
                                 <ui:SelectedModelTitleCard />
                                 <ui:ModelSelectorButton />
                             </VisualElement>
-                            <!-- Generation Options -->
-                            <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-                                <Label class="font-bold p-4 pb-8" text="Options"/>
-                                <ui:GenerationOptions />
-                            </VisualElement>
                             <!-- Video Reference Section -->
                             <VisualElement class="flex-no-shrink">
                                 <ui:VideoReference class="p-8-7-8-8" />
