@@ -9,6 +9,7 @@
    * [Tool reference](xref:tool-reference)
       * [Use custom seed to generate consistent sprites](xref:custom-seed)
       * [Remove unwanted elements with negative prompts](xref:negative-prompt)
+      * [Prompt guidelines for asset generation](xref:prompts)
       * [Generate and assign assets with the Object Picker](xref:asset-picker)
       * [Choose the right model with the Model Picker](xref:model-picker)
 * [Texture2D Generator](xref:texture2d-overview)

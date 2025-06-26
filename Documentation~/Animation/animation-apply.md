@@ -2,7 +2,7 @@
 uid: animation-apply
 ---
 
-# Apply animation to a character 
+# Apply animation to a character
 
 After you’ve generated an animation, you need to apply it to a character in your scene. This involves the following workflow:
 
@@ -10,7 +10,7 @@ After you’ve generated an animation, you need to apply it to a character in yo
 * Add the animation clip to it
 * Assign the controller to the character’s Animator component
 
-The Animator Controller manages how and when animations play. It lets you control the character movements during gameplay. 
+The Animator Controller manages how and when animations play. It lets you control the character movements during gameplay.
 
 ## Prerequisites
 
@@ -32,19 +32,19 @@ To set up your character to play the animation, follow these steps:
 1. Double-click the new Animator Controller to open it in the **Animator** window.
 1. Drag the `.anim` file (animation clip) from the **Assets** window into the **Animator** window.
 
-   This creates a state that contains your animation. 
-   
+   This creates a state that contains your animation.
+
 1. (Optional) To set the animation as the default state, right-click the state and select **Set as Layer Default State**.
 
    You can set up transitions in the **Animator** if you plan on having [multiple animations](#managing-multiple-animations).
-   
+
 1. Select your character prefab in the **Scene** or **Hierarch** window.
 1. In the **Inspector** window > **Animator** component:
 
    * Drag your Animator Controller (the one you just created) into the **Controller** field.
    * Ensure the **Avatar** field displays the name of your character prefab.
 
-1. To test the animation, open the **Game** window and select **Play** in the Unity Editor. 
+1. To test the animation, open the **Game** window and select **Play** in the Unity Editor.
 
    Your character now performs the assigned animation.
 
@@ -60,3 +60,4 @@ You can add multiple animation clips to an Animator Controller and link them tog
 
 * [Troubleshoot issues with Animation Generator](xref:animation-troubleshoot)
 * [Unity animation clips](https://docs.unity3d.com/Manual/AnimationClips.html)
+* [Prompt guidelines for asset generation](xref:prompts)

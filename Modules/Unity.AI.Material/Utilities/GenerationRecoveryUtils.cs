@@ -167,7 +167,7 @@ namespace Unity.AI.Material.Services.Utilities
                 s_InterruptedDownloadsByEnv[environment] = list;
             }
 
-            if (!list.Any(existing => existing.AreKeyFieldsEqual(data)))
+            if (!list.Any(existing => existing != null && existing.AreKeyFieldsEqual(data)))
             {
                 list.Add(data);
                 SaveInterruptedDownloads();
@@ -183,7 +183,7 @@ namespace Unity.AI.Material.Services.Utilities
             if (s_InterruptedDownloadsByEnv.TryGetValue(environment, out var list))
             {
                 if (list.RemoveAll(d => {
-                        if (d.AreKeyFieldsEqual(data))
+                        if (d != null && d.AreKeyFieldsEqual(data))
                         {
                             foreach (var generatedMaterial in d.ids)
                                 RemoveCachedDownload(generatedMaterial[(int)MapType.Preview]);

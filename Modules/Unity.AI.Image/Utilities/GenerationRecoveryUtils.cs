@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
-using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
@@ -74,7 +73,7 @@ namespace Unity.AI.Image.Services.Utilities
                 s_InterruptedDownloadsByEnv[environment] = list;
             }
 
-            if (!list.Any(existing => existing.AreKeyFieldsEqual(data)))
+            if (!list.Any(existing => existing != null && existing.AreKeyFieldsEqual(data)))
             {
                 list.Add(data);
                 SaveInterruptedDownloads();
@@ -89,7 +88,7 @@ namespace Unity.AI.Image.Services.Utilities
 
             if (s_InterruptedDownloadsByEnv.TryGetValue(environment, out var list))
             {
-                if (list.RemoveAll(d => d.AreKeyFieldsEqual(data)) > 0)
+                if (list.RemoveAll(d => d != null && d.AreKeyFieldsEqual(data)) > 0)
                     SaveInterruptedDownloads();
             }
         }

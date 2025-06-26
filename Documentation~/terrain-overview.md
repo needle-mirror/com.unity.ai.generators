@@ -70,3 +70,4 @@ To view all Terrain Layers applied in the scene:
 * [Terrain](https://docs.unity3d.com/6000.1/Documentation/Manual/script-Terrain.html)
 * [Generate material with a prompt](xref:material-generate-prompt)
 * [Use the PBR tab](xref:material-pbr)
+* [Prompt guidelines for asset generation](xref:prompts)

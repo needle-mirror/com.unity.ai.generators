@@ -25,7 +25,7 @@ To manage material, follow these steps:
    | ------ | ----------- |
    | **Use All** | Copies all settings (model, prompt, and reference images) to the **Generation** area. |
    | **Use** | Copies only the selected settings to the **Generation** area. |
-   | **Copy** | Copies the settings and applies them to generate a new material. | 
+   | **Copy** | Copies the settings and applies them to generate a new material. |
 
 ## Unityai label
 
@@ -36,3 +36,4 @@ To manage material, follow these steps:
 * [Generate material with a prompt](xref:material-generate-prompt)
 * [Use the PBR tab](xref:material-pbr)
 * [Use the Upscale tab](xref:material-upscale)
+* [Prompt guidelines for asset generation](xref:prompts)

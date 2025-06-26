@@ -4,7 +4,7 @@ uid: sound-manage
 
 # Manage generated sounds
 
-Sound Generator lets you manage and organize the generated audio clips. After the sounds are generated, they're accessible from your `Assets` folder. The default file extension is `.wav`. 
+Sound Generator lets you manage and organize the generated audio clips. After the sounds are generated, they're accessible from your `Assets` folder. The default file extension is `.wav`.
 
 To export or reuse your sound, right-click the file in the `Assets` folder and select **Show in Explorer** (Windows) or **Reveal in Finder** (MacOS) to locate the file on your computer.
 
@@ -33,3 +33,4 @@ The **Generation Data** window lets you view and reuse settings used to create a
 
 * [Generate sound assets with a prompt](xref:sound-prompt)
 * [Generate sound assets with a sound reference](xref:sound-reference)
+* [Prompt guidelines for asset generation](xref:prompts)

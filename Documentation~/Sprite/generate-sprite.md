@@ -56,3 +56,4 @@ Hover over a sprite the **Generations** panel to view details, such as the model
 * [Manage generated sprites](xref:manage-sprite)
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
 * [Generate and assign assets with the Object Picker](xref:asset-picker)
+* [Prompt guidelines for asset generation](xref:prompts)

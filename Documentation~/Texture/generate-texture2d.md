@@ -54,3 +54,4 @@ To generate 2D images using [Texture2D](https://docs.unity3d.com/6000.0/Document
 * [Use custom seed to generate consistent sprites](xref:custom-seed)
 * [Generate and assign assets with the Object Picker](xref:asset-picker)
 * [Choose the right model with the Model Picker](xref:animation-intro)
+* [Prompt guidelines for asset generation](xref:prompts)
