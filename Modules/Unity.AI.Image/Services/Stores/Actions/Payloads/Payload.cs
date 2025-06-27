@@ -16,13 +16,14 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
     record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
     record DownloadImagesData(
         AssetReference asset,
-        List<Guid> ids,
-        int taskID,
+        List<Guid> jobIds,
+        int progressTaskId,
+        Guid uniqueTaskId,
         GenerationMetadata generationMetadata,
+        int[] customSeeds,
         bool isRefinement,
         bool replaceBlankAsset,
-        bool replaceRefinementAsset,
-        int[] customSeeds) : AsssetContext(asset);
+        bool replaceRefinementAsset) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,

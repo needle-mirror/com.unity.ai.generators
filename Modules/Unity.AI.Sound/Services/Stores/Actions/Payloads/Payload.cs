@@ -11,7 +11,14 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Payloads
 {
     record QuoteAudioData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateAudioData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
-    record DownloadAudioData(AssetReference asset, List<Guid> ids, int taskID, GenerationMetadata generationMetadata, int[] customSeeds, bool autoApply = false) : AsssetContext(asset);
+    record DownloadAudioData(
+        AssetReference asset,
+        List<Guid> jobIds,
+        int progressTaskId,
+        Guid uniqueTaskId,
+        GenerationMetadata generationMetadata,
+        int[] customSeeds,
+        bool autoApply) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,

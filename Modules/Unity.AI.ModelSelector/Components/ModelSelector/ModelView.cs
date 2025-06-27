@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
@@ -10,6 +11,7 @@ using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -213,7 +215,12 @@ namespace Unity.AI.ModelSelector.Components
             m_ModelDetailsGrid = this.Q<GridView>(className: "model-details-grid");
         }
 
-        void OnAttachToPanel(AttachToPanelEvent _) => RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
+        void OnAttachToPanel(AttachToPanelEvent _)
+        {
+            if (this.GetStoreApi() != null)
+                this.Dispatch(ModelSelectorActions.discoverModels, new DiscoverModelsData(this.GetStoreApi().State.SelectEnvironment()));
+            RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
+        }
 
         void OnDetachFromPanel(DetachFromPanelEvent _) => UnregisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
 

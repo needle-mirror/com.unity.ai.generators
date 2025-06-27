@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Generators.Asset;

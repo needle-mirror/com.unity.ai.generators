@@ -20,7 +20,17 @@ namespace Unity.AI.Image.Components
 
         readonly Texture2D m_Texture;
 
-        ~BaseImageReference() => m_Texture?.SafeDestroy();
+        ~BaseImageReference()
+        {
+            try
+            {
+                m_Texture?.SafeDestroy();
+            }
+            catch
+            {
+                // ignored
+            }
+        }
 
         public BaseImageReference()
         {

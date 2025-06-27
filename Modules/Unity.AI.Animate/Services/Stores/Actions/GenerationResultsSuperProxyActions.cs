@@ -322,8 +322,14 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
             AIToolbarButton.ShowPointsCostNotification(cost);
 
-            var downloadAnimationData = new DownloadAnimationsData(asset, ids, customSeeds, arg.taskID, generationMetadata);
-            GenerationRecoveryUtils.AddInterruptedDownload(downloadAnimationData); // 'potentially' interrupted
+            var downloadAnimationData = new DownloadAnimationsData(asset,
+                ids,
+                arg.taskID,
+                Guid.NewGuid(),
+                generationMetadata,
+                customSeeds,
+                false);
+            GenerationRecovery.AddInterruptedDownload(downloadAnimationData); // 'potentially' interrupted
 
             if (WebUtilities.simulateClientSideFailures)
                 throw new Exception("Some simulated client side failure.");
@@ -337,12 +343,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         {
             using var editorFocus = new EditorFocusScope();
 
-            var variations = arg.ids.Count;
+            var variations = arg.jobIds.Count;
 
-            var skeletons = Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.taskID, i)).ToList();
+            var skeletons = Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.progressTaskId, i)).ToList();
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, skeletons)) ;
 
-            var progress = new GenerationProgressData(arg.taskID, variations, 0.25f);
+            var progress = new GenerationProgressData(arg.progressTaskId, variations, 0.25f);
 
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
 
@@ -371,7 +377,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     variations, progressTokenSource2.Token);
 
                 var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
-                foreach (var jobId in arg.ids)
+                foreach (var jobId in arg.jobIds)
                 {
                     // need to be very careful, we're taking each in turn to guarantee paused play mode support
                     // there's not much drawback as the generations are started way before
@@ -443,7 +449,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 await Task.WhenAll(saveTasks); // saves to project and is picked up by GenerationFileSystemWatcherManipulator
 
                 // the ui defers the removal of the skeletons a little bit so we can call this pretty early
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.taskID));
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
             }
             catch
             {
@@ -467,7 +473,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
             // if you got here, no need to keep the potentially interrupted download
-            GenerationRecoveryUtils.RemoveInterruptedDownload(arg);
+            GenerationRecovery.RemoveInterruptedDownload(arg);
         });
     }
 }

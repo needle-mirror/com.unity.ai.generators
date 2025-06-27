@@ -18,7 +18,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 Directory.CreateDirectory(tempFolder);
 
             var destinationFile = Path.Combine(tempFolder, guid);
-            destinationFile = Path.ChangeExtension(destinationFile, Path.GetExtension(sourceFile));
+            destinationFile = Path.ChangeExtension(destinationFile, AssetUtils.poseAssetExtension);
             FileIO.CopyFile(sourceFile, destinationFile, true);
 
             var fileUri = new Uri(destinationFile);

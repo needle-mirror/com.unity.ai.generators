@@ -171,7 +171,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
         {
             var option = 0;
 
-            var interruptedDownloads = GenerationRecoveryUtils.GetInterruptedDownloads(asset);
+            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset);
             if (!await DialogUtilities.ShowResumeDownloadPopup(interruptedDownloads, op => option = op))
                 return;
 
@@ -186,10 +186,19 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             continue;
                         }
 
-                        await api.Dispatch(downloadImagesMain,
-                            new DownloadImagesData(data.asset, data.ids.Select(Guid.Parse).ToList(), data.taskId, data.generationMetadata, false, false, false, data.customSeeds.ToArray()), CancellationToken.None);
+                        _ = api.Dispatch(downloadImagesMain,
+                            new DownloadImagesData(
+                                data.asset, 
+                                data.ids.Select(Guid.Parse).ToList(), 
+                                data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId), 
+                                data.generationMetadata, 
+                                data.customSeeds.ToArray(), 
+                                false, 
+                                false, 
+                                false), 
+                            CancellationToken.None);
                     }
-
                     break;
                 case 1: // "Delete" selected
                     var generativePath = asset.GetGeneratedAssetsPath();
@@ -200,7 +209,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             var generationResult = TextureResult.FromUrl(FileUtilities.GetFailedImageUrl(jobId));
                             await generationResult.CopyToProject(data.generationMetadata, generativePath);
                         }
-                        GenerationRecoveryUtils.RemoveInterruptedDownload(data);
+                        GenerationRecovery.RemoveInterruptedDownload(data);
                     }
                     break;
                 case 2: // "Skip" selected
@@ -238,11 +247,11 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<DownloadImagesData> downloadImagesMain = new($"{slice}/downloadImagesMain", async (arg, api) =>
         {
-            var taskID = Progress.Exists(arg.taskID) ? arg.taskID : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
+            var taskID = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
             SkeletonExtensions.Acquire(taskID);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadImages, new DownloadImagesData(arg.asset, arg.ids, taskID, arg.generationMetadata, false, false, false, arg.customSeeds), CancellationToken.None);
+                await api.Dispatch(GenerationResultsSuperProxyActions.downloadImages, arg with { progressTaskId = taskID }, CancellationToken.None);
             }
             finally
             {

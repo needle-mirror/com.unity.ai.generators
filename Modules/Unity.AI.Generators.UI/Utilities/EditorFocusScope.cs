@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit;
 using UnityEditor;
-using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
 {

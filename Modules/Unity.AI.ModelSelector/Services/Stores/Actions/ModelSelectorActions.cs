@@ -18,7 +18,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
         public static Creator<string> setEnvironment => new($"{slice}/setEnvironment");
         public static Creator<string> setLastSelectedModelID => new($"{slice}/setLastSelectedModelID");
 
-        public static readonly AsyncThunkCreatorWithArg<DiscoverModelsData> discoverModels = new($"{slice}/openSelectModelPanel", async (data, api) =>
+        public static readonly AsyncThunkCreatorWithArg<DiscoverModelsData> discoverModels = new($"{slice}/discoverModels", async (data, api) =>
         {
             var success = await WebUtilities.WaitForCloudProjectSettings();
             if (!success)

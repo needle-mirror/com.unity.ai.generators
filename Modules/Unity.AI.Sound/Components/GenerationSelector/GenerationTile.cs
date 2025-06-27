@@ -15,6 +15,7 @@ using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -47,13 +48,20 @@ namespace Unity.AI.Sound.Components
 
         ~GenerationTile()
         {
-            m_PlayManipulator?.Cancel();
-            if (m_WaveformTexture)
-                RenderTexture.ReleaseTemporary(m_WaveformTexture);
-            m_WaveformTexture = null;
-            if (m_CompositeTexture)
-                RenderTexture.ReleaseTemporary(m_CompositeTexture);
-            m_CompositeTexture = null;
+            try
+            {
+                m_PlayManipulator?.Cancel();
+                if (m_WaveformTexture)
+                    RenderTexture.ReleaseTemporary(m_WaveformTexture);
+                m_WaveformTexture = null;
+                if (m_CompositeTexture)
+                    RenderTexture.ReleaseTemporary(m_CompositeTexture);
+                m_CompositeTexture = null;
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         public GenerationTile()

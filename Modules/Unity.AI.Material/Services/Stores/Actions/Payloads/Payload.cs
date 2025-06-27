@@ -11,7 +11,14 @@ namespace Unity.AI.Material.Services.Stores.Actions.Payloads
 {
     record QuoteMaterialsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
-    record DownloadMaterialsData(AssetReference asset, List<Dictionary<MapType, Guid>> ids, int[] customSeeds, int taskID = 0, GenerationMetadata generationMetadata = null, bool autoApply = false) : AsssetContext(asset);
+    record DownloadMaterialsData(
+        AssetReference asset,
+        List<Dictionary<MapType, Guid>> jobIds,
+        int progressTaskId,
+        Guid uniqueTaskId,
+        GenerationMetadata generationMetadata,
+        int[] customSeeds,
+        bool autoApply) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,

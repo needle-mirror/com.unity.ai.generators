@@ -166,7 +166,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         {
             var option = 0;
 
-            var interruptedDownloads = GenerationRecoveryUtils.GetInterruptedDownloads(asset);
+            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset);
             if (!await DialogUtilities.ShowResumeDownloadPopup(interruptedDownloads, op => option = op))
                 return;
 
@@ -181,8 +181,15 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                             continue;
                         }
 
-                        await api.Dispatch(downloadAudioClipsMain,
-                            new DownloadAudioData(data.asset, data.ids.Select(Guid.Parse).ToList(), data.taskId, data.generationMetadata, data.customSeeds.ToArray(), false), CancellationToken.None);
+                        _ = api.Dispatch(downloadAudioClipsMain,
+                            new DownloadAudioData(data.asset,
+                                data.ids.Select(Guid.Parse).ToList(),
+                                data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                data.generationMetadata,
+                                data.customSeeds.ToArray(),
+                                false),
+                            CancellationToken.None);
                     }
 
                     break;
@@ -195,7 +202,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                             var generationResult = AudioClipResult.FromUrl(FileUtilities.GetFailedAudioUrl(jobId));
                             await generationResult.CopyToProject(data.generationMetadata, generativePath);
                         }
-                        GenerationRecoveryUtils.RemoveInterruptedDownload(data);
+                        GenerationRecovery.RemoveInterruptedDownload(data);
                     }
                     break;
                 case 2: // "Skip" selected
@@ -233,11 +240,11 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAudioData> downloadAudioClipsMain = new($"{slice}/downloadAudioClipsMain", async (arg, api) =>
         {
-            var taskID = Progress.Exists(arg.taskID) ? arg.taskID : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
+            var taskID = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
             SkeletonExtensions.Acquire(taskID);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadAudioClips, new DownloadAudioData(arg.asset, arg.ids, taskID, arg.generationMetadata, arg.customSeeds), CancellationToken.None);
+                await api.Dispatch(GenerationResultsSuperProxyActions.downloadAudioClips, arg with { progressTaskId = taskID }, CancellationToken.None);
             }
             finally
             {

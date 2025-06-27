@@ -24,50 +24,71 @@ namespace Unity.AI.Generators.Sdk
 
         public async Task<Result<string>> ForceRefreshToken()
         {
-            return await EditorTask.RunOnMainThread(async () => await ForceRefreshTokenInternal());
+            try
+            {
+                return await EditorTask.RunOnMainThread(async () => await ForceRefreshTokenInternal());
+            }
+            catch
+            {
+                return Result<string>.Ok(m_Token);
+            }
         }
 
         async Task<Result<string>> ForceRefreshTokenInternal()
         {
-            if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
-                throw new InvalidOperationException("ForceRefreshTokenInternal must be called from the main thread.");
-
-            var tcs = new TaskCompletionSource<bool>();
-            CloudProjectSettings.RefreshAccessToken(callbackStatus => tcs.TrySetResult(callbackStatus));
-
-            // Check if enough time has passed since the last URL open
-            var currentTime = DateTime.Now;
-            if (currentTime - s_LastUrlOpenTime >= k_URLOpenCooldown)
+            try
             {
-                // Open URL and update the timestamp
-                Application.OpenURL($"{k_UnityHubUriScheme}{k_UnityHubLoginDomain}");
-                s_LastUrlOpenTime = currentTime;
+                if (System.Threading.Thread.CurrentThread.ManagedThreadId != m_MainThreadId)
+                    throw new InvalidOperationException("ForceRefreshTokenInternal must be called from the main thread.");
+
+                var tcs = new TaskCompletionSource<bool>();
+                CloudProjectSettings.RefreshAccessToken(callbackStatus => tcs.TrySetResult(callbackStatus));
+
+                // Check if enough time has passed since the last URL open
+                var currentTime = DateTime.Now;
+                if (currentTime - s_LastUrlOpenTime >= k_URLOpenCooldown)
+                {
+                    // Open URL and update the timestamp
+                    Application.OpenURL($"{k_UnityHubUriScheme}{k_UnityHubLoginDomain}");
+                    s_LastUrlOpenTime = currentTime;
+                }
+
+                const int timeoutSeconds = 30;
+                var completedTask = await Task.WhenAny(tcs.Task, EditorTask.Delay((int)TimeSpan.FromSeconds(timeoutSeconds).TotalMilliseconds));
+                if (completedTask == tcs.Task)
+                {
+                    m_Token = CloudProjectSettings.accessToken;
+
+                    var status = await tcs.Task;
+                    if (status)
+                        Debug.Log("Access token refreshed successfully.");
+                    else if (s_LastStatus)
+                        Debug.LogError("Token refresh failed or was not needed.");
+
+                    s_LastStatus = status;
+                    return Result<string>.Ok(m_Token);
+                }
+
+                Debug.LogWarning($"Token refresh timed out after {timeoutSeconds} seconds.");
+                return Result<string>.Fail();
             }
-
-            const int timeoutSeconds = 30;
-            var completedTask = await Task.WhenAny(tcs.Task, EditorTask.Delay((int)TimeSpan.FromSeconds(timeoutSeconds).TotalMilliseconds));
-            if (completedTask == tcs.Task)
+            catch
             {
-                m_Token = CloudProjectSettings.accessToken;
-
-                var status = await tcs.Task;
-                if (status)
-                    Debug.Log("Access token refreshed successfully.");
-                else if (s_LastStatus)
-                    Debug.LogError("Token refresh failed or was not needed.");
-
-                s_LastStatus = status;
                 return Result<string>.Ok(m_Token);
             }
-
-            Debug.LogWarning($"Token refresh timed out after {timeoutSeconds} seconds.");
-            return Result<string>.Fail();
         }
 
         public async Task<Result<string>> GetToken()
         {
-            return await EditorTask.RunOnMainThread(
-                () => Task.FromResult(Result<string>.Ok(m_Token = CloudProjectSettings.accessToken)));
+            try
+            {
+                return await EditorTask.RunOnMainThread(
+                    () => Task.FromResult(Result<string>.Ok(m_Token = CloudProjectSettings.accessToken)));
+            }
+            catch
+            {
+                return Result<string>.Ok(m_Token);
+            }
         }
     }
 }

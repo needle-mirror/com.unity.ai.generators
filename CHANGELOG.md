@@ -4,6 +4,21 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.15] - 2025-06-27
+
+### Added
+
+- Added automatic model list refresh.
+
+### Changed
+
+- Changed to a soft-dependency pattern to import Plugin attributes from AI Assistant for Generators. 
+
+### Fixed
+
+- Fixed missing placeholder for failed animations.
+- Fixed only one progress spinner shown when recovering multiple interrupted generations.
+
 ## [1.0.0-pre.14] - 2025-06-26
 
 ### Fixed

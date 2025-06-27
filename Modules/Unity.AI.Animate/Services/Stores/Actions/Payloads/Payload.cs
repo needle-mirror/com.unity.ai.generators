@@ -11,7 +11,14 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
 {
     record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
     record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
-    record DownloadAnimationsData(AssetReference asset, List<Guid> ids, int[] customSeeds, int taskID = 0, GenerationMetadata generationMetadata = null, bool autoApply = false) : AsssetContext(asset);
+    record DownloadAnimationsData(
+        AssetReference asset,
+        List<Guid> jobIds,
+        int progressTaskId,
+        Guid uniqueTaskId,
+        GenerationMetadata generationMetadata,
+        int[] customSeeds,
+        bool autoApply) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,

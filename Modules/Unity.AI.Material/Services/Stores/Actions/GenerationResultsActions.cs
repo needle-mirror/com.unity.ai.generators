@@ -257,7 +257,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
         {
             var option = 0;
 
-            var interruptedDownloads = GenerationRecoveryUtils.GetInterruptedDownloads(asset);
+            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset);
             if (!await DialogUtilities.ShowResumeDownloadPopup(interruptedDownloads, op => option = op))
                 return;
 
@@ -272,8 +272,15 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             continue;
                         }
 
-                        await api.Dispatch(downloadMaterialsMain,
-                            new DownloadMaterialsData(data.asset, data.ids.ConvertIds(), data.customSeeds.ToArray(), data.taskId, data.generationMetadata, false), CancellationToken.None);
+                        _ = api.Dispatch(downloadMaterialsMain,
+                            new DownloadMaterialsData(data.asset,
+                                data.ids.ConvertIds(),
+                                data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                data.generationMetadata,
+                                data.customSeeds.ToArray(),
+                                false),
+                            CancellationToken.None);
                     }
 
                     break;
@@ -292,7 +299,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             var generationResult = MaterialResult.FromPreview(TextureResult.FromUrl(FileUtilities.GetFailedImageUrl(jobId)));
                             await generationResult.CopyToProject(jobId, data.generationMetadata, generativePath);
                         }
-                        GenerationRecoveryUtils.RemoveInterruptedDownload(data);
+                        GenerationRecovery.RemoveInterruptedDownload(data);
                     }
                     break;
                 case 2: // "Skip" selected
@@ -334,12 +341,11 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<DownloadMaterialsData> downloadMaterialsMain = new($"{slice}/downloadMaterialsMain", async (arg, api) =>
         {
-            var taskID = Progress.Exists(arg.taskID) ? arg.taskID : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
+            var taskID = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
             SkeletonExtensions.Acquire(taskID);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadMaterialsSuperProxy,
-                    new DownloadMaterialsData(arg.asset, arg.ids, arg.customSeeds.ToArray(), taskID, arg.generationMetadata), CancellationToken.None);
+                await api.Dispatch(GenerationResultsSuperProxyActions.downloadMaterialsSuperProxy, arg with { progressTaskId = taskID }, CancellationToken.None);
             }
             finally
             {

@@ -9,51 +9,87 @@ namespace Unity.AI.Generators.Sdk
     {
         public void LogDebug(string message)
         {
-            if (LoggerUtilities.sdkLogLevel == 0)
-                return;
-
-            EditorTask.RunOnMainThread(() =>
+            try
             {
-                Debug.Log(message);
-            });
+                if (LoggerUtilities.sdkLogLevel == 0)
+                    return;
+
+                EditorTask.RunOnMainThread(() =>
+                {
+                    Debug.Log(message);
+                });
+            }
+            catch
+            {
+                // Silent catch with no logging
+            }
         }
 
         public void LogDebug(Exception exception, string message)
         {
-            if (LoggerUtilities.sdkLogLevel == 0)
-                return;
-
-            EditorTask.RunOnMainThread(() =>
+            try
             {
-                Debug.Log(message);
-                LoggerUtilities.LogExceptionAsLog(exception);
-            });
+                if (LoggerUtilities.sdkLogLevel == 0)
+                    return;
+
+                EditorTask.RunOnMainThread(() =>
+                {
+                    Debug.Log(message);
+                    LoggerUtilities.LogExceptionAsLog(exception);
+                });
+            }
+            catch
+            {
+                // Silent catch with no logging
+            }
         }
+        
         public void LogDebug(Exception exception)
         {
-            if (LoggerUtilities.sdkLogLevel == 0)
-                return;
-
-            EditorTask.RunOnMainThread(() =>
+            try
             {
-                LoggerUtilities.LogExceptionAsLog(exception);
-            });
+                if (LoggerUtilities.sdkLogLevel == 0)
+                    return;
+
+                EditorTask.RunOnMainThread(() =>
+                {
+                    LoggerUtilities.LogExceptionAsLog(exception);
+                });
+            }
+            catch
+            {
+                // Silent catch with no logging
+            }
         }
 
         public void LogPublicInformation(string message)
         {
-            EditorTask.RunOnMainThread(() =>
+            try
             {
-                Debug.Log(message);
-            });
+                EditorTask.RunOnMainThread(() =>
+                {
+                    Debug.Log(message);
+                });
+            }
+            catch
+            {
+                // Silent catch with no logging
+            }
         }
 
         public void LogPublicError(string message)
         {
-            EditorTask.RunOnMainThread(() =>
+            try
             {
-                Debug.LogError(message);
-            });
+                EditorTask.RunOnMainThread(() =>
+                {
+                    Debug.LogError(message);
+                });
+            }
+            catch
+            {
+                // Silent catch with no logging
+            }
         }
     }
 

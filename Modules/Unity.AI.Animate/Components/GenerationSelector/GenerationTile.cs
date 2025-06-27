@@ -50,9 +50,16 @@ namespace Unity.AI.Animate.Components
 
         ~GenerationTile()
         {
-            if (m_AnimationTexture)
-                RenderTexture.ReleaseTemporary(m_AnimationTexture);
-            m_AnimationTexture = null;
+            try
+            {
+                if (m_AnimationTexture)
+                    RenderTexture.ReleaseTemporary(m_AnimationTexture);
+                m_AnimationTexture = null;
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         public GenerationTile()

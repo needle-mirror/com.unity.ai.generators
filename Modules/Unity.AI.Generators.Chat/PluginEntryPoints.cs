@@ -1,10 +1,10 @@
 ﻿using System;
 using Unity.AI.Animate.Windows;
+using Unity.AI.Assistant.Editor.FunctionCalling;
 using Unity.AI.Image.Windows;
 using Unity.AI.Material.Windows;
 using Unity.AI.Sound.Windows;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Toolkit.Chat;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine.UIElements;

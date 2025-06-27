@@ -18,7 +18,11 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
 
         public static ModelSettings SelectModelSettingsWithModelId(this IState state, string modelId) => state.SelectModelSettings().FirstOrDefault(s => s.id == modelId);
 
-        public static bool SelectModelSelectorSettingsReady(this IState state) => SelectModelSettings(state).ToList() is { Count: > 0 };
+        public static bool SelectModelSelectorSettingsReady(this IState state)
+        {
+            var elapsed = new TimeSpan(DateTime.UtcNow.Ticks - state.SelectLastModelDiscoveryTimestamp());
+            return elapsed.TotalSeconds < 60 && SelectModelSettings(state).ToList() is { Count: > 0 };
+        }
 
         public static IEnumerable<ModelSettings> SelectUnityModels(this IState state) => state.SelectModelSettings().Where(s => s.provider == ProviderEnum.Unity);
 

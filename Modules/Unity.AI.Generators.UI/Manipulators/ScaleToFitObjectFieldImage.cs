@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEditor.UIElements;

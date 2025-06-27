@@ -22,7 +22,17 @@ namespace Unity.AI.Image.Components
 
         Texture2D m_PaletteTexture;
 
-        ~PaletteImageReference() => m_PaletteTexture?.SafeDestroy();
+        ~PaletteImageReference()
+        {
+            try
+            {
+                m_PaletteTexture?.SafeDestroy();
+            }
+            catch
+            {
+                // ignored
+            }
+        }
 
         public PaletteImageReference()
         {

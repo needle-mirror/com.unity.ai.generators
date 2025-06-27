@@ -1,5 +1,4 @@
-﻿using System;
-using Unity.AI.Generators.UI.Utilities;
+﻿using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 

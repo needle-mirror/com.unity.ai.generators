@@ -10,11 +10,6 @@ using UnityEngine.UIElements;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
-    interface IInterruptedDownloadData
-    {
-        int progressTaskId { get; }
-    }
-
     static class DialogUtilities
     {
         /// <summary>
@@ -27,8 +22,17 @@ namespace Unity.AI.Generators.UI.Utilities
         public static async Task<bool> ShowResumeDownloadPopup(IEnumerable<IInterruptedDownloadData> interruptedDownloads, Action<int> onOptionSelected)
         {
             var hasInterruptedDownloads = false;
+            
+            // Track already processed unique task IDs to avoid duplicate checks
+            var processedUniqueIds = new HashSet<string>();
+            
             foreach (var data in interruptedDownloads)
             {
+                // Skip if we've already processed this unique task ID
+                if (!string.IsNullOrEmpty(data.uniqueTaskId) && !processedUniqueIds.Add(data.uniqueTaskId))
+                    continue;
+                
+                // Check using the progress task ID from the interface
                 if (!Progress.Exists(data.progressTaskId))
                 {
                     hasInterruptedDownloads = true;

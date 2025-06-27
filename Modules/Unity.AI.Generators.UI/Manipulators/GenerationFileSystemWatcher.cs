@@ -5,9 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Generators.UI

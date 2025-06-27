@@ -335,7 +335,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         }
 
                         var assetGuid = result.Result.Value.AssetId;
-                        await GenerationRecoveryUtils.AddCachedDownload(assetStream, assetGuid.ToString());
+                        await GenerationRecovery.AddCachedDownload(assetStream, assetGuid.ToString());
 
                         materialGenerations = new List<Dictionary<MapType, Guid>>
                             { new() { [MapType.Preview] = assetGuid } };
@@ -445,8 +445,14 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             AIToolbarButton.ShowPointsCostNotification(cost);
 
-            var downloadMaterialsData = new DownloadMaterialsData(asset, materialGenerations, customSeeds, arg.taskID, generationMetadata, false);
-            GenerationRecoveryUtils.AddInterruptedDownload(downloadMaterialsData); // 'potentially' interrupted
+            var downloadMaterialsData = new DownloadMaterialsData(asset,
+                materialGenerations,
+                arg.taskID,
+                Guid.NewGuid(),
+                generationMetadata,
+                customSeeds,
+                false);
+            GenerationRecovery.AddInterruptedDownload(downloadMaterialsData); // 'potentially' interrupted
 
             if (WebUtilities.simulateClientSideFailures)
                 throw new Exception("Some simulated client side failure.");
@@ -457,7 +463,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             void AbortCleanup(List<Dictionary<MapType, Guid>> canceledMaterialGenerations)
             {
                 foreach (var generatedMaterial in canceledMaterialGenerations)
-                    GenerationRecoveryUtils.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
+                    GenerationRecovery.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
             }
         });
 
@@ -467,12 +473,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
         {
             using var editorFocus = new EditorFocusScope();
 
-            var variations = arg.ids.Count;
+            var variations = arg.jobIds.Count;
 
-            var skeletons = Enumerable.Range(0, variations).Select(i => new MaterialSkeleton(arg.taskID, i)).ToList();
+            var skeletons = Enumerable.Range(0, variations).Select(i => new MaterialSkeleton(arg.progressTaskId, i)).ToList();
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, skeletons));
 
-            var progress = new GenerationProgressData(arg.taskID, variations, 0.25f);
+            var progress = new GenerationProgressData(arg.progressTaskId, variations, 0.25f);
 
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
 
@@ -500,9 +506,9 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."),
                     variations, progressTokenSource3.Token);
 
-                var jobIdList = arg.ids
+                var jobIdList = arg.jobIds
                     .SelectMany(dictionary => dictionary.Values) // Get all JobId values
-                    .Where(jobId => !GenerationRecoveryUtils.HasCachedDownload(jobId.ToString())) // Filter out the ones that are already cached
+                    .Where(jobId => !GenerationRecovery.HasCachedDownload(jobId.ToString())) // Filter out the ones that are already cached
                     .ToList();
 
                 var assetResults = new Dictionary<Guid, OperationResult<BlobAssetResult>>();
@@ -514,12 +520,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
                     assetResults.Add(guid, url);
                 }
 
-                var urls = arg.ids.ToDictionary(m => m[MapType.Preview],
+                var urls = arg.jobIds.ToDictionary(m => m[MapType.Preview],
                     m => m.ToDictionary(kvp => kvp.Key, kvp =>
                     {
                         var jobId = kvp.Value;
-                        if (GenerationRecoveryUtils.HasCachedDownload(jobId.ToString()))
-                            return TextureResult.FromUrl(GenerationRecoveryUtils.GetCachedDownloadUrl(jobId.ToString()).GetAbsolutePath());
+                        if (GenerationRecovery.HasCachedDownload(jobId.ToString()))
+                            return TextureResult.FromUrl(GenerationRecovery.GetCachedDownloadUrl(jobId.ToString()).GetAbsolutePath());
                         var result = assetResults[jobId];
 
                         if (result.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
@@ -619,7 +625,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 }
 
                 // the ui defers the removal of the skeletons a little bit so we can call this pretty early
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.taskID));
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
             }
             finally
             {
@@ -637,9 +643,9 @@ namespace Unity.AI.Material.Services.Stores.Actions
             api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
             // if you got here, no need to keep the potentially interrupted download
-            foreach (var generatedMaterial in arg.ids)
-                GenerationRecoveryUtils.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
-            GenerationRecoveryUtils.RemoveInterruptedDownload(arg);
+            foreach (var generatedMaterial in arg.jobIds)
+                GenerationRecovery.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
+            GenerationRecovery.RemoveInterruptedDownload(arg);
         });
 
         public static async Task<Stream> ReferenceAssetStream(IState state, AssetReference asset) => ImageFileUtilities.CheckImageSize(await state.SelectReferenceAssetStreamWithFallback(asset));

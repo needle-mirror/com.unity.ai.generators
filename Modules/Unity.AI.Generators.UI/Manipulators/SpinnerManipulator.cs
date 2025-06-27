@@ -1,6 +1,5 @@
 using System;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Generators.UI
