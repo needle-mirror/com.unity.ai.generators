@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Material.Services.Utilities;
-using Unity.AI.Material.Windows;
 using Unity.AI.Toolkit.Accounts.Services;
 using Unity.AI.Toolkit.GenerationContextMenu;
 using UnityEditor;
@@ -63,15 +63,19 @@ namespace Unity.AI.Material.Windows
             if (!OnAssetGenerationValidation(editor.targets))
                 return;
 
+            var isDisabledAndHasNoHistory = !Account.settings.AiGeneratorsEnabled && !IncludesGenerationHistory(editor.targets);
+
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            var generatorsEnabled = Account.settings.AiGeneratorsEnabled;
-            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || !generatorsEnabled);
-            var generateButtonTooltip = $"Use generative ai to transform this terrain layer.";
-            if (!generatorsEnabled)
+            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || isDisabledAndHasNoHistory);
+            var generateButtonTooltip = "Use generative ai to transform this terrain layer.";
+            if (!Account.settings.AiGeneratorsEnabled)
+            {
                 generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;
-            if (GUILayout.Button(new GUIContent("Generate",
-                    generateButtonTooltip)))
+                if (!isDisabledAndHasNoHistory)
+                    generateButtonTooltip += " " + Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsHaveHistoryTooltip;
+            }
+            if (GUILayout.Button(new GUIContent("Generate", generateButtonTooltip)))
                 OnAssetGenerationRequest(editor.targets);
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
@@ -121,6 +125,9 @@ namespace Unity.AI.Material.Windows
 
         static bool OnAssetGenerationMultipleValidation(IReadOnlyCollection<Object> objects) =>
             objects.Any(o => TryGetValidPath(o, out _));
+
+        static bool IncludesGenerationHistory(IReadOnlyCollection<Object> objects) =>
+            objects.FirstOrDefault(o => new AssetReference { guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(o)) }.HasGenerations());
 
         public static void OpenGenerationWindow(string assetPath) => OpenGenerationWindow(null, assetPath);
 

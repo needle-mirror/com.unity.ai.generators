@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
@@ -12,6 +13,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -201,5 +203,42 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;
         public static float SelectGenerationPaneWidth(this IState state, VisualElement element) => state.SelectGenerationSetting(element).generationPaneWidth;
+
+        public static float SelectLoopMaximumTime(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoopMaximumTime();
+        public static float SelectLoopMaximumTime(this GenerationSetting setting) => setting.loopSettings.maximumTime;
+        public static float SelectLoopMinimumTime(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoopMinimumTime();
+        public static float SelectLoopMinimumTime(this GenerationSetting setting) => setting.loopSettings.minimumTime;
+        public static float SelectLoopDurationCoverage(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoopDurationCoverage();
+        public static float SelectLoopDurationCoverage(this GenerationSetting setting) => setting.loopSettings.durationCoverage;
+        public static float SelectLoopMotionCoverage(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoopMotionCoverage();
+        public static float SelectLoopMotionCoverage(this GenerationSetting setting) => (Unsupported.IsDeveloperMode() ? setting.loopSettings : new LoopSettings()).motionCoverage;
+        public static float SelectLoopMuscleTolerance(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoopMuscleTolerance();
+        public static float SelectLoopMuscleTolerance(this GenerationSetting setting) => (Unsupported.IsDeveloperMode() ? setting.loopSettings : new LoopSettings()).muscleTolerance;
+        public static bool SelectLoopInPlace(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoopInPlace();
+        public static bool SelectLoopInPlace(this GenerationSetting setting) => setting.loopSettings.inPlace;
+        public static bool SelectUseBestLoop(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectUseBestLoop();
+        public static bool SelectUseBestLoop(this GenerationSetting setting) => setting.loopSettings.useBestLoop;
+
+        public static async Task<AnimationClip> SelectReferenceClip(this IState state, VisualElement element)
+        {
+            AnimationClip clip = null;
+
+            var currentSelection = state.SelectSelectedGeneration(element);
+            var generations = state.SelectGeneratedAnimations(element);
+            if (currentSelection.IsValid() && generations.Contains(currentSelection))
+                clip = await currentSelection.GetAnimationClip();
+
+            if (!clip)
+            {
+                var asset = element.GetAsset();
+                if (asset.Exists())
+                    clip = await Task.FromResult(asset.GetObject<AnimationClip>());
+            }
+
+            if (clip.CanBeEdited())
+                return clip;
+
+            return null;
+        }
     }
 }

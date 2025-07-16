@@ -62,6 +62,15 @@ namespace Unity.AI.Animate.Services.Utilities
 
     static class AnimationClipResultExtensions
     {
+        public static bool IsFbx(this AnimationClipResult result)
+        {
+            if (!result.IsValid())
+                return false;
+
+            var path = result.uri.GetLocalPath();
+            return Path.GetExtension(path).Equals(AssetUtils.fbxAssetExtension, StringComparison.InvariantCultureIgnoreCase);
+        }
+
         public static async Task<AnimationClip> GetAnimationClip(this AnimationClipResult animationClipResult)
         {
             if (!animationClipResult.IsValid())
@@ -176,7 +185,8 @@ namespace Unity.AI.Animate.Services.Utilities
                 return false;
 
             var destFileName = asset.GetPath();
-            if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
+            var destExtension = Path.GetExtension(destFileName);
+            if (!destExtension.Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
             {
                 var newClip = await generatedAnimationClip.AnimationClipFromResultAsync();
                 var targetClip = asset.GetObject<AnimationClip>();
@@ -185,7 +195,20 @@ namespace Unity.AI.Animate.Services.Utilities
             }
             else
             {
-                await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
+                if (destExtension.Equals(AssetUtils.defaultAssetExtension, StringComparison.OrdinalIgnoreCase))
+                {
+                    // fix object name in advance
+                    using var temporaryAssets = await TemporaryAssetUtilities.ImportAssetsAsync(new[] { sourceFileName });
+                    sourceFileName = temporaryAssets.assets[0].asset.GetPath();
+                    var objectName = Path.GetFileNameWithoutExtension(destFileName);
+                    AssetDatabase.RenameAsset(sourceFileName, objectName);
+                    sourceFileName = temporaryAssets.assets[0].asset.GetPath(); // updated
+                    await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
+                }
+                else
+                {
+                    await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
+                }
                 AssetDatabase.ImportAsset(asset.GetPath(), ImportAssetOptions.ForceUpdate);
                 asset.FixObjectName();
             }
@@ -240,8 +263,7 @@ namespace Unity.AI.Animate.Services.Utilities
         public static async Task<AnimationClip> ImportFbxAnimationClipTemporarily(this AnimationClipResult generatedAnimationClip)
         {
             var fbxFilePath = generatedAnimationClip.uri.GetLocalPath();
-            var extension = Path.GetExtension(fbxFilePath);
-            if (string.IsNullOrEmpty(extension) || !extension.Equals(".fbx", StringComparison.OrdinalIgnoreCase))
+            if (!generatedAnimationClip.IsFbx())
             {
                 Debug.LogError("File does not have a valid .fbx extension");
                 return null;
@@ -288,6 +310,6 @@ namespace Unity.AI.Animate.Services.Utilities
     [Serializable]
     record GenerationMetadata : GeneratedAssetMetadata
     {
-        // No additional fields needed for Animation
+        public bool isTrimmed;
     }
 }

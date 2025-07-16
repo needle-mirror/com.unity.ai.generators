@@ -90,6 +90,12 @@
     flex-grow: 0;
 }
 
+.flex-grow-25pct {
+    flex-grow: 1;
+    width: 25%;
+    height: 25%;
+}
+
 .flex-grow-100pct {
     flex-grow: 1;
     width: 100%;
@@ -141,6 +147,10 @@
 
 .height-168px {
     height: 168px;
+}
+
+.height-100pct {
+    height: 100%;
 }
 
 /* Min Height */
@@ -501,6 +511,10 @@
     color: var(--unity-colors-helpbox-text);
 }
 
+.color-disclaimer-text {
+    color: var(--unity-colors-slider_thumb-border);
+}
+
 .text-hover:hover {
     color: var(--unity-colors-default-text-hover);
 }
@@ -694,4 +708,12 @@
 
 .aitk-ping {
     background-color: var(--unity-colors-button-background-pressed);
+}
+
+.scale-to-fit {
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.color-disclaimer-tint {
+    -unity-background-image-tint-color: var(--unity-colors-slider_thumb-border);
 }

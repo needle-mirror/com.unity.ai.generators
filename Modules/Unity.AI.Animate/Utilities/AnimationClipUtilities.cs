@@ -31,7 +31,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 return result.ImportAnimationClipTemporarily();
 
             // is it an fbx?
-            if (Path.GetExtension(result.uri.GetLocalPath()).Equals(AssetUtils.fbxAssetExtension, StringComparison.InvariantCultureIgnoreCase))
+            if (result.IsFbx())
                 return await result.ImportFbxAnimationClipTemporarily();
 
             // Load the motion data from file
@@ -46,7 +46,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 return result.ImportAnimationClipTemporarily();
 
             // is it an fbx?
-            if (Path.GetExtension(result.uri.GetLocalPath()).Equals(AssetUtils.fbxAssetExtension, StringComparison.InvariantCultureIgnoreCase))
+            if (result.IsFbx())
             {
                 if (!AnimationClipCache.TryGetAnimationClip(result.uri, out var clip))
                     throw new NotImplementedException("FBX animation clip must have been previously asynchronously imported and cached.");
@@ -92,6 +92,9 @@ namespace Unity.AI.Animate.Services.Utilities
             var wasBlank = to.IsBlank();
             to.ClearCurves();
 
+            // Copy animation settings
+            //AnimationUtility.SetAnimationClipSettings(to, AnimationUtility.GetAnimationClipSettings(from));
+
             var curveBindings = AnimationUtility.GetCurveBindings(from);
             var targetCurves = new AnimationCurve [curveBindings.Length];
             for (var i = 0; i < curveBindings.Length; i++)
@@ -108,6 +111,29 @@ namespace Unity.AI.Animate.Services.Utilities
 
             EditorUtility.SetDirty(to);
             return true;
+        }
+
+        public static bool CanBeEdited(this AnimationClip animClip)
+        {
+            if (animClip == null || !animClip.isHumanMotion)
+                return false;
+
+            // Check if it contains curves of type Animator (muscle clip)
+            var hasMuscleClips = false;
+            var bindings = AnimationUtility.GetCurveBindings(animClip);
+            if (bindings.Length == 0)
+                return false;
+
+            foreach (var binding in bindings)
+            {
+                if (binding.type == typeof(Animator))
+                {
+                    hasMuscleClips = true;
+                    break;
+                }
+            }
+
+            return hasMuscleClips;
         }
     }
 }

@@ -59,7 +59,11 @@ namespace Unity.AI.Material.Services.Utilities
             if (!typeof(UnityEngine.Material).IsAssignableFrom(t.AsObject.GetType()))
                 return null;
 
-            s_MaterialPreviewRenderUtility.SetMaterial(t.AsObject as UnityEngine.Material);
+            var materialObj = t.AsObject as UnityEngine.Material;
+            if (!ShaderUtil.IsPassCompiled(materialObj, 0))
+                ShaderUtil.CompilePass(materialObj, 0, true);
+
+            s_MaterialPreviewRenderUtility.SetMaterial(materialObj);
 
             var rt = s_MaterialPreviewRenderUtility.DoRenderPreview(new Rect(0, 0, texWidth, texHeight), new GUIStyle());
             if (rt == null)

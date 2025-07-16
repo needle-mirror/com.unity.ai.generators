@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Sound.Services.Stores.Actions;
-using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Utilities;
@@ -48,6 +47,8 @@ namespace Unity.AI.Sound.Components
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
+
+            this.SetupInfoIcon();
 
             m_GridView = this.Q<GridView>();
             m_GridView.BindTo<AudioClipResult>(m_TilePool, () => true);

@@ -80,7 +80,7 @@ namespace Unity.AI.Generators.UI.Actions
         {
             if (!results.Batch.IsSuccessful)
                 DispatchFailedMessage(api, asset, results.Batch.Error);
-            Debug.Log($"Trace Id {results.SdkTraceId} => {results.W3CTraceId}");
+            Debug.Log($"Trace Id '{results.SdkTraceId}' => W3CTraceId '{results.W3CTraceId}'");
         }
 
         public static void DispatchFailedMessage(this AsyncThunkApi<bool> api, AssetReference asset, AiOperationFailedResult result)
@@ -100,11 +100,11 @@ namespace Unity.AI.Generators.UI.Actions
             }
         }
 
-        public static void DispatchFailedDownloadMessage<T>(this AsyncThunkApi<bool> api, AssetReference asset, OperationResult<T> result) where T : class
+        public static void DispatchFailedDownloadMessage<T>(this AsyncThunkApi<bool> api, AssetReference asset, OperationResult<T> result, string lastW3CTraceId = null) where T : class
         {
             if (!result.Result.IsSuccessful)
                 DispatchFailedDownloadMessage(api, asset, result.Result.Error);
-            Debug.Log($"Trace Id {result.SdkTraceId} => {result.W3CTraceId}");
+            Debug.Log($"Trace Id '{result.SdkTraceId}' => W3CTraceId '{(!string.IsNullOrWhiteSpace(result.W3CTraceId) ? result.W3CTraceId : lastW3CTraceId)}'");
         }
 
         public static void DispatchFailedDownloadMessage(this AsyncThunkApi<bool> api, AssetReference asset, AiOperationFailedResult result)

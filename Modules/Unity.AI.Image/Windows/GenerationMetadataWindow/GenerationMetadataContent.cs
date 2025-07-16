@@ -217,6 +217,13 @@ namespace Unity.AI.Image.Windows
                     var label = doodleUI.Q<Label>("doodle-type");
                     label.text = doodleData.label;
 
+                    var doodleStrengthContainer = this.Q<VisualElement>(className: "doodle-strength-container");
+                    var strength = doodleUI.Q<Label>("doodle-strength-metadata");
+
+                    var displayStrength = doodleData.invertStrength ? 100 - doodleData.strength * 100.0f : doodleData.strength * 100.0f;
+                    strength.text = (displayStrength).ToString();
+                    doodleStrengthContainer.EnableInClassList("hidden", Mathf.Approximately(doodleData.strength, 0f));
+
                     var doodleCopyButton = doodleUI.Q<Button>("copy-doodle-button");
                     doodleCopyButton.clicked += () =>
                     {
@@ -318,6 +325,9 @@ namespace Unity.AI.Image.Windows
                     default:
                         break;
                 }
+
+                if (!Mathf.Approximately(doodleData.strength, 0f))
+                    this.Dispatch(GenerationSettingsActions.setImageReferenceStrength, new (doodleData.doodleReferenceType, doodleData.strength));
             }
         }
 

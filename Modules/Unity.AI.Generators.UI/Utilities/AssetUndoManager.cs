@@ -21,9 +21,6 @@ namespace Unity.AI.Generators.UI.Utilities
         public T selectedResult = default;
 
         [NonSerialized]
-        List<string> m_AllTempFilePaths = new();
-
-        [NonSerialized]
         string m_PreviousTempFilePath;
 
         /// <summary>
@@ -42,7 +39,6 @@ namespace Unity.AI.Generators.UI.Utilities
                 tempFilePaths = new();
                 asset = new();
                 selectedResult = default;
-                m_AllTempFilePaths = new();
                 m_PreviousTempFilePath = null;
                 return;
             }
@@ -84,17 +80,18 @@ namespace Unity.AI.Generators.UI.Utilities
         public void EndRecord(AssetReference assetReference, T result, bool force = false)
         {
             Undo.RecordObject(this,
-                !string.IsNullOrEmpty(result?.ToString())
+                (!string.IsNullOrEmpty(result?.ToString())
                     ? $"Replace {Path.GetFileNameWithoutExtension(assetReference.GetPath())} with {Path.GetFileNameWithoutExtension(result.ToString())}"
-                    : $"Load {Path.GetFileNameWithoutExtension(assetReference.GetPath())}"
+                    : $"Record {Path.GetFileNameWithoutExtension(assetReference.GetPath())}")
+                + $" #### unique undo operation id: {Guid.NewGuid()}" // ensures the undo operation isn't re-used / skipped
             );
 
             asset = new AssetReference { guid = assetReference.guid };
 
+            // this folder is automatically cleaned up by Unity Editor
             tempFilePath = UndoUtilities.GetTempFileName();
             tempFilePaths.Clear();
             tempFilePaths.Add(asset.GetPath(), tempFilePath);
-            m_AllTempFilePaths.Add(tempFilePath);
             FileIO.CopyFile(asset.GetPath(), tempFilePath, overwrite: true);
 
             selectedResult = Clone(result);

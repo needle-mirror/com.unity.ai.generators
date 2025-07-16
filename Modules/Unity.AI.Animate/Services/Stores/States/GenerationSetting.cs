@@ -20,6 +20,8 @@ namespace Unity.AI.Animate.Services.Stores.States
 
         public float historyDrawerHeight = 200;
         public float generationPaneWidth = 280;
+
+        public LoopSettings loopSettings = new();
     }
 
     [Serializable]
@@ -40,5 +42,17 @@ namespace Unity.AI.Animate.Services.Stores.States
     record ModelSelection
     {
         public string modelID = "";
+    }
+
+    [Serializable]
+    record LoopSettings
+    {
+        public float minimumTime = 0.0f;
+        public float maximumTime = 1.0f;
+        public float durationCoverage = 0.25f;
+        public float motionCoverage = 0.5f;
+        public float muscleTolerance = 5.0f;
+        public bool inPlace = true;
+        public bool useBestLoop = true;
     }
 }

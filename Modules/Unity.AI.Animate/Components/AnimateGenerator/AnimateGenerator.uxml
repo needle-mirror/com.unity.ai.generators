@@ -57,6 +57,9 @@
                             <ui:GenerateButton text="Generate" quote-monitor="false" />
                         </VisualElement>
                     </Tab>
+                    <Tab label="Trim" class="border-color-dark border-top-1px" tooltip="Trim an animation.">
+                        <ui:AnimateLoop/>
+                    </Tab>
                 </ui:RefinementModeTabView>
             </VisualElement>
             <!-- Bottom Pane (Vertical Layout Only) -->

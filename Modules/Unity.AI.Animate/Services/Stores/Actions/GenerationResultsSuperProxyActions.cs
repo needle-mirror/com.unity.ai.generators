@@ -9,7 +9,6 @@ using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Animation.Requests.Generate;
-using AiEditorToolsSdk.Components.Modalities.Animation.Responses;
 using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Stores.States;
@@ -26,7 +25,6 @@ using Random = UnityEngine.Random;
 using Task = System.Threading.Tasks.Task;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
-using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
@@ -178,6 +176,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<GenerateAnimationsData> generateAnimations = new($"{GenerationResultsActions.slice}/generateAnimationsSuperProxy", async (arg, api) =>
         {
+            using var editorFocus = new EditorFocusScope();
+
             var asset = new AssetReference { guid = arg.asset.guid };
 
             var generationSetting = arg.generationSetting;
@@ -214,18 +214,16 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             {
                 if (videoReference.asset.IsValid())
                 {
-                    using var progressTokenSource0 = new CancellationTokenSource();
                     try
                     {
-                        _ = ProgressUtils.RunFuzzyProgress(0.01f, 0.15f,
-                            value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Converting video.",
-                                false), // video conversion does its own background reporting
-                            1, progressTokenSource0.Token);
-
                         var videoClip = videoReference.asset.GetObject<VideoClip>();
                         await using var uploadStream = !Path.GetExtension(videoReference.asset.GetPath()).Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
                             videoClip.length > 10
-                                ? await videoClip.ConvertAsync(0, 10)
+                                ? await videoClip.ConvertAsync(0, 10, deleteOutputOnClose: true,
+                                    progressCallback: value => api.DispatchProgress(arg.asset,
+                                        progress with { progress = Mathf.Max(progress.progress, value * 0.15f) }, "Converting video.",
+                                        false) // video conversion does its own background reporting
+                                    )
                                 : FileIO.OpenReadAsync(videoReference.asset.GetPath());
 
                         var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
@@ -241,14 +239,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                         api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                         throw;
                     }
-                    finally
-                    {
-                        progressTokenSource0.Cancel();
-                    }
                 }
             }
-
-            using var editorFocus = new EditorFocusScope(); // start focus control late because the video conversion does its own focus control (above)
 
             var ids = new List<Guid>();
             int[] customSeeds = {};
@@ -394,17 +386,19 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                     if (result.Result.IsSuccessful)
                         api.DispatchFailedDownloadMessage(arg.asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
                     else
-                        api.DispatchFailedDownloadMessage(arg.asset, result);
+                        api.DispatchFailedDownloadMessage(arg.asset, result, arg.generationMetadata.w3CTraceId);
                     throw new HandledFailureException();
                 }).ToList();
             }
             catch (HandledFailureException)
             {
                 // we can simply return without throwing or additional logging because the error is already logged
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 return;
             }
             catch
             {
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }

@@ -4,6 +4,7 @@ using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -32,6 +33,13 @@ namespace Unity.AI.Material.Components
             deleteImageReference.clicked += () => {
                 this.Dispatch(GenerationSettingsActions.setPatternImageReference, new Services.Stores.States.PatternImageReference());
             };
+
+            var objectField = this.Q<ObjectField>();
+            objectField.RegisterValueChangedCallback(evt =>
+            {
+                if (!evt.newValue)
+                    this.Dispatch(GenerationSettingsActions.setPatternImageReference, new Services.Stores.States.PatternImageReference());
+            });
         }
     }
 }

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Animate.Services.Stores.Actions;
-using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Undo;
 using Unity.AI.Animate.Services.Utilities;
@@ -64,6 +63,7 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
         public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAnimations.Count > 0;
         public static AnimationClipResult SelectSelectedGeneration(this IState state, VisualElement element) => state.SelectGenerationResult(element).selectedGeneration;
         public static AnimationClipResult SelectSelectedGeneration(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).selectedGeneration;
+        public static AssetUndoManager SelectAssetUndoManager(this IState state, VisualElement element) => state.SelectGenerationResult(element).assetUndoManager;
         public static AssetUndoManager SelectAssetUndoManager(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).assetUndoManager;
         public static bool SelectReplaceWithoutConfirmationEnabled(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).replaceWithoutConfirmation;
     }

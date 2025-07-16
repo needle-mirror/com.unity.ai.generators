@@ -52,6 +52,8 @@ namespace Unity.AI.Image.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
+            this.SetupInfoIcon();
+
             m_GridView = this.Q<GridView>();
             m_GridView.BindTo<TextureResult>(m_TilePool, () => replaceAssetOnSelect);
             m_GridView.MakeTileGrid(GetPreviewSize);

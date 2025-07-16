@@ -44,7 +44,22 @@ namespace Unity.AI.Image.Services.Utilities
             }
         }
 
-        public static string CreateBlankTexture(string path, bool force = true) => CreateBlankTexture(path, force, 1, 1);
+        public static string CreateBlankTexture(string path, bool force = true)
+        {
+            const int size = 256;
+            var texturePath = CreateBlankTexture(path, force, size, size);
+            if (string.IsNullOrEmpty(texturePath))
+                return string.Empty;
+
+            var textureImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+            if (textureImporter != null)
+            {
+                textureImporter.alphaIsTransparency = true;
+                textureImporter.SaveAndReimport();
+            }
+
+            return texturePath;
+        }
 
         public static string CreateBlankSprite(string path, bool force = true)
         {

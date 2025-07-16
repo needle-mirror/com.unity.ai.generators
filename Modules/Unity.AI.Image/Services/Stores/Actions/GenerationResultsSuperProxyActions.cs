@@ -616,16 +616,16 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             // Generate a unique task ID for download recovery
             var downloadImagesData = new DownloadImagesData(
-                asset, 
-                ids, 
-                arg.taskID, 
-                Guid.NewGuid(), 
-                generationMetadata, 
-                customSeeds, 
-                refinementMode is RefinementMode.RemoveBackground or RefinementMode.Pixelate or RefinementMode.Upscale or RefinementMode.Recolor, 
-                generationSetting.replaceBlankAsset, 
+                asset,
+                ids,
+                arg.taskID,
+                Guid.NewGuid(),
+                generationMetadata,
+                customSeeds,
+                refinementMode is RefinementMode.RemoveBackground or RefinementMode.Pixelate or RefinementMode.Upscale or RefinementMode.Recolor,
+                generationSetting.replaceBlankAsset,
                 generationSetting.replaceRefinementAsset);
-                
+
             GenerationRecovery.AddInterruptedDownload(downloadImagesData); // 'potentially' interrupted
 
             if (WebUtilities.simulateClientSideFailures)
@@ -687,13 +687,9 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         return TextureResult.FromUrl(result.Result.Value.AssetUrl.Url);
 
                     if (result.Result.IsSuccessful)
-                    {
-                        AiOperationFailedResult result1 =
-                            new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" });
-                        api.DispatchFailedDownloadMessage(arg.asset, result1);
-                    }
+                        api.DispatchFailedDownloadMessage(arg.asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
                     else
-                        api.DispatchFailedDownloadMessage(arg.asset, result);
+                        api.DispatchFailedDownloadMessage(arg.asset, result, arg.generationMetadata.w3CTraceId);
 
                     throw new HandledFailureException();
                 }).ToList();
@@ -701,10 +697,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
             catch (HandledFailureException)
             {
                 // we can simply return without throwing or additional logging because the error is already logged
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 return;
             }
             catch
             {
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }

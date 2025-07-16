@@ -17,7 +17,7 @@ namespace Unity.AI.Sound.Windows
         public static void Display(string assetPath)
         {
             var asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
-            var window = EditorWindowExtensions.CreateAssetWindow<SoundEnvelopeWindow>(asset, $"Edit {Path.GetFileNameWithoutExtension(assetPath)}", false);
+            var window = EditorWindowExtensions.CreateAssetWindow<SoundEnvelopeWindow>(asset, $"Trim {Path.GetFileNameWithoutExtension(assetPath)}", false);
             window.minSize = new Vector2(640, 480);
             window.maxSize = new Vector2(3840, 2160);
             window.Show();
@@ -33,7 +33,7 @@ namespace Unity.AI.Sound.Windows
                     return;
 
                 assetContext = value;
-                titleContent.text = $"Edit {Path.GetFileNameWithoutExtension(value.GetPath())}";
+                titleContent.text = $"Trim {Path.GetFileNameWithoutExtension(value.GetPath())}";
 
                 // refresh the titlebar
                 Show();
@@ -74,7 +74,7 @@ namespace Unity.AI.Sound.Windows
         void OnAssetMoved(string oldPath, string newPath)
         {
             if (asset.GetPath() == oldPath)
-                titleContent.text = $"Edit {Path.GetFileNameWithoutExtension(newPath)}";
+                titleContent.text = $"Trim {Path.GetFileNameWithoutExtension(newPath)}";
         }
 
         void OnEnable()

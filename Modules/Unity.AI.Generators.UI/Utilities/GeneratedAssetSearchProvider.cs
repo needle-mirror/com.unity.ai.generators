@@ -31,7 +31,8 @@ namespace Unity.AI.Generators.UI.Utilities
         [SearchItemProvider]
         static SearchProvider CreateProvider()
         {
-            return new(k_ProviderId, AssetReferenceExtensions.GetGeneratedAssetsRoot())
+            var displayName = Regex.Replace(AssetReferenceExtensions.GetGeneratedAssetsRoot(), "(\\B[A-Z])", " $1");
+            return new(k_ProviderId, displayName)
             {
                 filterId = k_FilterPrefix,
                 priority = 85,

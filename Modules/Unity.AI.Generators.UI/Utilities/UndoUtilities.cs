@@ -10,6 +10,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
         public static string GetTempFileName()
         {
+            // this folder is automatically cleaned up by Unity Editor
             var tempFolderPath = Path.Combine(projectRootPath, "Temp", "Generated Assets", "Undo");
 
             if (!Directory.Exists(tempFolderPath))
@@ -24,6 +25,6 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             return fullFilePath;
-        }        
+        }
     }
 }

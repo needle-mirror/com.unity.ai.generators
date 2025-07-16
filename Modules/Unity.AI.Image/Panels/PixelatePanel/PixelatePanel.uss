@@ -29,3 +29,8 @@ PixelatePanel {
     border-top-color: #141414;
     border-top-width: 1px;
 }
+
+.pixelate-pixel-block-size .pixelate-keep-image-size-toggle Label {
+    padding-top: 2px;
+    height: 16px;
+}

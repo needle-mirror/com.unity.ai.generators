@@ -7,6 +7,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
+using UnityEngine;
 
 namespace Unity.AI.Animate.Services.Stores.Slices
 {
@@ -36,6 +37,17 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                         .Add(GenerationSettingsActions.setRefinementMode, (state, payload) => state.refinementMode = payload)
                         .Add(GenerationSettingsActions.setVideoInputReferenceAsset, (state, payload) => state.videoReference.asset = payload)
                         .Add(GenerationSettingsActions.setVideoInputReference, (state, payload) => state.videoReference = payload)
+                        .Add(GenerationSettingsActions.setLoopMinimumTime, (state, payload) => state.loopSettings.minimumTime = Math.Min(payload, state.loopSettings.maximumTime))
+                        .Add(GenerationSettingsActions.setLoopMaximumTime, (state, payload) =>
+                        {
+                            if (payload > Mathf.Epsilon)
+                                state.loopSettings.maximumTime = Math.Max(payload, state.loopSettings.minimumTime);
+                        })
+                        .Add(GenerationSettingsActions.setLoopDurationCoverage, (state, payload) => state.loopSettings.durationCoverage = payload)
+                        .Add(GenerationSettingsActions.setLoopMotionCoverage, (state, payload) => state.loopSettings.motionCoverage = payload)
+                        .Add(GenerationSettingsActions.setLoopMuscleTolerance, (state, payload) => state.loopSettings.muscleTolerance = payload)
+                        .Add(GenerationSettingsActions.setLoopInPlace, (state, payload) => state.loopSettings.inPlace = payload)
+                        .Add(GenerationSettingsActions.setUseBestLoop, (state, payload) => state.loopSettings.useBestLoop = payload)
                 ),
             extraReducers => extraReducers
                 .AddCase(AppActions.init).With((state, payload) => payload.payload.generationSettingsSlice with { })
@@ -65,6 +77,15 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                         },
                         generationPaneWidth = entry.Value.generationPaneWidth,
                         historyDrawerHeight = entry.Value.historyDrawerHeight,
+                        loopSettings = entry.Value.loopSettings with {
+                            minimumTime = entry.Value.loopSettings.minimumTime,
+                            maximumTime = entry.Value.loopSettings.maximumTime,
+                            durationCoverage = entry.Value.loopSettings.durationCoverage,
+                            motionCoverage = entry.Value.loopSettings.motionCoverage,
+                            muscleTolerance = entry.Value.loopSettings.muscleTolerance,
+                            inPlace = entry.Value.loopSettings.inPlace,
+                            useBestLoop = entry.Value.loopSettings.useBestLoop
+                        },
                     })
                 )
             });

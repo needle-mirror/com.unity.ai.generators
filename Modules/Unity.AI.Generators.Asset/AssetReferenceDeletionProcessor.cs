@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AI.Generators.Asset
 {
@@ -15,13 +16,20 @@ namespace Unity.AI.Generators.Asset
             if (!Directory.Exists(folderPath))
                 return AssetDeleteResult.DidNotDelete;
 
-            var deletedFolderPath = folderPath + "_deleted";
-            if (!Directory.Exists(deletedFolderPath))
-                Directory.Move(folderPath, deletedFolderPath);
-            else
+            try
             {
-                CopyContents(folderPath, deletedFolderPath);
-                Directory.Delete(folderPath, true);
+                var deletedFolderPath = folderPath + "_deleted";
+                if (!Directory.Exists(deletedFolderPath))
+                    Directory.Move(folderPath, deletedFolderPath);
+                else
+                {
+                    CopyContents(folderPath, deletedFolderPath);
+                    Directory.Delete(folderPath, true);
+                }
+            }
+            catch
+            {
+                Debug.Log($"Some generated assets remain in '{folderPath}'.");
             }
 
             return AssetDeleteResult.DidNotDelete;

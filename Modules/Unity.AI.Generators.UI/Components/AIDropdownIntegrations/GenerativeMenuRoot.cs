@@ -11,7 +11,8 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
     {
         const int k_DropdownPadding = 8;
         const int k_MenuSeparation = 2;
-        internal const string generatorsIsDisabledTooltip = "Your organization has disabled the use of Generators";
+        internal const string generatorsIsDisabledTooltip = "Your organization has disabled the use of Generators.";
+        internal const string generatorsHaveHistoryTooltip = "You can view and use past generations.";
 
         public GenerativeMenuRoot()
         {

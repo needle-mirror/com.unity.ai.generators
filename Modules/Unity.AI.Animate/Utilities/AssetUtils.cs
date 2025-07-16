@@ -52,10 +52,12 @@ namespace Unity.AI.Animate.Services.Utilities
             return assetPath;
         }
 
-        public static void SetDefaultClipSettings(this AnimationClip clip)
+        public static void SetDefaultClipSettings(this AnimationClip clip, bool? loopBlend = null)
         {
             var clipSettings = AnimationUtility.GetAnimationClipSettings(clip);
             clipSettings.loopTime = true;
+            if (loopBlend != null)
+                clipSettings.loopBlend = loopBlend.Value;
             clipSettings.loopBlendPositionY = true;
             clipSettings.loopBlendPositionXZ = true;
             clipSettings.loopBlendOrientation = true;
@@ -83,6 +85,28 @@ namespace Unity.AI.Animate.Services.Utilities
             var animate = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
             Selection.activeObject = animate;
             return animate;
+        }
+
+        public static void CopyClipSettingsFrom(this AnimationClip clip, AnimationClip from)
+        {
+            if (clip == null || from == null)
+                return;
+
+            var settingsFrom = AnimationUtility.GetAnimationClipSettings(from);
+            var settingsTo = AnimationUtility.GetAnimationClipSettings(clip);
+
+            settingsTo.loopTime = settingsFrom.loopTime;
+            settingsTo.loopBlend = settingsFrom.loopBlend;
+            settingsTo.loopBlendPositionY = settingsFrom.loopBlendPositionY;
+            settingsTo.loopBlendPositionXZ = settingsFrom.loopBlendPositionXZ;
+            settingsTo.loopBlendOrientation = settingsFrom.loopBlendOrientation;
+            settingsTo.keepOriginalPositionY = settingsFrom.keepOriginalPositionY;
+            settingsTo.keepOriginalPositionXZ = settingsFrom.keepOriginalPositionXZ;
+            settingsTo.keepOriginalOrientation = settingsFrom.keepOriginalOrientation;
+
+            AnimationUtility.SetAnimationClipSettings(clip, settingsTo);
+
+            EditorUtility.SetDirty(clip);
         }
     }
 }

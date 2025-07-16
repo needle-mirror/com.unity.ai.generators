@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.Actions;
-using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Material.Services.Utilities;
@@ -48,6 +47,8 @@ namespace Unity.AI.Material.Components
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
+
+            this.SetupInfoIcon();
 
             m_GridView = this.Q<GridView>();
             m_GridView.BindTo<MaterialResult>(m_TilePool, () => true);

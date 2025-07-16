@@ -146,7 +146,6 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             }
 
             var result = false;
-
             if (!FileIO.AreFilesIdentical(payload.asset.GetPath(), payload.result.uri.LocalPath))
             {
                 var replaceWithoutConfirmation = api.State.SelectReplaceWithoutConfirmationEnabled(payload.asset);

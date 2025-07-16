@@ -41,7 +41,7 @@
                                     <Label class="font-bold p-4" text="Material Map Assignments" tooltip="Assign the generated material preview image to a specific input channel on your custom shader. Use the circular arrow to restore recommended defaults. To generate full PBR maps from this preview image, switch to the PBR tab."/>
                                     <ui:MappingAutoButton />
                                 </VisualElement>
-                                <ui:TexturePropertyField label="delighted" map-type="Delighted" value="None"/>
+                                <ui:TexturePropertyField label="base" map-type="Delighted" value="None"/>
                             </VisualElement>
                         </ScrollView>
                         <!-- Generate Button -->
@@ -68,7 +68,7 @@
                                     <Label class="font-bold p-4" text="Material Map Assignments" tooltip="Assign the generated material preview image to a specific input channel on your custom shader. Use the circular arrow to restore recommended defaults. To generate full PBR maps from this preview image, switch to the PBR tab."/>
                                     <ui:MappingAutoButton />
                                 </VisualElement>
-                                <ui:TexturePropertyField label="delighted" map-type="Delighted" value="None"/>
+                                <ui:TexturePropertyField label="base" map-type="Delighted" value="None"/>
                             </VisualElement>
                         </ScrollView>
                         <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px border-top-1px">
@@ -94,6 +94,7 @@
                                     <Label class="font-bold p-4" text="Material Map Assignments" tooltip="Assign specific PBR maps, such as normal or metallic, to input channels on your custom shader. Use the circular arrow to restore the recommended defaults."/>
                                     <ui:MappingAutoButton />
                                 </VisualElement>
+                                <ui:TexturePropertyField label="base" map-type="Preview" value="None"/>
                                 <ui:TexturePropertyField label="delighted" map-type="Delighted" value="None"/>
                                 <ui:TexturePropertyField label="normal" map-type="Normal" value="None"/>
                                 <ui:TexturePropertyField label="height" map-type="Height" value="None"/>

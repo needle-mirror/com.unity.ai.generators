@@ -38,12 +38,18 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 
-        public static readonly AsyncThunkCreatorWithArg<GenerationDataWindowArgs> openGenerationDataWindow = new($"{slice}/openGenerationDataWindow", async (args, api) =>
-        {
-            await GenerationMetadataWindow.Open(args.element.GetStore(), args.asset, args.element, args.result);
-        });
+        public static readonly AsyncThunkCreatorWithArg<GenerationDataWindowArgs> openGenerationDataWindow = new($"{slice}/openGenerationDataWindow",
+            async (args, _) => await GenerationMetadataWindow.Open(args.element.GetStore(), args.asset, args.element, args.result));
 
         public static readonly AssetActionCreator<float> setHistoryDrawerHeight = new($"{slice}/setHistoryDrawerHeight");
         public static readonly AssetActionCreator<float> setGenerationPaneWidth = new($"{slice}/setGenerationPaneWidth");
+
+        public static AssetActionCreator<float> setLoopMaximumTime => new($"{slice}/{nameof(setLoopMaximumTime)}");
+        public static AssetActionCreator<float> setLoopMinimumTime => new($"{slice}/{nameof(setLoopMinimumTime)}");
+        public static AssetActionCreator<float> setLoopDurationCoverage => new($"{slice}/{nameof(setLoopDurationCoverage)}");
+        public static AssetActionCreator<float> setLoopMotionCoverage => new($"{slice}/{nameof(setLoopMotionCoverage)}");
+        public static AssetActionCreator<float> setLoopMuscleTolerance => new($"{slice}/{nameof(setLoopMuscleTolerance)}");
+        public static AssetActionCreator<bool> setLoopInPlace => new($"{slice}/{nameof(setLoopInPlace)}");
+        public static AssetActionCreator<bool> setUseBestLoop => new($"{slice}/{nameof(setUseBestLoop)}");
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
@@ -46,6 +47,7 @@ namespace Unity.AI.Animate.Components
         IVisualElementScheduledItem m_Scheduled;
         RenderTexture m_SkeletonTexture;
         readonly Label m_Label;
+        readonly Label m_Type;
         GenerationMetadata m_Metadata;
 
         ~GenerationTile()
@@ -70,6 +72,7 @@ namespace Unity.AI.Animate.Components
             AddToClassList("generation-tile");
 
             m_Label = this.Q<Label>("label");
+            m_Type = this.Q<Label>("type");
             image = this.Q<VisualElement>("border");
             RegisterCallback<AttachToPanelEvent>(_ => {
                 if (m_SkeletonTexture)
@@ -77,7 +80,9 @@ namespace Unity.AI.Animate.Components
             RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
             RegisterCallback<MouseEnterEvent>(MouseEnter);
             RegisterCallback<MouseLeaveEvent>(MouseLeave);
-            RegisterCallback<MouseOverEvent>(_ => UpdateTooltip());
+            RegisterCallback<MouseOverEvent>(_ => {
+                var unused = UpdateTooltip();
+            });
 
             m_ContextualMenu = new ContextualMenuManipulator(BuildContextualMenu);
             m_FailedContextualMenu = new ContextualMenuManipulator(BuildFailedContextualMenu);
@@ -156,17 +161,21 @@ namespace Unity.AI.Animate.Components
             if (animationClipResult is TextureSkeleton)
                 return;
 
-            /*
             evt.menu.AppendAction("Select", async _ =>
             {
                 if (this.GetAsset() == null || animationClipResult == null)
                     return;
                 var asset = this.GetAsset();
                 var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, true, true));
+                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, false, false));
                 AssetDatabase.Refresh();
             }, DropdownMenuAction.AlwaysEnabled);
-            */
+            evt.menu.AppendAction("Promote to current asset", async _ =>
+            {
+                var asset = this.GetAsset();
+                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
+                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, true, false));
+            }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction("Promote to new asset", _ =>
             {
                 var asset = this.GetAsset();
@@ -196,6 +205,28 @@ namespace Unity.AI.Animate.Components
                 var store = this.GetStore();
                 await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, animationClipResult));
             }, showGenerationDataStatus);
+
+            if (Unsupported.IsDeveloperMode() && HasFbxDownloadOption())
+            {
+                evt.menu.AppendSeparator();
+                evt.menu.AppendAction("Download FBX", async _ =>
+                {
+                    var path = animationClipResult.uri.GetLocalPath();
+                    var defaultFileName = Path.GetFileNameWithoutExtension(path) + AssetUtils.fbxAssetExtension;
+                    var projectPath = Path.Combine(Application.dataPath, "..");
+                    var saveFilePath = EditorUtility.SaveFilePanel(
+                        "Save FBX File",
+                        projectPath,
+                        defaultFileName,
+                        "fbx");
+
+                    if (string.IsNullOrEmpty(saveFilePath) || !File.Exists(path))
+                        return;
+
+                    await FileIO.CopyFileAsync(path, saveFilePath, true);
+                    Generators.Asset.AssetReferenceExtensions.ImportAsset(saveFilePath);
+                }, DropdownMenuAction.AlwaysEnabled);
+            }
         }
 
         void BuildFailedContextualMenu(ContextualMenuPopulateEvent evt)
@@ -289,6 +320,7 @@ namespace Unity.AI.Animate.Components
             m_SpinnerManipulator.Stop();
 
             m_Label.SetShown(result is TextureSkeleton);
+            _ = UpdateTypeLabel();
 
             image.style.backgroundImage = null;
 
@@ -319,9 +351,48 @@ namespace Unity.AI.Animate.Components
             }
 
             OnGeometryChanged(null);
+
+            return;
+
+            async Task UpdateTypeLabel()
+            {
+                m_Type.text = "";
+                if (Unsupported.IsDeveloperMode() && IsFbxResult(result))
+                {
+                    m_Type.text = "FBX";
+                    m_Type.SetShown();
+                    return;
+                }
+
+                var metadata = await result.GetMetadata();
+                if (metadata.isTrimmed)
+                {
+                    m_Type.text = "TRIM";
+                    m_Type.SetShown();
+                    return;
+                }
+
+                m_Type.SetShown(false);
+            }
         }
 
-        async void UpdateTooltip()
+        static bool IsFbxResult(AnimationClipResult result)
+        {
+            if (result == null || result is TextureSkeleton || result.IsFailed())
+                return false;
+
+            return result.IsFbx();
+        }
+
+        bool HasFbxDownloadOption()
+        {
+            if (animationClipResult == null || animationClipResult is TextureSkeleton || animationClipResult.IsFailed())
+                return false;
+
+            return animationClipResult.IsFbx();
+        }
+
+        async Task UpdateTooltip()
         {
             tooltip = this.GetState()?.SelectTooltipModelSettings(null);
             if (animationClipResult is null or TextureSkeleton)

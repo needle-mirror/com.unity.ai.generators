@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Toolkit.Accounts.Services;
@@ -66,20 +67,23 @@ namespace Unity.AI.Sound.Windows
             if (!OnAssetGenerationValidation(editor.targets))
                 return;
 
+            var isDisabledAndHasNoHistory = !Account.settings.AiGeneratorsEnabled && !IncludesGenerationHistory(editor.targets);
+
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            var generatorsEnabled = Account.settings.AiGeneratorsEnabled;
-            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets));
+            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || isDisabledAndHasNoHistory);
             var generateButtonTooltip = "Use generative ai to transform this audio clip.";
-            if (!generatorsEnabled)
+            if (!Account.settings.AiGeneratorsEnabled)
+            {
                 generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;
-            EditorGUI.BeginDisabledGroup(!generatorsEnabled);
+                if (!isDisabledAndHasNoHistory)
+                    generateButtonTooltip += " " + Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsHaveHistoryTooltip;
+            }
             if (GUILayout.Button(new GUIContent("Generate", generateButtonTooltip)))
                 OnAssetGenerationRequest(editor.targets);
             EditorGUI.EndDisabledGroup();
-            if (GUILayout.Button(new GUIContent("Edit", "Trim and edit the envelope of this audio clip.")))
+            if (GUILayout.Button(new GUIContent("Trim", "Trim and edit the envelope of this audio clip.")))
                 OnAssetEditRequest(editor.targets);
-            EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
         }
 
@@ -142,6 +146,9 @@ namespace Unity.AI.Sound.Windows
         }
 
         static bool OnAssetGenerationMultipleValidation(IReadOnlyCollection<Object> objects) => objects.FirstOrDefault(o => TryGetValidAudioPath(o, out _));
+
+        static bool IncludesGenerationHistory(IReadOnlyCollection<Object> objects) =>
+            objects.FirstOrDefault(o => new AssetReference { guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(o)) }.HasGenerations());
 
         internal static void OpenGenerationWindow(string assetPath) => SoundGeneratorWindow.Display(assetPath);
 

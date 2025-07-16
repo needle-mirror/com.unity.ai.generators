@@ -13,8 +13,6 @@ using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Pbr;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Transform;
-using AiEditorToolsSdk.Components.Modalities.Image.Responses;
-using AiEditorToolsSdk.Components.Modalities.Image.Responses.Pbr;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Stores.States;
@@ -29,7 +27,6 @@ using UnityEngine;
 using MapType = Unity.AI.Material.Services.Stores.States.MapType;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
-using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
@@ -534,7 +531,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                         if (result.Result.IsSuccessful)
                             api.DispatchFailedDownloadMessage(arg.asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
                         else
-                            api.DispatchFailedDownloadMessage(arg.asset, result);
+                            api.DispatchFailedDownloadMessage(arg.asset, result, arg.generationMetadata.w3CTraceId);
                         throw new HandledFailureException();
                     }));
                 generatedTextures = urls.ToDictionary(m => m.Key, outerPair => outerPair.Value.ToDictionary(kvp => kvp.Key, innerPair => innerPair.Value));
@@ -542,10 +539,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
             catch (HandledFailureException)
             {
                 // we can simply return without throwing or additional logging because the error is already logged
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 return;
             }
             catch
             {
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }

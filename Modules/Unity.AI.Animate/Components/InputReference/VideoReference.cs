@@ -4,6 +4,7 @@ using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -29,6 +30,13 @@ namespace Unity.AI.Animate.Components
             deleteInputReference.clicked += () => {
                 this.Dispatch(GenerationSettingsActions.setVideoInputReference, new Services.Stores.States.VideoInputReference());
             };
+
+            var objectField = this.Q<ObjectField>();
+            objectField.RegisterValueChangedCallback(evt =>
+            {
+                if (!evt.newValue)
+                    this.Dispatch(GenerationSettingsActions.setVideoInputReference, new Services.Stores.States.VideoInputReference());
+            });
         }
     }
 }

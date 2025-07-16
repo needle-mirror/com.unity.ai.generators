@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.Actions;
-using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
@@ -49,7 +48,10 @@ namespace Unity.AI.Animate.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
+            this.SetupInfoIcon();
+
             m_GridView = this.Q<GridView>();
+
             m_GridView.BindTo<AnimationClipResult>(m_TilePool, () => true);
             m_GridView.MakeTileGrid(GetPreviewSize);
             this.UseAsset(SetAsset);

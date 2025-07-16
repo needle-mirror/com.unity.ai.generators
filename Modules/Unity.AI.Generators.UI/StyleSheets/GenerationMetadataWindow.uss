@@ -68,3 +68,13 @@
     padding: 2px 8px;
     margin: 0;
 }
+
+.doodle-data {
+    flex-direction: column;
+    flex-grow: 1
+}
+
+.doodle-content {
+    flex-direction: row;
+    flex-grow: 1
+}

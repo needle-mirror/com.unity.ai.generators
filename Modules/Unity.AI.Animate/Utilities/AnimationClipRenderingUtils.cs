@@ -78,6 +78,9 @@ namespace Unity.AI.Animate.Services.Utilities
                 var animTime = time % animationClip.length;
                 animationClip.SampleAnimation(s_AvatarPreviewRenderUtility.previewObject, animTime);
 
+                if (!s_AvatarPreviewRenderUtility.IsValid())
+                    return;
+
                 var rt = s_AvatarPreviewRenderUtility.DoRenderPreview(new Rect(0, 0, width, height), k_GUIStyle);
                 if (rt == null)
                     return;
@@ -98,9 +101,12 @@ namespace Unity.AI.Animate.Services.Utilities
 
         class AvatarPreviewRenderUtility
         {
-            Animator animator => previewObject != null ? previewObject.GetComponent(typeof(Animator)) as Animator : null;
+            /// The animator isn't used except to identify the hips, animation is stepped using low level sampling
+            Animator animator => previewObject != null ? previewObject.GetComponent<Animator>() : null;
 
             public GameObject previewObject { get; }
+
+            readonly Transform m_Hips;
 
             static GameObject GetHumanoidFallback() => (GameObject)EditorGUIUtility.Load("Avatar/DefaultAvatar.fbx");
 
@@ -175,7 +181,11 @@ namespace Unity.AI.Animate.Services.Utilities
                 previewUtility.AddSingleGO(previewObject);
 
                 if (animator)
+                {
                     m_AvatarScale = m_ZoomFactor = animator.humanScale;
+                    if (animator.isHuman)
+                        m_Hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+                }
 
                 var referenceGo = (GameObject)EditorGUIUtility.Load("Avatar/dial_flat.prefab");
                 m_ReferenceInstance = Object.Instantiate(referenceGo, Vector3.zero, Quaternion.identity);
@@ -200,6 +210,10 @@ namespace Unity.AI.Animate.Services.Utilities
                 SetPreviewCharacterEnabled(false, false);
                 m_PivotPositionOffset = k_InitialPivotPositionOffset;
             }
+
+            static bool ContainsNaN(Vector3 v) => float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z);
+
+            public bool IsValid() => !m_Hips || !ContainsNaN(m_Hips.position);
 
             public Texture DoRenderPreview(Rect rect, GUIStyle background)
             {
@@ -231,12 +245,18 @@ namespace Unity.AI.Animate.Services.Utilities
                 RenderSettings.ambientProbe = probe;
 
                 var direction = bodyRot * Vector3.forward;
+                if (m_Hips)
+                {
+                    direction = m_Hips.forward;
+                    bodyPos = m_Hips.position;
+                }
+
                 direction[1] = 0;
+                bodyPos[1] = 0;
                 var directionRot = Quaternion.LookRotation(direction);
                 var directionPos = rootPos;
                 var pivotRot = rootRot;
 
-                var bodyPos1 = animator ? animator.bodyPosition : Vector3.zero;
                 m_ReferenceInstance.transform.position = rootPos;
                 m_ReferenceInstance.transform.rotation = rootRot;
                 m_ReferenceInstance.transform.localScale = Vector3.one * m_AvatarScale * 1.25f;
@@ -249,7 +269,7 @@ namespace Unity.AI.Animate.Services.Utilities
                 m_PivotInstance.transform.rotation = pivotRot;
                 m_PivotInstance.transform.localScale = Vector3.one * m_AvatarScale * 0.1f;
 
-                m_RootInstance.transform.position = bodyPos1;
+                m_RootInstance.transform.position = bodyPos;
                 m_RootInstance.transform.rotation = bodyRot;
                 m_RootInstance.transform.localScale = Vector3.one * m_AvatarScale * 0.25f;
 

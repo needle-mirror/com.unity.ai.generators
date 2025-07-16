@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.States;
@@ -285,6 +286,41 @@ namespace Unity.AI.Material.Components
             }
 
             OnGeometryChanged(null);
+
+            if (result.IsPbr() || result.IsMat())
+                return;
+
+            async Task SetBadgeIfUpscaledAsync()
+            {
+                using var stream = await ImageFileUtilities.GetCompatibleImageStreamAsync(result.uri);
+                ImageFileUtilities.TryGetImageDimensions(stream, out var width, out var height);
+                SetBadgeIfUpscaled(width, height);
+            }
+            _ = SetBadgeIfUpscaledAsync();
+        }
+
+        internal static string GetTextureSizeBadge(int size)
+        {
+            return size switch
+            {
+                >= 1024 and < 2048 => "1K",
+                >= 2048 and < 4096 => "2K",
+                >= 4096 and < 8192 => "4K",
+                >= 8192 and < 16384 => "8K",
+                _ => string.Empty
+            };
+        }
+
+        void SetBadgeIfUpscaled(int width, int height)
+        {
+            if (width != height) return;
+
+            var badgeText = GetTextureSizeBadge(width);
+            if (!string.IsNullOrEmpty(badgeText))
+            {
+                m_Type.SetShown();
+                m_Type.text = badgeText;
+            }
         }
 
         async void UpdateTooltip()

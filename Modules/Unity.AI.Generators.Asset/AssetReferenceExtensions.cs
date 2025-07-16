@@ -143,6 +143,18 @@ namespace Unity.AI.Generators.Asset
             return true;
         }
 
+        public static bool HasGenerations(this AssetReference asset)
+        {
+            if (!asset.IsValid())
+                return false;
+
+            var generatedPath = GetGeneratedAssetsPath(asset);
+            if (!Directory.Exists(generatedPath))
+                return false;
+
+            return Directory.GetFileSystemEntries(generatedPath).Length > 0;
+        }
+
         static async Task RefreshInspector(UnityEngine.Object asset)
         {
             if (Selection.activeObject != asset)

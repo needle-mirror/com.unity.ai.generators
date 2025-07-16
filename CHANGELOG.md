@@ -4,6 +4,35 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.16] - 2025-07-16
+
+### Added
+
+- Added Clear option for Video References in animation generator.
+- Added Clear option for Image References in material generator.
+- Added badges for upscaled images in material generator.
+- Added disclaimers for potential copyright.
+- Added base map assignment to material generator.
+- Added trim and normalization tab to animation generator.
+- Added strength to Generation Data for image references in sprite generator.
+
+### Fixed
+
+- Fixed material preview that was sometimes blank.
+- Fixed styling for Pixelate tab.
+- Fixed undo-redo that was sometimes unreliable.
+- Better .mov conversion and support for animation generator.
+- Fixed GeneratedAssets tab title missing a space between the words in Search window.
+- Fixed sound playback not stopping when closing sound trim edit window.
+- Renamed delighted to base in material generator where applicable.
+- Removed emission from default material generator assignments.
+- Fixed initial blank texture generation thumbnail to be similar to sprite placeholder.
+- Fixed a potential race condition when downloading generations.
+
+### Removed
+
+- Removed the generate button from the inspector of readonly animation clips.
+
 ## [1.0.0-pre.15] - 2025-06-27
 
 ### Added

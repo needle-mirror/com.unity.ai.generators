@@ -1,9 +1,7 @@
-﻿#define AI_TK_MATERIAL_EMISSIVE_DEFAULT
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Material.Services.Stores.Actions;
-using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Material.Services.Undo;
 using Unity.AI.Material.Services.Utilities;

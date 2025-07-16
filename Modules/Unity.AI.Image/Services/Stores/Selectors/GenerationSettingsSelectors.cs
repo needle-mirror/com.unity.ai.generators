@@ -318,6 +318,47 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static byte[] SelectImageReferenceDoodle(this IState state, VisualElement element, ImageReferenceType type) => state.SelectGenerationSetting(element).imageReferences[(int)type].doodle;
         public static ImageReferenceMode SelectImageReferenceMode(this IState state, VisualElement element, ImageReferenceType type) => state.SelectGenerationSetting(element).imageReferences[(int)type].mode;
         public static float SelectImageReferenceStrength(this IState state, VisualElement element, ImageReferenceType type) => state.SelectGenerationSetting(element).imageReferences[(int)type].strength;
+
+
+        public static bool SelectImageReferenceInvertStrength(this ImageReferenceType type)
+        {
+            IImageReference imageReference;
+            switch(type)
+            {
+                case ImageReferenceType.PromptImage:
+                    imageReference = new Unity.AI.Image.Components.PromptImageReference();
+                    break;
+                case ImageReferenceType.StyleImage:
+                    imageReference = new Unity.AI.Image.Components.StyleImageReference();
+                    break;
+                case ImageReferenceType.CompositionImage:
+                    imageReference = new Unity.AI.Image.Components.CompositionImageReference();
+                    break;
+                case ImageReferenceType.PoseImage:
+                    imageReference = new Unity.AI.Image.Components.PoseImageReference();
+                    break;
+                case ImageReferenceType.DepthImage:
+                    imageReference = new Unity.AI.Image.Components.DepthImageReference();
+                    break;
+                case ImageReferenceType.LineArtImage:
+                    imageReference = new Unity.AI.Image.Components.LineArtImageReference();
+                    break;
+                case ImageReferenceType.FeatureImage:
+                    imageReference = new Unity.AI.Image.Components.FeatureImageReference();
+                    break;
+                case ImageReferenceType.PaletteImage:
+                    imageReference = new Unity.AI.Image.Components.PaletteImageReference();
+                    break;
+                case ImageReferenceType.InPaintMaskImage:
+                    imageReference = new Unity.AI.Image.Components.InpaintMaskImageReference();
+                    break;
+                default:
+                    return false;
+            }
+
+            return imageReference.invertStrength;
+        }
+
         public static bool SelectImageReferenceIsActive(this IState state, VisualElement element, ImageReferenceType type) => state.SelectGenerationSetting(element).imageReferences[(int)type].isActive;
         public static bool SelectImageReferenceIsActive(this ImageReferenceSettings imageReference) => imageReference.isActive;
         public static bool SelectImageReferenceAllowed(this IState state, VisualElement element, ImageReferenceType type) => true;

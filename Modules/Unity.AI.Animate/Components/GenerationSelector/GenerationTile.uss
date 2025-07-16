@@ -12,3 +12,14 @@
     background-repeat: no-repeat;
     background-size: auto;
 }
+
+.fbx-upper-left-label {
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: auto;
+    height: auto;
+    transform-origin: center;
+    -unity-text-align: upper-left;
+    background-color: rgba(50, 50, 50, 0.5);
+}

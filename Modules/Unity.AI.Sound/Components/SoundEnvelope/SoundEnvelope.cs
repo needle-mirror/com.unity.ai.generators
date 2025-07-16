@@ -166,6 +166,8 @@ namespace Unity.AI.Sound.Components
 
         public void SaveOnClose()
         {
+            m_PlayManipulator?.Cancel();
+
             if (undoManager.envelopeSettings != new SoundEnvelopeSettings() &&
                 EditorUtility.DisplayDialog("Warning", "You are about to lose your changes. Do you want to save them?", "Yes", "No"))
                 _ = Save();

@@ -1,8 +1,11 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Image.Services.Stores.Selectors;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -36,6 +39,8 @@ namespace Unity.AI.Image.Components
                     m_AssetName.text = m_Asset ? newName : $"{newName} (deleted)";
                 }
             };
+
+            this.Use(state => state.SelectSelectedGeneration(this), _ => SetAsset(this.GetAsset()));
         }
 
         public void SetAsset(AssetReference assetReference)
@@ -43,11 +48,17 @@ namespace Unity.AI.Image.Components
             m_Asset = AssetDatabase.LoadAssetAtPath<Object>(assetReference.GetPath());
             m_AssetName.text = m_Asset ? m_Asset.name : $"{Path.GetFileNameWithoutExtension(assetReference.GetPath())} (deleted)";
 
-            var content = EditorGUIUtility.ObjectContent(m_Asset, m_Asset ? m_Asset.GetType() : typeof(Texture2D));
-            m_AssetImage.image = content.image;
-
             EnableInClassList("hide", !assetReference.IsValid());
             EnableInClassList("flex", assetReference.IsValid());
+
+            _ = UpdateImage();
+            return;
+
+            async Task UpdateImage()
+            {
+                var content = EditorGUIUtility.ObjectContent(!(await assetReference.IsBlank()) ? m_Asset : null, m_Asset ? m_Asset.GetType() : typeof(Texture2D));
+                m_AssetImage.image = content.image;
+            }
         }
     }
 }

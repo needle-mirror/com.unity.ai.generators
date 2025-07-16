@@ -6,6 +6,7 @@ using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Toolkit.GenerationContextMenu;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit.Accounts.Services;
+using Unity.AI.Generators.Asset;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -118,15 +119,19 @@ namespace Unity.AI.Image.Windows
             var assetPath = AssetDatabase.GetAssetPath(editor.target);
             var textureImporter = AssetImporter.GetAtPath(assetPath) as TextureImporter;
 
+            var isDisabledAndHasNoHistory = !Account.settings.AiGeneratorsEnabled && !IncludesGenerationHistory(editor.targets);
+
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            var generatorsEnabled = Account.settings.AiGeneratorsEnabled;
-            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || !generatorsEnabled);
+            EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || isDisabledAndHasNoHistory);
             var generateButtonTooltip = $"Use generative ai to transform this {(textureImporter ? textureImporter.textureType : TextureImporterType.Default).ToString()} texture.";
-            if (!generatorsEnabled)
+            if (!Account.settings.AiGeneratorsEnabled)
+            {
                 generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;
-            if (GUILayout.Button(new GUIContent("Generate",
-                    generateButtonTooltip)))
+                if (!isDisabledAndHasNoHistory)
+                    generateButtonTooltip += " " + Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsHaveHistoryTooltip;
+            }
+            if (GUILayout.Button(new GUIContent("Generate", generateButtonTooltip)))
                 OnAssetGenerationRequest(editor.targets);
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
@@ -190,6 +195,9 @@ namespace Unity.AI.Image.Windows
         }
 
         static bool OnAssetGenerationMultipleValidation(IReadOnlyCollection<Object> objects) => objects.FirstOrDefault(o => TryGetValidTexturePath(o, out _));
+
+        static bool IncludesGenerationHistory(IReadOnlyCollection<Object> objects) =>
+            objects.FirstOrDefault(o => new AssetReference { guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(o)) }.HasGenerations());
 
         internal static void OpenGenerationWindow(string assetPath) => TextureGeneratorWindow.Display(assetPath);
     }

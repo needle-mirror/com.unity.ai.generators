@@ -9,7 +9,6 @@ using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Audio.Requests.Generate;
-using AiEditorToolsSdk.Components.Modalities.Audio.Responses;
 using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Stores.States;
@@ -22,7 +21,6 @@ using UnityEditor;
 using UnityEngine;
 using Unity.AI.Toolkit.Accounts;
 using Unity.AI.Generators.Sdk;
-using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
@@ -369,17 +367,19 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     if (result.Result.IsSuccessful)
                         api.DispatchFailedDownloadMessage(arg.asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
                     else
-                        api.DispatchFailedDownloadMessage(arg.asset, result);
+                        api.DispatchFailedDownloadMessage(arg.asset, result, arg.generationMetadata.w3CTraceId);
                     throw new HandledFailureException();
                 }).ToList();
             }
             catch (HandledFailureException)
             {
                 // we can simply return without throwing or additional logging because the error is already logged
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 return;
             }
             catch
             {
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
                 throw;
             }

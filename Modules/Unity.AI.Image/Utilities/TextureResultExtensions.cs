@@ -213,7 +213,10 @@ namespace Unity.AI.Image.Services.Utilities
                 // Retrieve the image reference (and its doodle) for this type.
                 var imageReference = setting.SelectImageReference(type);
                 if (imageReference?.doodle?.Length > 0)
-                    doodles.Add(new GenerationDataDoodle(type, imageReference.doodle, type.GetInternalDisplayNameForType()));
+                {
+                    var invertStrength = type.SelectImageReferenceInvertStrength();
+                    doodles.Add(new GenerationDataDoodle(type, imageReference.doodle, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength));
+                }
             }
             return doodles;
         }
@@ -241,12 +244,16 @@ namespace Unity.AI.Image.Services.Utilities
         public ImageReferenceType doodleReferenceType;
         public byte[] doodle;
         public string label;
+        public float strength;
+        public bool invertStrength;
 
-        public GenerationDataDoodle(ImageReferenceType referenceType, byte[] doodleData, string label)
+        public GenerationDataDoodle(ImageReferenceType referenceType, byte[] doodleData, string label, float strength, bool invertStrength)
         {
             doodleReferenceType = referenceType;
             doodle = doodleData;
             this.label = label;
+            this.strength = strength;
+            this.invertStrength = invertStrength;
         }
     }
 }
