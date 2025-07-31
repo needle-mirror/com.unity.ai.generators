@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using UnityEditor;
@@ -799,7 +800,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
             if (File.Exists(uri.GetLocalPath()))
             {
-                await using Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
+                await using Stream candidateStream = await FileIO.OpenReadWithRetryAsync(uri.GetLocalPath(), CancellationToken.None);
                 return (await CompatibleImageTexture(candidateStream), timestamp);
             }
 
@@ -908,7 +909,7 @@ namespace Unity.AI.Generators.UI.Utilities
             if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
                 return null;
 
-            Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
+            Stream candidateStream = await FileIO.OpenReadWithRetryAsync(uri.GetLocalPath(), CancellationToken.None);
             return await CompatibleImageStream(candidateStream, uri.GetLocalPath());
 
             async Task<Stream> CompatibleImageStream(Stream stream, string filePath)

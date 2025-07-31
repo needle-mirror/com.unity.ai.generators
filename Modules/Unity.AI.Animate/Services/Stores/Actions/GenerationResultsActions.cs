@@ -29,83 +29,24 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         public static readonly string slice = "generationResults";
         public static Creator<GenerationAnimations> setGeneratedAnimations => new($"{slice}/setGeneratedAnimations");
 
-        static bool s_SetGeneratedAnimationsAsyncMutex = false;
+        static readonly SemaphoreSlim k_SetGeneratedAnimationsAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationAnimations> setGeneratedAnimationsAsync = new($"{slice}/setGeneratedAnimationsAsync",
             async (payload, api) =>
         {
-            // Wait if another invocation is already running.
-            while (s_SetGeneratedAnimationsAsyncMutex)
-                await EditorTask.Yield();
+            using var editorFocus = new EditorAsyncKeepAliveScope("Caching generated animations.");
 
-            s_SetGeneratedAnimationsAsyncMutex = true;
-            var taskID = Progress.Start("Precaching generations.");
+            // Create a 30-second timeout token
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var timeoutToken = cancellationTokenSource.Token;
+
+            int taskID = 0;
             try
             {
-                var timer = Stopwatch.StartNew();
-                const float timeoutInSeconds = 2.0f;
-                const int minPrecache = 8;
-                const int maxInFlight = 4;
-                var processedAnimations = 0;
-                var inFlightTasks = new List<Task>();
+                taskID = Progress.Start("Precaching generations.");
 
-                // Iterate over all animations (assuming payload.animations is ordered by last write time)
-                foreach (var animation in payload.animations)
-                {
-                    // After minPrecache is reached, wait until the state indicates a user visible count.
-                    int precacheCount;
-                    if (processedAnimations < minPrecache)
-                        precacheCount = minPrecache;
-                    else
-                    {
-                        // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
-                        var visibleCount = await WaitForVisibleCount();
-                        precacheCount = Math.Max(minPrecache, visibleCount);
-                    }
-
-                    // If we've already processed as many animations as desired by the current target, stop processing.
-                    if (processedAnimations >= precacheCount)
-                        break;
-
-                    processedAnimations++;
-
-                    // Report progress with current target count.
-                    precacheCount = Math.Min(payload.animations.Count, precacheCount);
-                    Progress.Report(taskID, processedAnimations, precacheCount, $"Precaching {precacheCount} generations");
-
-                    // Skip animation if it is already cached.
-                    if (AnimationClipCache.Peek(animation.uri))
-                        continue;
-
-                    var loadTask = LoadTaskAsync();
-                    inFlightTasks.Add(loadTask);
-
-                    if (inFlightTasks.Count >= maxInFlight)
-                    {
-                        await Task.WhenAny(inFlightTasks);
-                        inFlightTasks.RemoveAll(t => t.IsCompleted);
-                    }
-
-                    continue;
-
-                    async Task LoadTaskAsync()
-                    {
-                        await EditorTask.Yield();
-                        // GetAnimationClip is synchronous when it hits our database, so we yield to let the UI update.
-                        _ = await animation.GetAnimationClip();
-                    }
-                }
-
-                if (inFlightTasks.Count > 0)
-                    await Task.WhenAll(inFlightTasks);
-
-                // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
-                async Task<int> WaitForVisibleCount()
-                {
-                    int visible;
-                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
-                        await EditorTask.Yield();
-                    return visible;
-                }
+                // Wait to acquire the semaphore
+                await k_SetGeneratedAnimationsAsyncSemaphore.WaitAsync();
+                await EditorTask.RunOnMainThread(() => PreCacheGeneratedAnimations(payload, taskID, api, timeoutToken), timeoutToken);
             }
             finally
             {
@@ -115,15 +56,91 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                 }
                 finally
                 {
-                    s_SetGeneratedAnimationsAsyncMutex = false;
-                    Progress.Finish(taskID);
+                    k_SetGeneratedAnimationsAsyncSemaphore.Release();
+                    if (Progress.Exists(taskID))
+                        Progress.Finish(taskID);
                 }
             }
         });
+
+        static async Task PreCacheGeneratedAnimations(GenerationAnimations payload, int taskID, AsyncThunkApi<bool> api, CancellationToken timeoutToken)
+        {
+            var timer = Stopwatch.StartNew();
+            const float timeoutInSeconds = 2.0f;
+            const int minPrecache = 8;
+            const int maxInFlight = 4;
+            var processedAnimations = 0;
+            var inFlightTasks = new List<Task>();
+
+            // Iterate over all animations (assuming payload.animations is ordered by last write time)
+            foreach (var animation in payload.animations)
+            {
+                // Check for timeout cancellation
+                timeoutToken.ThrowIfCancellationRequested();
+
+                // After minPrecache is reached, wait until the state indicates a user visible count.
+                int precacheCount;
+                if (processedAnimations < minPrecache)
+                    precacheCount = minPrecache;
+                else
+                {
+                    // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
+                    var visibleCount = await WaitForVisibleCount();
+                    precacheCount = Math.Max(minPrecache, visibleCount);
+                }
+
+                // If we've already processed as many animations as desired by the current target, stop processing.
+                if (processedAnimations >= precacheCount)
+                    break;
+
+                processedAnimations++;
+
+                // Report progress with current target count.
+                precacheCount = Math.Min(payload.animations.Count, precacheCount);
+                Progress.Report(taskID, processedAnimations, precacheCount, $"Precaching {precacheCount} generations");
+
+                // Skip animation if it is already cached.
+                if (AnimationClipCache.Peek(animation.uri))
+                    continue;
+
+                var loadTask = LoadTaskAsync();
+                inFlightTasks.Add(loadTask);
+
+                if (inFlightTasks.Count >= maxInFlight)
+                {
+                    await Task.WhenAny(inFlightTasks);
+                    inFlightTasks.RemoveAll(t => t.IsCompleted);
+                }
+
+                continue;
+
+                async Task LoadTaskAsync()
+                {
+                    await EditorTask.Yield();
+                    // GetAnimationClip is synchronous when it hits our database, so we yield to let the UI update.
+                    _ = await animation.GetAnimationClip();
+                }
+            }
+
+            if (inFlightTasks.Count > 0)
+                await Task.WhenAll(inFlightTasks);
+
+            // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
+            async Task<int> WaitForVisibleCount()
+            {
+                int visible;
+                while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
+                    await EditorTask.Yield();
+                return visible;
+            }
+        }
+
         public static Creator<GeneratedResultVisibleData> setGeneratedResultVisibleCount => new($"{slice}/setGeneratedResultVisibleCount");
 
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
+
+        public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
         public static Creator<PromotedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
@@ -196,7 +213,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
                                 string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
                                 data.generationMetadata,
                                 data.customSeeds.ToArray(),
-                                false),
+                                false, false),
                             CancellationToken.None);
                     }
 
@@ -223,7 +240,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteAnimationsMain = new($"{slice}/quoteAnimationsMain",
             async (asset, api) =>
             {
-                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteAnimations, new(asset, api.State.SelectGenerationSetting(asset))); }
+                try { await api.Dispatch(Backend.Quote.quoteAnimations, new(asset, api.State.SelectGenerationSetting(asset))); }
                 catch (OperationCanceledException) { /* ignored */ }
             });
 
@@ -233,40 +250,36 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             var mode = api.State.SelectRefinementMode(asset);
             if (string.IsNullOrEmpty(label))
                 label = "reference";
-            var taskID = Progress.Start($"Generating with {(mode == RefinementMode.TextToMotion ? label : "reference")}.");
-            SkeletonExtensions.Acquire(taskID);
+            var progressTaskId = Progress.Start($"Generating with {(mode == RefinementMode.TextToMotion ? label : "reference")}.");
+            SkeletonExtensions.Acquire(progressTaskId);
             try
             {
                 api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var generationSetting = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
                 await api.Dispatch(
-                    GenerationResultsSuperProxyActions.generateAnimations, new(asset, generationSetting, taskID),
+                    Backend.Generation.generateAnimations, new(asset, generationSetting, progressTaskId),
                     CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(taskID);
-                SkeletonExtensions.Release(taskID);
-
-                api.Dispatch(removeGeneratedSkeletons, new(asset, taskID));
+                Progress.Finish(progressTaskId);
+                SkeletonExtensions.Release(progressTaskId);
             }
         });
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAnimationsData> downloadAnimationsMain = new($"{slice}/downloadAnimationsMain", async (arg, api) =>
         {
-            var taskID = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
-            SkeletonExtensions.Acquire(taskID);
+            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
+            SkeletonExtensions.Acquire(progressTaskId);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadAnimationClips, arg with { progressTaskId = taskID }, CancellationToken.None);
+                await api.Dispatch(Backend.Generation.downloadAnimationClips, arg with { progressTaskId = progressTaskId }, CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(taskID);
-                SkeletonExtensions.Release(taskID);
-
-                api.Dispatch(removeGeneratedSkeletons, new(arg.asset, taskID));
+                Progress.Finish(progressTaskId);
+                SkeletonExtensions.Release(progressTaskId);
             }
         });
     }

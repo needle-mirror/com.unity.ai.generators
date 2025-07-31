@@ -86,6 +86,17 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         }
         public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
+        public static bool SelectSelectedModelOperationIsValid(this IState state, VisualElement element, OperationSubTypeEnum op) =>
+            state.SelectSelectedModelOperationIsValid(element.GetAsset(), op);
+
+        public static bool SelectSelectedModelOperationIsValid(this IState state, AssetReference asset, OperationSubTypeEnum op)
+        {
+            var mode = state.SelectRefinementMode(asset);
+            var modelID = state.SelectGenerationSetting(asset).selectedModels.Ensure(mode).modelID;
+            var model = state.SelectModelSettings().FirstOrDefault(s => s.id == modelID);
+            return model != null && model.operations.Contains(op);
+        }
+
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var mode = state.SelectRefinementMode(element);
@@ -302,7 +313,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
 
             // fallback to selection
             if (currentSelection.IsValid())
-                return new Timestamp(File.GetLastWriteTime(currentSelection.uri.AbsolutePath).ToUniversalTime().Ticks);
+                return new Timestamp(File.GetLastWriteTime(currentSelection.uri.GetAbsolutePath()).ToUniversalTime().Ticks);
 
             // fallback to asset
             if (!asset.IsValid())

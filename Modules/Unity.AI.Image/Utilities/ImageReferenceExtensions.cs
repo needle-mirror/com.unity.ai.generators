@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Unity.AI.Image.Components;
 using Unity.AI.Image.Services.Contexts;
 using Unity.AI.Image.Services.Stores.Actions;
@@ -42,6 +43,20 @@ namespace Unity.AI.Image.Services.Utilities
             var editButton = e.Q<Button>("edit-image-reference");
             var strengthSlider = e.Q<SliderInt>("image-reference-strength-slider");
             var deleteImageReference = e.Q<Button>("delete-image-reference");
+            var unsupportedModelOperationIconContainer = e.Q<VisualElement>("warning-icon-container");
+            var unsupportedModelOperationBackground = e.Q<VisualElement>("warning-background");
+
+            var iconWarning = unsupportedModelOperationIconContainer.Q<UnityEngine.UIElements.Image>("warning-icon");
+            if (EditorGUIUtility.isProSkin)
+            {
+                iconWarning?.AddToClassList("dark-warning-icon");
+                unsupportedModelOperationBackground?.AddToClassList("dark-warning-background");
+            }
+            else
+            {
+                iconWarning?.AddToClassList("light-warning-icon");
+                unsupportedModelOperationBackground?.AddToClassList("light-warning-background");
+            }
 
             // Make the doodle kind of "read-only"
             doodleBackground.pickingMode = PickingMode.Ignore;
@@ -140,6 +155,26 @@ namespace Unity.AI.Image.Services.Utilities
 
                 if (mode == ImageReferenceMode.Doodle)
                     objectField.SetValueWithoutNotify(null); // force the field to be empty to not hold a reference to the previous asset
+            });
+
+            e.Use(state => state.SelectSelectedModelOperationIsValid(e, e.type.GetOperationSubTypeEnumForType().FirstOrDefault()), isValid =>
+            {
+                var isActive = e.GetState().SelectImageReferenceIsActive(e, e.type);
+                if (isActive)
+                {
+                    unsupportedModelOperationIconContainer?.EnableInClassList("hidden", isValid);
+                    unsupportedModelOperationBackground?.EnableInClassList("hidden", isValid);
+                }
+            });
+
+            e.Use(state => state.SelectImageReferenceIsActive(e, e.type), isActive =>
+            {
+                if (isActive)
+                {
+                    var isValid = e.GetState().SelectSelectedModelOperationIsValid(e, e.type.GetOperationSubTypeEnumForType().FirstOrDefault());
+                    unsupportedModelOperationIconContainer?.EnableInClassList("hidden", isValid);
+                    unsupportedModelOperationBackground?.EnableInClassList("hidden", isValid);
+                }
             });
 
             return;

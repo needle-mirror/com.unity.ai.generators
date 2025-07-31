@@ -7,6 +7,7 @@ using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;
@@ -88,18 +89,20 @@ namespace Unity.AI.Animate.Services.Utilities
         public static async Task CopyToProject(this AnimationClipResult animationClipResult, GenerationMetadata generationMetadata, string cacheDirectory)
         {
             if (!animationClipResult.uri.IsFile)
-                return; // DownloadToProject should be used for remote files
+                throw new ArgumentException("CopyToProject should only be used for local files.", nameof(animationClipResult));
 
             var extension = animationClipResult.uri.GetLocalPath().GetFileExtension();
             if (!AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase) &&
                 !AssetUtils.fbxAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase) &&
                 !AssetUtils.poseAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
-                return; // unknown file type
+                throw new ArgumentException($"Unknown file type: {extension}", nameof(animationClipResult));
 
             var path = animationClipResult.uri.GetLocalPath();
             var fileName = Path.GetFileName(path);
-            if (!File.Exists(path) || string.IsNullOrEmpty(cacheDirectory))
-                return;
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"The file {path} does not exist.", path);
+            if (string.IsNullOrEmpty(cacheDirectory))
+                throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
 
             var newPath = Path.Combine(cacheDirectory, fileName);
             var newUri = new Uri(Path.GetFullPath(newPath));
@@ -111,17 +114,28 @@ namespace Unity.AI.Animate.Services.Utilities
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             animationClipResult.uri = newUri;
 
-            await FileIO.WriteAllTextAsync($"{animationClipResult.uri.GetLocalPath()}.json",
-                JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            try
+            {
+                await FileIO.WriteAllTextAsync($"{animationClipResult.uri.GetLocalPath()}.json",
+                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            }
+            catch (Exception e)
+            {
+                // log an error but not absolutely critical as generations can be used without metadata
+                Debug.LogException(e);
+            }
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task DownloadToProject(this AnimationClipResult animationClipResult, GenerationMetadata generationMetadata, string cacheDirectory, HttpClient httpClient)
         {
             if (animationClipResult.uri.IsFile)
-                return; // CopyToProject should be used for local files
+                throw new ArgumentException("DownloadToProject should only be used for remote files.", nameof(animationClipResult));
 
             if (string.IsNullOrEmpty(cacheDirectory))
-                return;
+                throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
+
             Directory.CreateDirectory(cacheDirectory);
 
             var newUri = await UriExtensions.DownloadFile(animationClipResult.uri, cacheDirectory, httpClient);
@@ -130,11 +144,21 @@ namespace Unity.AI.Animate.Services.Utilities
 
             animationClipResult.uri = newUri;
 
-            var path = animationClipResult.uri.GetLocalPath();
-            var fileName = Path.GetFileName(path);
+            try
+            {
+                var path = animationClipResult.uri.GetLocalPath();
+                var fileName = Path.GetFileName(path);
 
-            await FileIO.WriteAllTextAsync($"{animationClipResult.uri.GetLocalPath()}.json",
-                JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                await FileIO.WriteAllTextAsync($"{animationClipResult.uri.GetLocalPath()}.json",
+                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            }
+            catch (Exception e)
+            {
+                // log an error but not absolutely critical as generations can be used without metadata
+                Debug.LogException(e);
+            }
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task<GenerationMetadata> GetMetadata(this AnimationClipResult animationClipResult)

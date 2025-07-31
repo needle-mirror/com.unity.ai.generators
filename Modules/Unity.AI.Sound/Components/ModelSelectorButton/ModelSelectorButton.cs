@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using Unity.AI.Generators.Redux;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Actions;
@@ -56,10 +57,9 @@ namespace Unity.AI.Sound.Components
             this.UseStoreApi(DiscoverModels);
             this.Use(state => state.SelectShouldAutoAssignModel(this), payload =>
             {
-                var (should, _) = payload;
-                m_Button.SetEnabled(!should);
+                m_Button.SetEnabled(!payload.should);
                 m_Button.tooltip = payload.should ? "No additional model currently available" : "Choose another AI model";
-                if (!should)
+                if (!payload.should)
                     return;
                 var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
                 if (!string.IsNullOrEmpty(autoAssignModel?.id))
@@ -67,20 +67,20 @@ namespace Unity.AI.Sound.Components
             });
         }
 
-        static bool s_Mutex = false;
+        // Prevents concurrent execution within this modality (e.g.: multiple asset windows open) of discoverModels when multiple requests overlap
+        static readonly SemaphoreSlim k_Mutex = new(1, 1);
 
-        async static void DiscoverModels(IStoreApi store)
+        static async void DiscoverModels(IStoreApi store)
         {
             try
             {
-                while (s_Mutex)
-                    await EditorTask.Yield();
-                s_Mutex = true;
+                using var editorFocus = new EditorAsyncKeepAliveScope("Discovering AI Models for sound.");
+                await k_Mutex.WaitAsync();
                 await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
             }
             finally
             {
-                s_Mutex = false;
+                k_Mutex.Release();
             }
         }
     }

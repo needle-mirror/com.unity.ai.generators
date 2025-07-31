@@ -34,7 +34,7 @@ namespace Unity.AI.Animate.Components
             MuscleTolerance = 1 << 5,
             InPlace = 1 << 6,
             UseBestLoop = 1 << 7,
-            Search = Asset | MinimumTime | MaximumTime | DurationCoverage | MotionCoverage | MuscleTolerance,
+            Search = Asset | MinimumTime | MaximumTime | DurationCoverage | MotionCoverage | MuscleTolerance | UseBestLoop,
             All = ~0
         }
 
@@ -408,37 +408,22 @@ namespace Unity.AI.Animate.Components
                     }
                     else
                     {
-                        // Start the search but don't block UI
-                        async Task PerformBackgroundSearch()
+                        try
                         {
-                            try
-                            {
-                                // Search in background
-                                var result = await m_WorkingClip.TryFindOptimalLoopPointsAsync(
-                                    m_MinimumTime, m_MaximumTime, m_DurationCoverage, m_MotionCoverage, m_MuscleTolerance,
-                                    _ => { });
+                            // Score in background
+                            var score = m_WorkingClip.ScoreLoopQuality(m_MinimumTime, m_MaximumTime);
 
-                                // Only update if we're still on the same clip
-                                if (!m_ProcessingUpdate)
-                                {
-                                    m_Result = result;
-                                    if (!result.success)
-                                        m_Result = (false, m_MinimumTime * m_OriginalClipLength, m_MaximumTime * m_OriginalClipLength, m_MinimumTime, m_MaximumTime, 0);
+                            m_Result = (true, m_MinimumTime * m_OriginalClipLength, m_MaximumTime * m_OriginalClipLength, m_MinimumTime, m_MaximumTime, score);
 
-                                    // Update highlight in UI after search completes
-                                    m_TimeSlider.highlightStart = m_Result.startTimeNormalized;
-                                    m_TimeSlider.highlightEnd = m_Result.endTimeNormalized;
-                                    UpdateHighlightColor(m_Result.score);
-                                }
-                            }
-                            catch (Exception)
-                            {
-                                // Ignore exceptions in background search
-                            }
+                            // Update highlight in UI after search completes
+                            m_TimeSlider.highlightStart = m_Result.startTimeNormalized;
+                            m_TimeSlider.highlightEnd = m_Result.endTimeNormalized;
+                            UpdateHighlightColor(m_Result.score);
                         }
-
-                        // Fire and forget, but store task for potential future use
-                        _ = PerformBackgroundSearch();
+                        catch (Exception)
+                        {
+                            // Ignore exceptions in scoring
+                        }
                     }
                 }
                 else if (!m_Result.success)

@@ -6,6 +6,11 @@ using Unity.AI.Generators.Asset;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
+#if UNITY_6000_3_OR_NEWER
+using UnityEntityId = UnityEngine.EntityId;
+#else
+using UnityEntityId = System.Int32;
+#endif
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -35,8 +40,13 @@ namespace Unity.AI.Generators.UI.Utilities
         [InitializeOnLoadMethod]
         static void Init()
         {
+#if UNITY_6000_3_OR_NEWER
+            DragAndDrop.AddDropHandlerV2(HandleDropHierarchy);
+            DragAndDrop.AddDropHandlerV2(HandleDropProjectBrowser);
+#else
             DragAndDrop.AddDropHandler(HandleDropHierarchy);
             DragAndDrop.AddDropHandler(HandleDropProjectBrowser);
+#endif
             SceneView.duringSceneGui += HandleDropOnSceneView;
             DragAndDropCache.instance.EnsureSaved();
         }
@@ -203,7 +213,7 @@ namespace Unity.AI.Generators.UI.Utilities
             Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
 
-        static DragAndDropVisualMode HandleDropProjectBrowser(int dragInstanceId, string dropUponPath, bool perform)
+        static DragAndDropVisualMode HandleDropProjectBrowser(UnityEntityId dragInstanceId, string dropUponPath, bool perform)
         {
             if (!HasTemporaryAssetInDrag())
                 return DragAndDropVisualMode.None;
@@ -227,7 +237,7 @@ namespace Unity.AI.Generators.UI.Utilities
             Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
 
-        static DragAndDropVisualMode HandleDropHierarchy(int dropTargetInstanceID, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
+        static DragAndDropVisualMode HandleDropHierarchy(UnityEntityId dropTargetInstanceID, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
         {
             if (!HasTemporaryAssetInDrag())
                 return DragAndDropVisualMode.None;

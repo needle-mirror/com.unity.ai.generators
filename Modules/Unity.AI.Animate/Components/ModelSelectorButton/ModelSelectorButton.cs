@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Generators.Redux;
@@ -66,20 +67,20 @@ namespace Unity.AI.Animate.Components
             });
         }
 
-        static bool s_Mutex = false;
+        // Prevents concurrent execution within this modality (e.g.: multiple asset windows open) of discoverModels when multiple requests overlap
+        static readonly SemaphoreSlim k_Mutex = new(1, 1);
 
-        async static void DiscoverModels(IStoreApi store)
+        static async void DiscoverModels(IStoreApi store)
         {
             try
             {
-                while (s_Mutex)
-                    await EditorTask.Yield();
-                s_Mutex = true;
+                using var editorFocus = new EditorAsyncKeepAliveScope("Discovering AI Models for animation.");
+                await k_Mutex.WaitAsync();
                 await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
             }
             finally
             {
-                s_Mutex = false;
+                k_Mutex.Release();
             }
         }
     }

@@ -58,6 +58,9 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static readonly AsyncThunkCreatorWithArg<GenerationDataWindowArgs> openGenerationDataWindow = new($"{slice}/openGenerationDataWindow",
             async (args, api) => await GenerationMetadataWindow.Open(args.element.GetStore(), args.asset, args.element, args.result));
 
+        public static readonly AsyncThunkCreatorWithArg<AddToPromptWindowArgs> openAddToPromptWindow = new($"{slice}/openAddToPromptWindow",
+            async (args, api) => await AddToPromptWindow.Open(args.element.GetStore(), args.asset, args.element, args.typesValidationResults));
+
         public static readonly AssetActionCreator<float> setHistoryDrawerHeight = new($"{slice}/setHistoryDrawerHeight");
 
         public static readonly AssetActionCreator<float> setGenerationPaneWidth = new($"{slice}/setGenerationPaneWidth");

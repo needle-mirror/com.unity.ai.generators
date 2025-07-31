@@ -6,14 +6,13 @@ using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Payloads;
-using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Stores.Actions.Payloads
 {
     record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
+    record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
     record DownloadImagesData(
         AssetReference asset,
         List<Guid> jobIds,
@@ -23,7 +22,8 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
         int[] customSeeds,
         bool isRefinement,
         bool replaceBlankAsset,
-        bool replaceRefinementAsset) : AsssetContext(asset);
+        bool replaceRefinementAsset,
+        bool retryable) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,
@@ -41,6 +41,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);
     record SelectGenerationData(AssetReference asset, TextureResult result, bool replaceAsset, bool askForConfirmation) : AsssetContext(asset);
     record GenerationDataWindowArgs(AssetReference asset, VisualElement element, TextureResult result) : AsssetContext(asset);
+    record AddToPromptWindowArgs(AssetReference asset, VisualElement element, Dictionary<ImageReferenceType, bool> typesValidationResults) : AsssetContext(asset);
     record DoodleWindowArgs(AssetReference asset, ImageReferenceType imageReferenceType, byte[] data, Vector2Int size, bool showBaseImage) : AsssetContext(asset);
     record SelectedGenerationData(AssetReference asset, TextureResult result) : AsssetContext(asset);
     record AssetUndoData(AssetReference asset, AssetUndoManager undoManager) : AsssetContext(asset);

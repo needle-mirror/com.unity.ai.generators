@@ -69,7 +69,7 @@ namespace Unity.AI.Material.Windows
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || isDisabledAndHasNoHistory);
-            var generateButtonTooltip = "Use generative ai to transform this material.";
+            var generateButtonTooltip = "Use generative AI to transform this material.";
             if (!Account.settings.AiGeneratorsEnabled)
             {
                 generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;

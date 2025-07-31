@@ -9,6 +9,7 @@ using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
@@ -20,12 +21,13 @@ using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
+using Constants = Unity.AI.Generators.Sdk.Constants;
 using Logger = Unity.AI.Generators.Sdk.Logger;
 using WebUtils = Unity.AI.Image.Services.Utilities.WebUtils;
 
-namespace Unity.AI.Image.Services.Stores.Actions
+namespace Unity.AI.Image.Services.Stores.Actions.Backend
 {
-    static class GenerationResultsSuperProxyValidations
+    static class Validation
     {
         record CanAddReferencesKey(ImageReferenceType referenceType, bool prompt, bool negativePrompt, string model, int referencesBitmask);
 
@@ -71,7 +73,11 @@ namespace Unity.AI.Image.Services.Stores.Actions
             return (typesToFetch.Count == 0, results);
         };
 
-        public static readonly Func<(AddImageReferenceTypeData payload, IStoreApi api), CancellationToken, Task<bool[]>> canAddReferencesToPrompt = async (arg, cancellationToken) =>
+        public static readonly AsyncThunkCreator<(AddImageReferenceTypeData payload, CancellationToken token), bool[]> canAddReferencesToPrompt =
+            new($"{GenerationResultsActions.slice}/canAddReferencesToPrompt",
+                (arg, asyncThunkApi) => canAddReferencesToPromptAsync((arg.payload, asyncThunkApi), arg.token));
+
+        public static readonly Func<(AddImageReferenceTypeData payload, IStoreApi api), CancellationToken, Task<bool[]>> canAddReferencesToPromptAsync = async (arg, cancellationToken) =>
         {
             var asset = new AssetReference { guid = arg.payload.asset.guid };
             var generationSetting = arg.api.State.SelectGenerationSetting(asset);
@@ -181,7 +187,11 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
                         try
                         {
-                            var quoteResult = await EditorTask.Run(() => imageComponent.GenerateQuote(request.AsSingleInAList(), Constants.mandatoryTimeout), cancellationToken);
+                            var quoteResult =
+                                await EditorTask.Run(
+                                    () => imageComponent.GenerateQuote(request.AsSingleInAList(), Constants.mandatoryTimeout, cancellationToken), cancellationToken);
+                            if (cancellationToken.IsCancellationRequested)
+                                throw new OperationCanceledException();
 
                             var isSuccess = quoteResult.Result.IsSuccessful;
                             if (!isSuccess && quoteResult.Result.Error.AiResponseError == AiResultErrorEnum.UnsupportedModelOperation)

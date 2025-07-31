@@ -10,28 +10,22 @@
     -unity-background-image-tint-color: var(--unity-colors-default-text);
 }
 
-.tag .unity-label {
-    margin-left: 8px;
-    margin-top: 1px;
-}
-
-.tag.unity-toggle {
+.model-filters > .unity-toggle {
     align-self: flex-start;
     flex-direction: row-reverse;
+    margin: 6px 0 0;
 }
 
-.operation .unity-label {
-    margin-left: 8px;
-    margin-top: 1px;
+.model-filters .unity-label {
+    margin-left: 4px;
 }
 
-.operation.unity-toggle {
-    align-self: flex-start;
-    flex-direction: row-reverse;
+.model-filters .unity-radio-button {
+    margin: 6px 0 0;
 }
 
-.unity-radio-button .unity-label {
-    margin-left: 6px;
+.sort-radio-group {
+    margin: 0;
 }
 
 .unity-tab-view__header-container {
@@ -46,4 +40,12 @@
 
 .model-details-grid .unity-image {
     padding: 8px;
+}
+
+.section-title {
+    margin-bottom: 6px;
+}
+
+.section-container {
+    margin-bottom: 16px;
 }

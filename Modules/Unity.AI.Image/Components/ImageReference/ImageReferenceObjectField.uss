@@ -139,3 +139,44 @@
     max-height: none;
     overflow: hidden;
 }
+
+.warning-icon-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+}
+
+#warning-background {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+}
+
+#warning-icon {
+    --unity-image: url("../../../Unity.AI.Generators.UI/Icons/Warning.png");
+    width: 50%;
+    height: 50%;
+    align-self: center;
+}
+
+.hidden {
+    display: none;
+}
+
+.light-warning-icon {
+    --unity-image-tint-color: #555555;
+}
+
+.light-warning-background {
+    background-color: rgba(235, 235, 235, 0.6);
+}
+
+.dark-warning-icon {
+    --unity-image-tint-color: #C4C4C4;
+}
+
+.dark-warning-background {
+    background-color: rgba(96, 96, 96, 0.6);
+}

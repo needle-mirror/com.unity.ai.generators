@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;
@@ -51,18 +52,20 @@ namespace Unity.AI.Material.Services.Utilities
         public static async Task CopyToProject(this MaterialResult materialResult, string generatedMaterialName, GenerationMetadata generationMetadata, string cacheDirectory)
         {
             if (!materialResult.uri.IsFile)
-                return; // DownloadToProject should be used for remote files
+                throw new ArgumentException("CopyToProject should only be used for local files.", nameof(materialResult));
 
             if (string.IsNullOrEmpty(cacheDirectory))
-                return;
+                throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
 
             var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
             if (AssetUtils.supportedExtensions.Contains(extension.ToLowerInvariant()))
             {
                 // already a local .mat!
-                Assert.IsTrue(File.Exists(materialResult.uri.GetLocalPath()));
+                var path = materialResult.uri.GetLocalPath();
+                if (!File.Exists(path))
+                    throw new FileNotFoundException($"The file {path} does not exist.", path);
 
-                var fileName = Path.GetFileName(materialResult.uri.GetLocalPath());
+                var fileName = Path.GetFileName(path);
                 var newPath = Path.Combine(cacheDirectory, fileName);
                 var newUri = new Uri(Path.GetFullPath(newPath));
                 if (newUri == materialResult.uri)
@@ -73,8 +76,18 @@ namespace Unity.AI.Material.Services.Utilities
                 Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
                 materialResult.uri = newUri;
 
-                await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
-                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                try
+                {
+                    await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
+                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                }
+                catch (Exception e)
+                {
+                    // log an error but not absolutely critical as generations can be used without metadata
+                    Debug.LogException(e);
+                }
+
+                GenerationFileSystemWatcher.nudge?.Invoke();
                 return;
             }
 
@@ -91,18 +104,25 @@ namespace Unity.AI.Material.Services.Utilities
                 foreach (var generatedTexture in materialResult.textures)
                     generatedTexture.Value.CopyToProject(cacheDirectory, $"{generatedMaterialName}_{generatedTexture.Key}");
 
-                await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
-                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                try
+                {
+                    await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
+                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                }
+                catch (Exception e)
+                {
+                    // log an error but not absolutely critical as generations can be used without metadata
+                    Debug.LogException(e);
+                }
+
+                GenerationFileSystemWatcher.nudge?.Invoke();
             }
         }
 
         public static async Task DownloadToProject(this MaterialResult materialResult, string generatedMaterialName, GenerationMetadata generationMetadata, string cacheDirectory, HttpClient httpClient)
         {
-            // Although CopyToProject should be used for local files, we can't enforce that here because
-            // materialResult.uri _Preview is a local file even when all other layers haven't been downloaded yet
-
             if (string.IsNullOrEmpty(cacheDirectory))
-                return;
+                throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
 
             Directory.CreateDirectory(cacheDirectory);
             var downloadTasks = new List<Task>();
@@ -118,8 +138,18 @@ namespace Unity.AI.Material.Services.Utilities
             var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
             var fileName = $"{generatedMaterialName}_{MapType.Preview}" + extension;
 
-            await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
-                JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            try
+            {
+                await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
+                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            }
+            catch (Exception e)
+            {
+                // log an error but not absolutely critical as generations can be used without metadata
+                Debug.LogException(e);
+            }
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task<GenerationMetadata> GetMetadata(this MaterialResult materialResult)

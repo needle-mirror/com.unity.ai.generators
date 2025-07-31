@@ -35,11 +35,11 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
             await promotedAnimationClipResult.CopyToProject(await originalAnimationClipResult.GetMetadata(), generativePath);
 
-            Selection.activeObject = promotedAsset.GetObject();
-            AnimateGeneratorWindow.Display(destFileName);
-
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAnimationClipResult, true, false));
             AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
+
+            Selection.activeObject = promotedAsset.GetObject();
+            AnimateGeneratorWindow.Display(destFileName);
         });
 
         public static readonly Func<(DragAndDropGenerationData data, IStoreApi api), AssetReference> promoteGenerationUnsafe = args =>

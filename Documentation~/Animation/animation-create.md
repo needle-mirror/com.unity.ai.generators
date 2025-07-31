@@ -4,7 +4,7 @@ uid: animation-create
 
 # Create animation with Animation Generator
 
-Use **Animation Generator** to create animation from scratch with a text prompt. 
+Use **Animation Generator** to create animation from scratch with a text prompt.
 
 There are two methods to generate an animation:
 
@@ -29,6 +29,9 @@ Use **Text to Motion** to generate an animation using a text prompt.
 
     For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).
 1. Select **Generate**.
+
+   > [!TIP]
+   > Use the **Trim** tab to adjust the animation's direction, position, and looping behavior after generation. For more information, refer to [Adjust the direction and loop of an animation clip](xref:animation-trim).
 
 ## Video to Motion
 
@@ -69,6 +72,9 @@ The generated animation appears in the **Generations** panel. Hover over the ani
 The animation is saved in the `Assets` folder as a `.anim` file. For example, `walk.anim`.
 
 After generating an animation clip, you can modify or refine it with Unity's standard animation editing tools. For more information, refer to [Unity animation clips](https://docs.unity3d.com/Manual/AnimationClips.html).
+
+> [!TIP]
+> Use the **Trim** tab to refine your animation after generation. For more information, refer to [Adjust the direction and loop of an animation clip](xref:animation-trim) and [Trim reference](xref:trim-reference).
 
 ## Unityai label
 

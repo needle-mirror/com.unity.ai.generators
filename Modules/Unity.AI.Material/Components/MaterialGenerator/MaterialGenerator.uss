@@ -31,3 +31,7 @@ TextureGenerator {
 #pbr-tab #delete-image-reference{
     display: none;
 }
+
+.grid-view-rows {
+    flex-grow: 1;
+}

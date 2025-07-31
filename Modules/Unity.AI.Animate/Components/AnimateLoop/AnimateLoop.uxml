@@ -18,7 +18,7 @@
                 </VisualElement>
                 <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-top-1px">
                     <ui:LoopPreview is-playing="false" style="min-height: 240px;" />
-                    <aitk:MultiSlider tooltip="Adjust timeline markers to fine-tune your loop's start and end points." />
+                    <aitk:MultiSlider tooltip="Drag the markers to define the loop's start and end points.&#10;&#10;When 'Best Loop' is ON, these markers define a search area. A colored bar will appear showing the optimal loop found within that area.&#10;The bar's color indicates quality: Green = Excellent, Yellow = Good, Red = Poor.&#10;&#10;When 'Best Loop' is OFF, the markers define the exact loop points." />
                 </VisualElement>
             </ScrollView>
             <VisualElement name="ButtonsContainer" class="flex-row flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px border-top-1px">

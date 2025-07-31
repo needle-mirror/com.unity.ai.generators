@@ -31,11 +31,12 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
             await promotedAudioClipResult.CopyToProject(await originalAudioClipResult.GetMetadata(), generativePath);
+            await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAudioClipResult, true, false));
+            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
 
             Selection.activeObject = promotedAsset.GetObject();
             SoundGeneratorWindow.Display(destFileName);
 
-            await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAudioClipResult, true, false));
         });
         public static Creator<float> setPreviewSizeFactor => new($"{slice}/setPreviewSizeFactor");
         public static Creator<string> setMicrophoneName => new($"{slice}/setMicrophoneName");

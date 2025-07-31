@@ -127,24 +127,23 @@ namespace Unity.AI.Sound.Components
             if (audioClipResult is TextureSkeleton)
                 return;
 
-            evt.menu.AppendAction("Select", async _ =>
+            evt.menu.AppendAction("Select", _ =>
             {
-                if (this.GetAsset() == null || audioClipResult == null)
-                    return;
                 var asset = this.GetAsset();
-                await this.Dispatch(GenerationResultsActions.selectGeneration, new(asset, audioClipResult, true, true));
+                if (asset == null || audioClipResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationResultsActions.selectGeneration, new(asset, audioClipResult, true, true));
             }, DropdownMenuAction.AlwaysEnabled);
-            /*evt.menu.AppendAction("Play", async _ =>
+            /*evt.menu.AppendAction("Play", _ =>
             {
                 if (m_AudioClipResult == null)
                     return;
-                await m_AudioClipResult.Play();
+                m_AudioClipResult.Play();
             }, DropdownMenuAction.AlwaysEnabled);*/
             evt.menu.AppendAction("Promote to asset", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                store.Dispatch(SessionActions.promoteFocusedGeneration, new (asset, audioClipResult));
+                this.GetStoreApi().Dispatch(SessionActions.promoteFocusedGeneration, new (asset, audioClipResult));
             }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction(
                 RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Show in Explorer" :
@@ -160,13 +159,12 @@ namespace Unity.AI.Sound.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || audioClipResult == null)
-                    return;
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, audioClipResult));
+                if (asset == null || audioClipResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, audioClipResult));
             }, showGenerationDataStatus);
         }
 
@@ -190,15 +188,12 @@ namespace Unity.AI.Sound.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || audioClipResult == null)
-                    return;
-
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, audioClipResult));
+                if (asset == null || audioClipResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, audioClipResult));
             }, showGenerationDataStatus);
         }
 

@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Material.Services.Stores.Actions.Payloads
 {
     record QuoteMaterialsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
+    record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
     record DownloadMaterialsData(
         AssetReference asset,
         List<Dictionary<MapType, Guid>> jobIds,
@@ -18,7 +18,8 @@ namespace Unity.AI.Material.Services.Stores.Actions.Payloads
         Guid uniqueTaskId,
         GenerationMetadata generationMetadata,
         int[] customSeeds,
-        bool autoApply) : AsssetContext(asset);
+        bool autoApply,
+        bool retryable) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,

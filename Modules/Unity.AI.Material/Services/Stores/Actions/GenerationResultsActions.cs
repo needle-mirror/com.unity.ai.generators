@@ -31,74 +31,24 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static readonly string slice = "generationResults";
         public static Creator<GenerationMaterials> setGeneratedMaterials => new($"{slice}/setGeneratedMaterials");
 
-        static bool s_SetGeneratedMaterialsAsyncMutex = false;
+        static readonly SemaphoreSlim k_SetGeneratedMaterialsAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationMaterials> setGeneratedMaterialsAsync = new($"{slice}/setGeneratedMaterialsAsync",
             async (payload, api) =>
         {
-            // Wait if another invocation is already running.
-            while (s_SetGeneratedMaterialsAsyncMutex)
-                await EditorTask.Yield();
+            using var editorFocus = new EditorAsyncKeepAliveScope("Caching generated materials.");
+            
+            // Create a 30-second timeout token
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var timeoutToken = cancellationTokenSource.Token;
 
-            s_SetGeneratedMaterialsAsyncMutex = true;
-            var taskID = Progress.Start("Precaching generations.");
+            var taskID = 0;
             try
             {
-                var timer = Stopwatch.StartNew();
-                const float timeoutInSeconds = 2.0f;
-                const int minPrecache = 4; // material import is a bit heavy
-                const int maxInFlight = 4;
-                var processedMaterials = 0;
-                var inFlightTasks = new List<Task>();
+                taskID = Progress.Start("Precaching generations.");
 
-                // Iterate over all materials (assuming payload.materials is ordered by last write time)
-                foreach (var material in payload.materials)
-                {
-                    // After minPrecache is reached, wait until the state indicates a user visible count.
-                    int precacheCount;
-                    if (processedMaterials < minPrecache)
-                        precacheCount = minPrecache;
-                    else
-                    {
-                        // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
-                        var visibleCount = await WaitForVisibleCount();
-                        precacheCount = Math.Max(minPrecache, visibleCount);
-                    }
-
-                    // If we've already processed as many materials as desired by the current target, stop processing.
-                    if (processedMaterials >= precacheCount)
-                        break;
-
-                    processedMaterials++;
-
-                    // Report progress with current target count.
-                    precacheCount = Math.Min(payload.materials.Count, precacheCount);
-                    Progress.Report(taskID, processedMaterials, precacheCount, $"Precaching {precacheCount} generations");
-
-                    // Skip material if it is already cached.
-                    if (MaterialCacheHelper.Peek(material))
-                        continue;
-
-                    var loadTask = MaterialCacheHelper.Precache(material);
-                    inFlightTasks.Add(loadTask);
-
-                    if (inFlightTasks.Count >= maxInFlight)
-                    {
-                        await Task.WhenAny(inFlightTasks);
-                        inFlightTasks.RemoveAll(t => t.IsCompleted);
-                    }
-                }
-
-                if (inFlightTasks.Count > 0)
-                    await Task.WhenAll(inFlightTasks);
-
-                // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
-                async Task<int> WaitForVisibleCount()
-                {
-                    int visible;
-                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
-                        await EditorTask.Yield();
-                    return visible;
-                }
+                // Wait to acquire the semaphore
+                await k_SetGeneratedMaterialsAsyncSemaphore.WaitAsync(timeoutToken);
+                await EditorTask.RunOnMainThread(() => PreCacheGeneratedMaterials(payload, taskID, api, timeoutToken), timeoutToken);
             }
             finally
             {
@@ -108,15 +58,81 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 }
                 finally
                 {
-                    s_SetGeneratedMaterialsAsyncMutex = false;
-                    Progress.Finish(taskID);
+                    k_SetGeneratedMaterialsAsyncSemaphore.Release();
+                    if (Progress.Exists(taskID))
+                        Progress.Finish(taskID);
                 }
             }
         });
+
+        static async Task PreCacheGeneratedMaterials(GenerationMaterials payload, int taskID, AsyncThunkApi<bool> api, CancellationToken timeoutToken)
+        {
+            var timer = Stopwatch.StartNew();
+            const float timeoutInSeconds = 2.0f;
+            const int minPrecache = 4; // material import is a bit heavy
+            const int maxInFlight = 4;
+            var processedMaterials = 0;
+            var inFlightTasks = new List<Task>();
+
+            // Iterate over all materials (assuming payload.materials is ordered by last write time)
+            foreach (var material in payload.materials)
+            {
+                // Check for timeout cancellation
+                timeoutToken.ThrowIfCancellationRequested();
+                
+                // After minPrecache is reached, wait until the state indicates a user visible count.
+                int precacheCount;
+                if (processedMaterials < minPrecache)
+                    precacheCount = minPrecache;
+                else
+                {
+                    // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
+                    var visibleCount = await WaitForVisibleCount();
+                    precacheCount = Math.Max(minPrecache, visibleCount);
+                }
+
+                // If we've already processed as many materials as desired by the current target, stop processing.
+                if (processedMaterials >= precacheCount)
+                    break;
+
+                processedMaterials++;
+
+                // Report progress with current target count.
+                precacheCount = Math.Min(payload.materials.Count, precacheCount);
+                Progress.Report(taskID, processedMaterials, precacheCount, $"Precaching {precacheCount} generations");
+
+                // Skip material if it is already cached.
+                if (MaterialCacheHelper.Peek(material))
+                    continue;
+
+                var loadTask = MaterialCacheHelper.Precache(material);
+                inFlightTasks.Add(loadTask);
+
+                if (inFlightTasks.Count >= maxInFlight)
+                {
+                    await Task.WhenAny(inFlightTasks);
+                    inFlightTasks.RemoveAll(t => t.IsCompleted);
+                }
+            }
+
+            if (inFlightTasks.Count > 0)
+                await Task.WhenAll(inFlightTasks);
+
+            // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
+            async Task<int> WaitForVisibleCount()
+            {
+                int visible;
+                while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
+                    await EditorTask.Yield();
+                return visible;
+            }
+        }
+
         public static Creator<GeneratedResultVisibleData> setGeneratedResultVisibleCount => new($"{slice}/setGeneratedResultVisibleCount");
 
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
+        public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
         public static Creator<PromotedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<GenerationMaterialMappingData> setGeneratedMaterialMapping => new($"{slice}/setGeneratedMaterialMapping");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
@@ -279,7 +295,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
                                 string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
                                 data.generationMetadata,
                                 data.customSeeds.ToArray(),
-                                false),
+                                false, false),
                             CancellationToken.None);
                     }
 
@@ -311,7 +327,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteMaterialsMain = new($"{slice}/quoteMaterialsMain",
             async (asset, api) =>
             {
-                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteMaterials, new(asset, api.State.SelectGenerationSetting(asset))); }
+                try { await api.Dispatch(Backend.Quote.quoteMaterials, new(asset, api.State.SelectGenerationSetting(asset))); }
                 catch (OperationCanceledException) { /* ignored */ }
             });
 
@@ -320,39 +336,35 @@ namespace Unity.AI.Material.Services.Stores.Actions
             var label = api.State.SelectGenerationSetting(asset).prompt;
             if (string.IsNullOrEmpty(label))
                 label = "reference";
-            var taskID = Progress.Start($"Generating with {label}.");
-            SkeletonExtensions.Acquire(taskID);
+            var progressTaskId = Progress.Start($"Generating with {label}.");
+            SkeletonExtensions.Acquire(progressTaskId);
             try
             {
                 api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var generationSetting = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
-                await api.Dispatch(GenerationResultsSuperProxyActions.generateMaterialsSuperProxy,
-                    new(asset, generationSetting, taskID), CancellationToken.None);
+                await api.Dispatch(Backend.Generation.generateMaterials,
+                    new(asset, generationSetting, progressTaskId), CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(taskID);
-                SkeletonExtensions.Release(taskID);
-
-                api.Dispatch(removeGeneratedSkeletons, new(asset, taskID));
+                Progress.Finish(progressTaskId);
+                SkeletonExtensions.Release(progressTaskId);
             }
         });
 
         public static readonly AsyncThunkCreatorWithArg<DownloadMaterialsData> downloadMaterialsMain = new($"{slice}/downloadMaterialsMain", async (arg, api) =>
         {
-            var taskID = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
-            SkeletonExtensions.Acquire(taskID);
+            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
+            SkeletonExtensions.Acquire(progressTaskId);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadMaterialsSuperProxy, arg with { progressTaskId = taskID }, CancellationToken.None);
+                await api.Dispatch(Backend.Generation.downloadMaterials, arg with { progressTaskId = progressTaskId }, CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(taskID);
-                SkeletonExtensions.Release(taskID);
-
-                api.Dispatch(removeGeneratedSkeletons, new(arg.asset, taskID));
+                Progress.Finish(progressTaskId);
+                SkeletonExtensions.Release(progressTaskId);
             }
         });
     }

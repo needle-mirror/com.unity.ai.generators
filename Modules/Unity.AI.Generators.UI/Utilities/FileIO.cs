@@ -716,5 +716,50 @@ namespace Unity.AI.Generators.UI.Utilities
 
         public static FileStream OpenWriteAsync(string path) =>
             OpenFileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+
+        public static async Task<FileStream> OpenReadWithRetryAsync(string path, CancellationToken token,
+            int maxRetries = 5, int initialRetryDelayMs = 100)
+        {
+            Exception lastException = null;
+            var retryDelay = initialRetryDelayMs;
+
+            for (var attempt = 0; attempt < maxRetries; attempt++)
+            {
+                try
+                {
+                    return OpenReadAsync(path);
+                }
+                catch (IOException ex) when (ex.Message.Contains("Sharing violation"))
+                {
+                    lastException = ex;
+#if LOG_TRACE
+                    Debug.LogWarning($"Sharing violation on attempt {attempt + 1}/{maxRetries} for file {path}. Retrying...");
+#endif
+                }
+                catch (Exception ex) when (attempt < maxRetries - 1 && (ex is IOException || ex is UnauthorizedAccessException))
+                {
+                    lastException = ex;
+#if LOG_TRACE
+                    Debug.LogWarning($"IO error on attempt {attempt + 1}/{maxRetries} for file {path}: {ex.Message}. Retrying...");
+#endif
+                }
+
+                if (attempt < maxRetries - 1)
+                {
+                    try
+                    {
+                        await EditorTask.Delay(retryDelay, token);
+                        // Use exponential backoff with a slight randomization
+                        retryDelay = (int)(retryDelay * 1.5 + UnityEngine.Random.Range(0, 50));
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw new OperationCanceledException("File operation was canceled", token);
+                    }
+                }
+            }
+
+            throw new IOException($"Failed to complete file operation after {maxRetries} attempts.", lastException);
+        }
     }
 }

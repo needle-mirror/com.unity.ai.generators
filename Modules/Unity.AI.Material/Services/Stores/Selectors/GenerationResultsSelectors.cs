@@ -9,6 +9,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Material.Services.Stores.Selectors
@@ -54,10 +55,54 @@ namespace Unity.AI.Material.Services.Stores.Selectors
         public static List<MaterialResult> SelectGeneratedMaterials(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedMaterials;
         public static List<MaterialSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
         public static List<MaterialSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
-        public static List<MaterialResult> SelectGeneratedMaterialsAndSkeletons(this IState state, VisualElement element)
+
+        /// <summary>
+        /// Returns a combined list of generated textures and skeletons for an element.
+        ///
+        /// This method intelligently filters out skeletons that have already been fulfilled
+        /// with a corresponding TextureResult. The logic is as follows:
+        ///
+        /// 1. All texture results are included (completed generations)
+        /// 2. Skeletons are included only if:
+        ///    - They don't have a corresponding entry in fulfilledSkeletons, OR
+        ///    - Their corresponding fulfilledSkeleton doesn't yet have a matching TextureResult
+        ///
+        /// This ensures we don't show duplicate items for both the skeleton and its result.
+        /// </summary>
+        /// <param name="state">The state to select from</param>
+        /// <param name="element">The visual element associated with the asset</param>
+        /// <returns>Combined collection of TextureResults and TextureSkeletons</returns>
+        public static IEnumerable<MaterialResult> SelectGeneratedMaterialsAndSkeletons(this IState state, VisualElement element)
         {
             var generationResults = state.SelectGenerationResult(element);
-            return generationResults.generatedSkeletons.Concat(generationResults.generatedMaterials).ToList();
+            var materials = generationResults.generatedMaterials;
+            var skeletons = generationResults.generatedSkeletons;
+            var fulfilledSkeletons = generationResults.fulfilledSkeletons;
+
+            // Create a HashSet of result URIs for O(1) lookups
+            var materialUris = new HashSet<string>(
+                materials
+                    .Where(material => material.uri != null)
+                    .Select(material => material.uri.GetAbsolutePath())
+            );
+
+            // Find skeletons that have been fulfilled and have matching material results
+            var skeletonsToExclude = new HashSet<int>();
+
+            foreach (var fulfilled in fulfilledSkeletons)
+            {
+                // Check if this fulfilled skeleton has a matching material result using O(1) lookup
+                if (materialUris.Contains(fulfilled.resultUri))
+                {
+                    skeletonsToExclude.Add(fulfilled.progressTaskID);
+                }
+            }
+
+            // Filter skeletons to include only those not in the exclude list
+            var filteredSkeletons = skeletons.Where(skeleton => !skeletonsToExclude.Contains(skeleton.taskID));
+
+            // Return all material results plus the filtered skeletons
+            return filteredSkeletons.Concat(materials);
         }
 
         public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedMaterials.Count > 0;

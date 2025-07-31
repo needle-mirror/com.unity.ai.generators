@@ -10,6 +10,7 @@ using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 
@@ -24,19 +25,19 @@ namespace Unity.AI.Generators.UI.Actions
         public static Creator<AssetReference> removeGenerationFeedback => new($"{slice}/removeGenerationFeedback");
         public static Creator<GenerationsValidationResult> setGenerationValidationResult => new($"{slice}/setGenerationValidationResult");
 
-        public static Func<AsyncThunkApi<bool>, string> selectedEnvironment = null;
+        public static Func<IStoreApi, string> selectedEnvironment = null;
 
-        public static void DispatchProgress(this AsyncThunkApi<bool> api, AssetReference asset, GenerationProgressData payload, string description, bool backgroundReport = true)
+        public static void DispatchProgress(this IStoreApi api, AssetReference asset, GenerationProgressData payload, string description, bool backgroundReport = true)
         {
             if (backgroundReport)
-                EditorFocusScope.ShowProgressOrCancelIfUnfocused("Editor background worker", description, payload.progress);
+                EditorAsyncKeepAliveScope.ShowProgressOrCancelIfUnfocused("Editor background worker", description, payload.progress);
 
             if (payload.taskID > 0)
                 Progress.Report(payload.taskID, payload.progress, description);
             api.Dispatch(setGenerationProgress, new GenerationsProgressData(asset, payload));
         }
 
-        public static bool DispatchStoreAssetMessage(this AsyncThunkApi<bool> api, AssetReference asset, OperationResult<BlobAssetResult> assetResults,
+        public static bool DispatchStoreAssetMessage(this IStoreApi api, AssetReference asset, OperationResult<BlobAssetResult> assetResults,
             out Guid assetGuid)
         {
             assetGuid = Guid.Empty;
@@ -56,7 +57,7 @@ namespace Unity.AI.Generators.UI.Actions
             return true;
         }
 
-        public static void DispatchValidatingMessage(this AsyncThunkApi<bool> api, AssetReference asset)
+        public static void DispatchValidatingMessage(this IStoreApi api, AssetReference asset)
         {
             var messages = new[] { "Validating generation inputs..." };
             api.Dispatch(setGenerationValidationResult,
@@ -65,7 +66,7 @@ namespace Unity.AI.Generators.UI.Actions
                         messages.Select(m => new GenerationFeedbackData(m)).ToList())));
         }
 
-        public static void DispatchInvalidCloudProjectMessage(this AsyncThunkApi<bool> api, AssetReference asset)
+        public static void DispatchInvalidCloudProjectMessage(this IStoreApi api, AssetReference asset)
         {
             api.Dispatch(setGenerationAllowed, new(asset, true));
             var messages = new[] { $"Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
@@ -76,14 +77,14 @@ namespace Unity.AI.Generators.UI.Actions
             }
         }
 
-        public static void DispatchFailedBatchMessage<T>(this AsyncThunkApi<bool> api, AssetReference asset, BatchOperationResult<T> results) where T : class
+        public static void DispatchFailedBatchMessage<T>(this IStoreApi api, AssetReference asset, BatchOperationResult<T> results) where T : class
         {
             if (!results.Batch.IsSuccessful)
                 DispatchFailedMessage(api, asset, results.Batch.Error);
             Debug.Log($"Trace Id '{results.SdkTraceId}' => W3CTraceId '{results.W3CTraceId}'");
         }
 
-        public static void DispatchFailedMessage(this AsyncThunkApi<bool> api, AssetReference asset, AiOperationFailedResult result)
+        public static void DispatchFailedMessage(this IStoreApi api, AssetReference asset, AiOperationFailedResult result)
         {
             var selectedEnv = string.Empty;
             if (selectedEnvironment != null)
@@ -100,14 +101,14 @@ namespace Unity.AI.Generators.UI.Actions
             }
         }
 
-        public static void DispatchFailedDownloadMessage<T>(this AsyncThunkApi<bool> api, AssetReference asset, OperationResult<T> result, string lastW3CTraceId = null) where T : class
+        public static void DispatchFailedDownloadMessage<T>(this IStoreApi api, AssetReference asset, OperationResult<T> result, string lastW3CTraceId = null, bool willRetry = false) where T : class
         {
-            if (!result.Result.IsSuccessful)
+            if (!result.Result.IsSuccessful && !willRetry)
                 DispatchFailedDownloadMessage(api, asset, result.Result.Error);
             Debug.Log($"Trace Id '{result.SdkTraceId}' => W3CTraceId '{(!string.IsNullOrWhiteSpace(result.W3CTraceId) ? result.W3CTraceId : lastW3CTraceId)}'");
         }
 
-        public static void DispatchFailedDownloadMessage(this AsyncThunkApi<bool> api, AssetReference asset, AiOperationFailedResult result)
+        public static void DispatchFailedDownloadMessage(this IStoreApi api, AssetReference asset, AiOperationFailedResult result)
         {
             var selectedEnv = string.Empty;
             if (selectedEnvironment != null)
@@ -125,7 +126,7 @@ namespace Unity.AI.Generators.UI.Actions
 
         static JobStatusSdkEnum s_LastJobStatus = JobStatusSdkEnum.None;
 
-        public static void DispatchJobUpdates(this AsyncThunkApi<bool> _, JobStatusSdkEnum jobStatus)
+        public static void DispatchJobUpdates(this IStoreApi _, JobStatusSdkEnum jobStatus)
         {
             if (s_LastJobStatus == jobStatus)
                 return;

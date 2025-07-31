@@ -72,7 +72,7 @@ namespace Unity.AI.Sound.Windows
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || isDisabledAndHasNoHistory);
-            var generateButtonTooltip = "Use generative ai to transform this audio clip.";
+            var generateButtonTooltip = "Use generative AI to transform this audio clip.";
             if (!Account.settings.AiGeneratorsEnabled)
             {
                 generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;
@@ -136,7 +136,7 @@ namespace Unity.AI.Sound.Windows
             if (!string.IsNullOrEmpty(path))
             {
                 var extension = Path.GetExtension(path).ToLower();
-                if (extension is ".wav")
+                if (extension is AssetUtils.defaultAssetExtension)
                 {
                     return true;
                 }

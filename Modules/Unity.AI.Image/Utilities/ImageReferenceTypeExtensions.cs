@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
@@ -16,42 +17,49 @@ namespace Unity.AI.Image.Utilities
         [ImageReferenceName("composition")]
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Composition")]
+        [OperationSubTypes(OperationSubTypeEnum.CompositionReference)]
         CompositionImage,
 
         [DisplayOrder(4)]
         [ImageReferenceName("depth")]
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Depth")]
+        [OperationSubTypes(OperationSubTypeEnum.DepthReference)]
         DepthImage,
 
         [DisplayOrder(6)]
         [ImageReferenceName("feature")]
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Feature")]
+        [OperationSubTypes(OperationSubTypeEnum.FeatureReference)]
         FeatureImage,
 
         [DisplayOrder(5)]
         [ImageReferenceName("colorSketch")]
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Line Art")]
+        [OperationSubTypes(OperationSubTypeEnum.LineArtReference)]
         LineArtImage,
 
         [DisplayOrder(8)]
         [ImageReferenceName("inPaintMask")]
         [RefinementModes(RefinementMode.Inpaint)]
         [DisplayName("In-paint Mask")]
+        [OperationSubTypes(OperationSubTypeEnum.MaskReference)]
         InPaintMaskImage,
 
         [DisplayOrder(7)]
         [ImageReferenceName("palette")]
         [RefinementModes(RefinementMode.Recolor)]
         [DisplayName("Palette")]
+        [OperationSubTypes(OperationSubTypeEnum.RecolorReference)]
         PaletteImage,
 
         [DisplayOrder(3)]
         [ImageReferenceName("pose")]
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Pose")]
+        [OperationSubTypes(OperationSubTypeEnum.PoseReference)]
         PoseImage,
 
         [DisplayOrder(0)]
@@ -59,12 +67,14 @@ namespace Unity.AI.Image.Utilities
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Prompt")]
         [InternalDisplayName("Image")]
+        [OperationSubTypes(OperationSubTypeEnum.TextPrompt)]
         PromptImage,
 
         [DisplayOrder(1)]
         [ImageReferenceName("style")]
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Style")]
+        [OperationSubTypes(OperationSubTypeEnum.StyleReference)]
         StyleImage
     }
 
@@ -87,6 +97,13 @@ namespace Unity.AI.Image.Utilities
     {
         public RefinementMode[] modes { get; }
         public RefinementModesAttribute(params RefinementMode[] modes) => this.modes = modes;
+    }
+
+    [AttributeUsage(AttributeTargets.Field)]
+    sealed class OperationSubTypesAttribute : Attribute
+    {
+        public OperationSubTypeEnum[] subTypes { get; }
+        public OperationSubTypesAttribute(params OperationSubTypeEnum[] subTypes) => this.subTypes = subTypes;
     }
 
     [AttributeUsage(AttributeTargets.Field)]
@@ -148,5 +165,7 @@ namespace Unity.AI.Image.Utilities
             !type.TryGetAttribute<InternalDisplayNameAttribute>(out var attr) ? GetDisplayNameForType(type) : attr.name;
 
         public static int GetDisplayOrder(this ImageReferenceType type) => !type.TryGetAttribute<DisplayOrderAttribute>(out var attr) ? 0 : attr.order;
+        public static HashSet<OperationSubTypeEnum> GetOperationSubTypeEnumForType(this ImageReferenceType type) =>
+            !type.TryGetAttribute<OperationSubTypesAttribute>(out var attr) ? new HashSet<OperationSubTypeEnum>() : new HashSet<OperationSubTypeEnum>(attr.subTypes);
     }
 }

@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Image.Services.Stores.Actions;
-using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
@@ -62,16 +61,17 @@ namespace Unity.AI.Image.Components
                 if (!quoteMonitor)
                     return;
 
-                this.Use(state => state.SelectGenerationValidationSettings(this), OnGenerationValidationSettingsChanged);
+                // ReSharper disable once AsyncVoidLambda
+                this.Use(state => state.SelectGenerationValidationSettings(this), async settings => {
+                    await EditorTask.Yield();
+                    _ = this.GetStoreApi().Dispatch(GenerationResultsActions.quoteImagesMain, settings.asset);
+                });
 
                 await EditorTask.Yield();
-                await this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
+                _ = this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
             });
             this.Use(state => state.SelectGenerationValidationResult(this), OnGenerationValidationResultsChanged);
         }
-
-        void OnGenerationValidationSettingsChanged(GenerationValidationSettings settings) =>
-            this.GetStoreApi().Dispatch(GenerationResultsActions.quoteImagesMain, settings.asset);
 
         void OnGenerationValidationResultsChanged(GenerationValidationResult result)
         {
@@ -91,10 +91,10 @@ namespace Unity.AI.Image.Components
             if (!allowed)
             {
                 m_CancellationTokenSource = new();
-                ReenableGenerateButton(m_CancellationTokenSource.Token);
+                _ = ReenableGenerateButton(m_CancellationTokenSource.Token);
             }
         }
-        async void ReenableGenerateButton(CancellationToken token)
+        async Task ReenableGenerateButton(CancellationToken token)
         {
             try
             {

@@ -15,6 +15,8 @@ Before you can use the **AI** menu and tools in the Unity Editor, ensure that:
 
 For more information, refer to [AI menu in Unity Editor](https://docs.unity3d.com/6000.2/Documentation/Manual/ai-menu.html).
 
+Use the [Unity Dashboard](https://docs.unity.com/en-us/ai) to monitor your AI usage, manage your point balance, and configure settings across your organization. This helps you understand how often Generators are used, control costs, and ensure the right team members have access to the right tools.
+
 Use the following topics to get started with using Generators.
 
 | Topic | Description |

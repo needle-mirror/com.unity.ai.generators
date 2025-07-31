@@ -56,7 +56,7 @@ namespace Unity.AI.ModelSelector.Components
             get => m_Models;
             set
             {
-                m_Models = value?.OrderBy(model => model.name).ToList() ?? new List<ModelSettings>();
+                m_Models = value?.Presort().ThenBy(model => model.name).ToList() ?? new List<ModelSettings>();
                 m_FilteredModels = models;
                 RebuildFilters();
                 OnSearch();

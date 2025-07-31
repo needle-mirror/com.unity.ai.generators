@@ -12,16 +12,20 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
     {
         public static States.ModelSelector SelectModels(this IState state) => state.Get<States.ModelSelector>(ModelSelectorActions.slice);
 
-        public static IEnumerable<ModelSettings> SelectModelSettings(this IState state) => state.SelectModels().settings.models;
-
-        public static IEnumerable<string> SelectModelSettingsIds(this IState state) => state.SelectModels().settings.models.Select(m => m.id);
+        public static IEnumerable<ModelSettings> SelectModelSettings(this IState state) =>
+            state.SelectModels().settings.models
+                .Presort()
+                .ToArray();
 
         public static ModelSettings SelectModelSettingsWithModelId(this IState state, string modelId) => state.SelectModelSettings().FirstOrDefault(s => s.id == modelId);
+
+        public const double timeToLiveGlobally = 30;
+        public const double timeToLivePerModality = 60;
 
         public static bool SelectModelSelectorSettingsReady(this IState state)
         {
             var elapsed = new TimeSpan(DateTime.UtcNow.Ticks - state.SelectLastModelDiscoveryTimestamp());
-            return elapsed.TotalSeconds < 60 && SelectModelSettings(state).ToList() is { Count: > 0 };
+            return elapsed.TotalSeconds < timeToLivePerModality && SelectModelSettings(state).ToList() is { Count: > 0 };
         }
 
         public static IEnumerable<ModelSettings> SelectUnityModels(this IState state) => state.SelectModelSettings().Where(s => s.provider == ProviderEnum.Unity);
@@ -136,13 +140,15 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
 
             return sortMode switch
             {
-                SortMode.Name => filteredModels.OrderBy(m => m.name).ToList(),
-                SortMode.NameDescending => filteredModels.OrderByDescending(m => m.name).ToList(),
+                SortMode.Name => Presort(filteredModels).ThenBy(m => m.name).ToList(),
+                SortMode.NameDescending => Presort(filteredModels).ThenByDescending(m => m.name).ToList(),
                 SortMode.RecentlyUsed => filteredModels
-                    .OrderByDescending(m => lastUsedRanking != null && lastUsedRanking.TryGetValue(m.id, out var value) ? DateTime.Parse(value) : DateTime.UnixEpoch)
+                    .Presort()
+                    .ThenByDescending(m => lastUsedRanking != null && lastUsedRanking.TryGetValue(m.id, out var value) ? DateTime.Parse(value) : DateTime.UnixEpoch)
                     .ToList(),
                 SortMode.Popularity => filteredModels
-                    .OrderByDescending(m => popularityRanking != null && popularityRanking.TryGetValue(m.id, out var value) ? value : 0)
+                    .Presort()
+                    .ThenByDescending(m => popularityRanking != null && popularityRanking.TryGetValue(m.id, out var value) ? value : 0)
                     .ToList(),
                 _ => throw new ArgumentOutOfRangeException(nameof(sortMode), sortMode, null)
             };
@@ -179,5 +185,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
         public static string SelectSearchQuery(this IState state) => state.SelectModelSelectorFilters().searchQuery;
 
         public static SortMode SelectSortMode(this IState state) => state.SelectModels().settings.sortMode;
+
+        public static IOrderedEnumerable<ModelSettings> Presort(this List<ModelSettings> models) => models.OrderBy(m => m.isFavorite ? 0 : 1);
     }
 }

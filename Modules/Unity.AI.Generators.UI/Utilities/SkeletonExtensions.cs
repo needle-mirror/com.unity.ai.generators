@@ -67,4 +67,6 @@ namespace Unity.AI.Generators.UI.Utilities
             return rt;
         }
     }
+
+    record FulfilledSkeleton(int progressTaskID, string resultUri);
 }

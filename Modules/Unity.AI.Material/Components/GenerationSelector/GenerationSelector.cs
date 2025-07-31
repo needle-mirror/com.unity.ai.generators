@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Stores.States;
@@ -15,7 +13,6 @@ using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
-using Unity.AI.Toolkit;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -28,10 +25,8 @@ namespace Unity.AI.Material.Components
         readonly GridView m_GridView;
 
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Material/Components/GenerationSelector/GenerationSelector.uxml";
-        const int k_RemovalDelayMS = 2000;
 
         GenerationFileSystemWatcher m_GenerationFileSystemWatcher;
-        CancellationTokenSource m_ItemsRemovalCancellationTokenSource;
         float m_PreviewSizeFactor = 1;
 
         float GetPreviewSize() => Mathf.NextPowerOfTwo((int)TextureSizeHint.Generation) * m_PreviewSizeFactor;
@@ -103,43 +98,7 @@ namespace Unity.AI.Material.Components
         void OnItemViewMaxCountChanged(int count) => this.Dispatch(GenerationResultsActions.setGeneratedResultVisibleCount,
             new(this.GetAsset(), m_ElementID, m_GridView.IsElementShown() ? count : 0));
 
-        void OnGeneratedTexturesChanged(List<MaterialResult> materials)
-        {
-            var currentItemCount = m_GridView.itemsSource.Count;
-            var newItemCount = materials.Count;
-
-            m_ItemsRemovalCancellationTokenSource?.Cancel();
-            m_ItemsRemovalCancellationTokenSource?.Dispose();
-            if (newItemCount < currentItemCount)
-            {
-                // Items are being removed
-                // Schedule update after delay
-                m_ItemsRemovalCancellationTokenSource = new CancellationTokenSource();
-                UpdateItemsAfterDelay(m_ItemsRemovalCancellationTokenSource.Token);
-                return;
-            }
-
-            // Items are added or same count
-            // Update immediately
-            m_ItemsRemovalCancellationTokenSource = null;
-
-            UpdateItems(materials);
-        }
-
-        async void UpdateItemsAfterDelay(CancellationToken token)
-        {
-            try
-            {
-                await EditorTask.Delay(k_RemovalDelayMS, token);
-            }
-            catch (TaskCanceledException)
-            {
-                // If canceled, do not proceed
-                return;
-            }
-
-            UpdateItems(this.GetState().SelectGeneratedMaterialsAndSkeletons(this));
-        }
+        void OnGeneratedTexturesChanged(List<MaterialResult> materials) => UpdateItems(materials);
 
         void UpdateItems(IEnumerable<MaterialResult> materials)
         {

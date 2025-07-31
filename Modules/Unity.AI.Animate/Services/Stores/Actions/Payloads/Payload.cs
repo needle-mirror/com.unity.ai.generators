@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
 {
     record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int taskID) : AsssetContext(asset);
+    record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
     record DownloadAnimationsData(
         AssetReference asset,
         List<Guid> jobIds,
@@ -18,7 +18,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
         Guid uniqueTaskId,
         GenerationMetadata generationMetadata,
         int[] customSeeds,
-        bool autoApply) : AsssetContext(asset);
+        bool autoApply,
+        bool retryable) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
         bool valid,

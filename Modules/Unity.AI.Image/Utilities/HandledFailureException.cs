@@ -5,6 +5,8 @@ namespace Unity.AI.Image.Services.Utilities
 {
     class HandledFailureException : Exception { }
 
+    class DownloadTimeoutException : Exception { }
+
     class UnhandledReferenceCombinationException : Exception
     {
         public AiResultErrorEnum responseError { get; } = AiResultErrorEnum.UnsupportedModelOperation;

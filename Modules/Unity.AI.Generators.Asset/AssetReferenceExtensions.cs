@@ -112,9 +112,9 @@ namespace Unity.AI.Generators.Asset
                     return true;
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Debug.LogError($"Error processing path: {ex.Message}");
+                Debug.LogException(e);
                 return false;
             }
 
@@ -126,9 +126,19 @@ namespace Unity.AI.Generators.Asset
             if (!TryGetProjectAssetsRelativePath(path, out var assetPath))
                 return false;
 
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-            var asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
-            asset.EnableGenerationLabel();
+            AssetReference asset;
+
+            try
+            {
+                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
+                asset.EnableGenerationLabel();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                return false;
+            }
 
             try
             {

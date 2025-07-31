@@ -26,6 +26,8 @@
    * [Manage generated sounds](xref:sound-manage)
 * [Animation Generator](xref:animation-intro)
    * [Create animation with Animation Generator](xref:animation-create)
+      * [Adjust the direction and loop of an animation clip](xref:animation-trim)
+      * [Trim reference](xref:trim-reference)
    * [Apply animation to a character](xref:animation-apply)
    * [Troubleshoot issues with Animation Generator](xref:animation-troubleshoot)
 * [Material Generator](xref:material-overview)

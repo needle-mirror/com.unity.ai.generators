@@ -9,6 +9,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Animate.Services.Stores.Selectors
@@ -54,10 +55,37 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
         public static List<AnimationClipResult> SelectGeneratedAnimations(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedAnimations;
         public static List<TextureSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
         public static List<TextureSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
-        public static List<AnimationClipResult> SelectGeneratedAnimationsAndSkeletons(this IState state, VisualElement element)
+        public static IEnumerable<AnimationClipResult> SelectGeneratedAnimationsAndSkeletons(this IState state, VisualElement element)
         {
             var generationResults = state.SelectGenerationResult(element);
-            return generationResults.generatedSkeletons.Concat(generationResults.generatedAnimations).ToList();
+            var animations = generationResults.generatedAnimations;
+            var skeletons = generationResults.generatedSkeletons;
+            var fulfilledSkeletons = generationResults.fulfilledSkeletons;
+
+            // Create a HashSet of result URIs for O(1) lookups
+            var animationUris = new HashSet<string>(
+                animations
+                    .Where(animation => animation.uri != null)
+                    .Select(animation => animation.uri.GetAbsolutePath())
+            );
+
+            // Find skeletons that have been fulfilled and have matching animation results
+            var skeletonsToExclude = new HashSet<int>();
+
+            foreach (var fulfilled in fulfilledSkeletons)
+            {
+                // Check if this fulfilled skeleton has a matching animation result using O(1) lookup
+                if (animationUris.Contains(fulfilled.resultUri))
+                {
+                    skeletonsToExclude.Add(fulfilled.progressTaskID);
+                }
+            }
+
+            // Filter skeletons to include only those not in the exclude list
+            var filteredSkeletons = skeletons.Where(skeleton => !skeletonsToExclude.Contains(skeleton.taskID));
+
+            // Return all animation results plus the filtered skeletons
+            return filteredSkeletons.Concat(animations);
         }
 
         public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAnimations.Count > 0;

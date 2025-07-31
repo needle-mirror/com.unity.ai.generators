@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
@@ -38,6 +39,7 @@ namespace Unity.AI.Image.Components
 
         RenderTexture m_SkeletonTexture;
         readonly Label m_Label;
+        readonly Label m_Type;
         GenerationMetadata m_Metadata;
 
         public GenerationTile()
@@ -46,6 +48,7 @@ namespace Unity.AI.Image.Components
             tree.CloneTree(this);
 
             m_Label = this.Q<Label>("label");
+            m_Type = this.Q<Label>("type");
             image = this.Q<VisualElement>("image");
             RegisterCallback<AttachToPanelEvent>(_ => {
                 if (m_SkeletonTexture)
@@ -93,25 +96,22 @@ namespace Unity.AI.Image.Components
             if (textureResult is TextureSkeleton)
                 return;
 
-            evt.menu.AppendAction("Select", async _ =>
+            evt.menu.AppendAction("Select", _ =>
             {
                 if (this.GetAsset() == null || textureResult == null)
                     return;
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, textureResult, false, false));
+                this.GetStoreApi().Dispatch(GenerationResultsActions.selectGeneration, new(asset, textureResult, false, false));
             }, DropdownMenuAction.AlwaysEnabled);
-            evt.menu.AppendAction("Promote to current asset", async _ =>
+            evt.menu.AppendAction("Promote to current asset", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, textureResult, true, false));
+                this.GetStoreApi().Dispatch(GenerationResultsActions.selectGeneration, new(asset, textureResult, true, false));
             }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction("Promote to new asset", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                store.Dispatch(SessionActions.promoteFocusedGeneration, new (asset, textureResult));
+                this.GetStoreApi().Dispatch(SessionActions.promoteFocusedGeneration, new (asset, textureResult));
             }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction(
                 RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Show in Explorer" :
@@ -127,15 +127,12 @@ namespace Unity.AI.Image.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || textureResult == null)
-                    return;
-
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, textureResult));
+                if (asset == null || textureResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, textureResult));
             }, showGenerationDataStatus);
         }
 
@@ -159,15 +156,13 @@ namespace Unity.AI.Image.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || textureResult == null)
+                var asset = this.GetAsset();
+                if (asset == null || textureResult == null)
                     return;
 
-                var asset = this.GetAsset();
-                var store = this.GetStore();
-
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, textureResult));
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, textureResult));
             }, showGenerationDataStatus);
         }
 
@@ -251,6 +246,32 @@ namespace Unity.AI.Image.Components
             }
 
             OnGeometryChanged(null);
+
+            async Task SetBadgeIfUpscaledAsync()
+            {
+                using var stream = await ImageFileUtilities.GetCompatibleImageStreamAsync(result.uri);
+                ImageFileUtilities.TryGetImageDimensions(stream, out var width, out var height);
+                SetBadgeIfUpscaled(width, height);
+            }
+            _ = SetBadgeIfUpscaledAsync();
+        }
+
+        internal static string GetTextureSizeBadge(int width, int height)
+        {
+            // Take the biggest size to determine the badge
+            var maxSize = Math.Max(width, height);
+            var badgeNumber = Mathf.Floor(maxSize / 1024f);
+            return badgeNumber <= 1 ? string.Empty : $"{badgeNumber}K";
+        }
+
+        void SetBadgeIfUpscaled(int width, int height)
+        {
+            var badgeText = GetTextureSizeBadge(width, height);
+            if (!string.IsNullOrEmpty(badgeText))
+            {
+                m_Type.SetShown();
+                m_Type.text = badgeText;
+            }
         }
 
         async void UpdateTooltip()

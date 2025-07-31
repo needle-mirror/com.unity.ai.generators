@@ -27,3 +27,7 @@ SoundGenerator {
 .grid-view .unity-scroll-view__content-viewport--vertical {
     margin-right: 7px;
 }
+
+.grid-view-rows {
+    flex-grow: 1;
+}

@@ -8,6 +8,7 @@ using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -19,7 +20,7 @@ namespace Unity.AI.Image.Services.Utilities
         public static async Task CopyToProject(this TextureResult textureResult, GenerationMetadata generationMetadata, string cacheDirectory)
         {
             if (!textureResult.uri.IsFile)
-                return; // DownloadToProject should be used for remote files
+                throw new ArgumentException("CopyToProject should only be used for local files.", nameof(textureResult));
 
             var path = textureResult.uri.GetLocalPath();
             var extension = Path.GetExtension(path);
@@ -30,8 +31,10 @@ namespace Unity.AI.Image.Services.Utilities
             }
 
             var fileName = Path.GetFileName(path);
-            if (!File.Exists(path) || string.IsNullOrEmpty(cacheDirectory))
-                return;
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"The file {path} does not exist.", path);
+            if (string.IsNullOrEmpty(cacheDirectory))
+                throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
 
             Directory.CreateDirectory(cacheDirectory);
             var newPath = Path.Combine(cacheDirectory, fileName);
@@ -44,17 +47,27 @@ namespace Unity.AI.Image.Services.Utilities
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
 
-            await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
-                JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            try
+            {
+                await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
+                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            }
+            catch (Exception e)
+            {
+                // log an error but not absolutely critical as generations can be used without metadata
+                Debug.LogException(e);
+            }
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task DownloadToProject(this TextureResult textureResult, GenerationMetadata generationMetadata, string cacheDirectory, HttpClient httpClient)
         {
             if (textureResult.uri.IsFile)
-                return; // CopyToProject should be used for local files
+                throw new ArgumentException("DownloadToProject should only be used for remote files.", nameof(textureResult));
 
             if (string.IsNullOrEmpty(cacheDirectory))
-                return;
+                throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
             Directory.CreateDirectory(cacheDirectory);
 
             var newUri = await UriExtensions.DownloadFile(textureResult.uri, cacheDirectory, httpClient);
@@ -63,11 +76,21 @@ namespace Unity.AI.Image.Services.Utilities
 
             textureResult.uri = newUri;
 
-            var path = textureResult.uri.GetLocalPath();
-            var fileName = Path.GetFileName(path);
+            try
+            {
+                var path = textureResult.uri.GetLocalPath();
+                var fileName = Path.GetFileName(path);
 
-            await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
-                JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
+                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+            }
+            catch (Exception e)
+            {
+                // log an error but not absolutely critical as generations can be used without metadata
+                Debug.LogException(e);
+            }
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task<GenerationMetadata> GetMetadata(this TextureResult textureResult)

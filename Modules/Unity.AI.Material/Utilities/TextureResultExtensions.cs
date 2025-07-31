@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Unity.AI.Generators.UI;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
@@ -14,7 +15,7 @@ namespace Unity.AI.Material.Services.Utilities
         public static void CopyToProject(this TextureResult textureResult, string cacheDirectory, string newFileName)
         {
             if (!textureResult.uri.IsFile)
-                return; // DownloadToProject should be used for remote files
+                throw new ArgumentException("CopyToProject should only be used for local files.", nameof(textureResult));
 
             var path = textureResult.uri.GetLocalPath();
             var extension = Path.GetExtension(path);
@@ -25,8 +26,10 @@ namespace Unity.AI.Material.Services.Utilities
             }
 
             var fileName = Path.GetFileName(path);
-            if (!File.Exists(path) || string.IsNullOrEmpty(cacheDirectory))
-                return;
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"The file {path} does not exist.", path);
+            if (string.IsNullOrEmpty(cacheDirectory))
+                throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
 
             Directory.CreateDirectory(cacheDirectory);
             if (!string.IsNullOrEmpty(newFileName))
@@ -40,15 +43,18 @@ namespace Unity.AI.Material.Services.Utilities
             FileIO.CopyFile(path, newPath, overwrite: true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task DownloadToProject(this TextureResult textureResult, string cacheDirectory, string newFileName, HttpClient httpClient)
         {
             if (textureResult.uri.IsFile)
-                return; // CopyToProject should be used for local files
+                throw new ArgumentException("DownloadToProject should only be used for remote files.", nameof(textureResult));
 
             if (string.IsNullOrEmpty(cacheDirectory))
-                return;
+                throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
+
             Directory.CreateDirectory(cacheDirectory);
 
             var newUri = await UriExtensions.DownloadFile(textureResult.uri, cacheDirectory, httpClient, newFileName);
@@ -56,6 +62,8 @@ namespace Unity.AI.Material.Services.Utilities
                 return;
 
             textureResult.uri = newUri;
+
+            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task<Texture2D> GetTexture(this TextureResult textureResult) => await TextureCache.GetTexture(textureResult.uri);

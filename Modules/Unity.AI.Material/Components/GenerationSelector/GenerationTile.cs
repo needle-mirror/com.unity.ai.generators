@@ -114,13 +114,12 @@ namespace Unity.AI.Material.Components
             if (materialResult is MaterialSkeleton)
                 return;
 
-            evt.menu.AppendAction("Select", async _ =>
+            evt.menu.AppendAction("Select", _ =>
             {
-                if (this.GetAsset() == null || materialResult == null)
-                    return;
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, materialResult, true, true));
+                if (asset == null || materialResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationResultsActions.selectGeneration, new(asset, materialResult, true, true));
             }, DropdownMenuAction.AlwaysEnabled);
 
             evt.menu.AppendAction("Refresh", _ =>
@@ -132,15 +131,13 @@ namespace Unity.AI.Material.Components
             evt.menu.AppendAction("Promote to new material", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                store.Dispatch(SessionActions.promoteGenerationToMaterial, new (asset, materialResult));
+                this.GetStoreApi().Dispatch(SessionActions.promoteGenerationToMaterial, new (asset, materialResult));
             }, DropdownMenuAction.AlwaysEnabled);
 
             evt.menu.AppendAction("Promote to new terrain layer", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                store.Dispatch(SessionActions.promoteGenerationToTerrainLayer, new (asset, materialResult));
+                this.GetStoreApi().Dispatch(SessionActions.promoteGenerationToTerrainLayer, new (asset, materialResult));
             }, DropdownMenuAction.AlwaysEnabled);
 
             evt.menu.AppendAction(
@@ -157,13 +154,12 @@ namespace Unity.AI.Material.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || materialResult == null)
-                    return;
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, materialResult));
+                if (asset == null || materialResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, materialResult));
             }, showGenerationDataStatus);
         }
 
@@ -187,15 +183,12 @@ namespace Unity.AI.Material.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || materialResult == null)
-                    return;
-
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, materialResult));
+                if (asset == null || materialResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, materialResult));
             }, showGenerationDataStatus);
         }
 

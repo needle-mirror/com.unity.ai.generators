@@ -7,6 +7,8 @@ namespace Unity.AI.Generators.Sdk
 {
     class Logger : AiEditorToolsSdk.Domain.Abstractions.Services.ILogger
     {
+        public static Exception lastException { get; private set; }
+
         public void LogDebug(string message)
         {
             try
@@ -29,6 +31,8 @@ namespace Unity.AI.Generators.Sdk
         {
             try
             {
+                lastException = exception;
+
                 if (LoggerUtilities.sdkLogLevel == 0)
                     return;
 
@@ -43,11 +47,13 @@ namespace Unity.AI.Generators.Sdk
                 // Silent catch with no logging
             }
         }
-        
+
         public void LogDebug(Exception exception)
         {
             try
             {
+                lastException = exception;
+
                 if (LoggerUtilities.sdkLogLevel == 0)
                     return;
 
@@ -149,5 +155,32 @@ namespace Unity.AI.Generators.Sdk
 
         public void LogException(Exception exception, UnityEngine.Object context) =>
             m_OriginalHandler.LogFormat(LogType.Log, context, "{0}", exception.ToString());
+    }
+
+    class ExceptionTracker : IDisposable
+    {
+        readonly Exception m_InitialException;
+        readonly Action<Exception> m_Handler;
+
+        public bool triggerHandler { get; set; }
+
+        public ExceptionTracker(Action<Exception> handler)
+        {
+            m_InitialException = Logger.lastException;
+            m_Handler = handler;
+            triggerHandler = false;
+        }
+
+        public void Dispose()
+        {
+            if (!triggerHandler || Logger.lastException == m_InitialException)
+            {
+                return;
+            }
+
+            m_Handler?.Invoke(Logger.lastException);
+        }
+
+        public void Enable() => triggerHandler = true;
     }
 }

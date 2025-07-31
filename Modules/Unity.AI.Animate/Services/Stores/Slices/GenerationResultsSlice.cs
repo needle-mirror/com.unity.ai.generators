@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.States;
@@ -6,6 +7,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEngine;
 
 namespace Unity.AI.Animate.Services.Stores.Slices
@@ -48,6 +50,35 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                     var results = state.generationResults.Ensure(payload.asset);
                     results.generatedSkeletons = results.generatedSkeletons.Where(s => s.taskID != payload.taskID).ToList();
                 })
+                .Add(GenerationResultsActions.setFulfilledSkeletons, (state, payload) => {
+                    var results = state.generationResults.Ensure(payload.asset);
+
+                    // Add new fulfilled skeletons
+                    results.fulfilledSkeletons = results.fulfilledSkeletons.Union(payload.skeletons).ToList();
+
+                    // Create a HashSet of result URIs for O(1) lookups
+                    var animationUris = new HashSet<string>(
+                        results.generatedAnimations
+                            .Where(animation => animation.uri != null)
+                            .Select(animation => animation.uri.GetAbsolutePath())
+                    );
+
+                    // Identify skeletons that have corresponding results in the state
+                    var skeletonsToRemove = results.fulfilledSkeletons
+                        .Where(skeleton => animationUris.Contains(skeleton.resultUri))
+                        .Select(skeleton => skeleton.progressTaskID)
+                        .ToHashSet();
+
+                    // Clean up fulfilled skeletons that have results already
+                    results.fulfilledSkeletons = results.fulfilledSkeletons
+                        .Where(skeleton => !skeletonsToRemove.Contains(skeleton.progressTaskID))
+                        .ToList();
+
+                    // Clean up generated skeletons that have results already
+                    results.generatedSkeletons = results.generatedSkeletons
+                        .Where(skeleton => !skeletonsToRemove.Contains(skeleton.taskID))
+                        .ToList();
+                })
                 .Add(GenerationResultsActions.setSelectedGeneration, (state, payload) => state.generationResults.Ensure(payload.asset).selectedGeneration = payload.result with { })
                 .Add(GenerationResultsActions.setAssetUndoManager, (state, payload) => state.generationResults.Ensure(payload.asset).assetUndoManager = payload.undoManager)
                 .Add(GenerationResultsActions.setReplaceWithoutConfirmation, (state, payload) => state.generationResults.Ensure(payload.asset).replaceWithoutConfirmation = payload.withoutConfirmation)
@@ -68,6 +99,7 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                     state.generationResults.ToDictionary(kvp => kvp.Key, entry => entry.Value with {
                         generatedAnimations = entry.Value.generatedAnimations,
                         generatedSkeletons = entry.Value.generatedSkeletons,
+                        fulfilledSkeletons = entry.Value.fulfilledSkeletons,
                         generationAllowed = entry.Value.generationAllowed,
                         generationProgress = entry.Value.generationProgress,
                         generationFeedback = entry.Value.generationFeedback,

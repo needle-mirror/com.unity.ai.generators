@@ -146,7 +146,7 @@ namespace Unity.AI.Sound.Components
             try
             {
                 var path = AssetDatabase.GetAssetPath(m_Asset);
-                path = Path.ChangeExtension(path, ".wav");
+                path = Path.ChangeExtension(path, AssetUtils.defaultAssetExtension);
 
                 EditorUtility.DisplayProgressBar("Saving Audio", "Writing audio data to file...", 0.1f);
                 {

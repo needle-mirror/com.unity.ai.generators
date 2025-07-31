@@ -34,15 +34,10 @@ namespace Unity.AI.Image.Services.Stores.Actions
             await promotedTextureResult.CopyToProject(await originalTextureResult.GetMetadata(), generativePath);
 
             var postPromoteAction = api.api.State.SelectPromoteNewAssetPostAction(data.asset);
-            if (postPromoteAction != null)
-                postPromoteAction.Invoke(promotedAsset);
-            else
-            {
-                Selection.activeObject = promotedAsset.GetObject();
-                TextureGeneratorWindow.Display(destFileName);
-            }
+            postPromoteAction?.Invoke(promotedAsset);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedTextureResult, true, false));
+            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
 
             // copy sprite properties
             var sourceImporter = AssetImporter.GetAtPath(data.asset.GetPath()) as TextureImporter;
@@ -61,6 +56,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
             destImporter.spriteImportMode = sourceImporter.spriteImportMode;
 
             destImporter.SaveAndReimport();
+
+            if (postPromoteAction != null)
+                return;
+
+            Selection.activeObject = promotedAsset.GetObject();
+            TextureGeneratorWindow.Display(destFileName);
         });
         public static Creator<float> setPreviewSizeFactor => new($"{slice}/setPreviewSizeFactor");
     }

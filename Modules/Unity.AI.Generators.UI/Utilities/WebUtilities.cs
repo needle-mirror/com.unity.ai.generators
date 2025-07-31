@@ -13,6 +13,8 @@ namespace Unity.AI.Generators.UI.Utilities
 
         public static async Task<bool> WaitForCloudProjectSettings(AssetReference asset)
         {
+            using var editorFocus = new EditorAsyncKeepAliveScope("Waiting for Cloud Project Settings for asset: " + asset.guid);
+
             if (k_AssetCancellationDict.TryGetValue(asset, out var previousTcs))
                 previousTcs.TrySetResult(true);
 
@@ -39,6 +41,8 @@ namespace Unity.AI.Generators.UI.Utilities
 
         public static async Task<bool> WaitForCloudProjectSettings(CancellationToken cancellationToken = default)
         {
+            using var editorFocus = new EditorAsyncKeepAliveScope("Waiting for Cloud Project Settings");
+
             while (AreCloudProjectSettingsInvalid())
             {
                 if (cancellationToken.IsCancellationRequested)

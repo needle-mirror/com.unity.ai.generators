@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.16",
+  "version": "1.0.0-pre.17",
   "unity": "6000.2",
   "unityRelease": "0b4",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.16"
+    "com.unity.ai.toolkit": "1.0.0-pre.17"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.16"
+    "com.unity.ai.generators.tests": "1.0.0-pre.17"
   },
   "_upm": {
-    "changelog": "### Added\n\n- Added Clear option for Video References in animation generator.\n- Added Clear option for Image References in material generator.\n- Added badges for upscaled images in material generator.\n- Added disclaimers for potential copyright.\n- Added base map assignment to material generator.\n- Added trim and normalization tab to animation generator.\n- Added strength to Generation Data for image references in sprite generator.\n\n### Fixed\n\n- Fixed material preview that was sometimes blank.\n- Fixed styling for Pixelate tab.\n- Fixed undo-redo that was sometimes unreliable.\n- Better .mov conversion and support for animation generator.\n- Fixed GeneratedAssets tab title missing a space between the words in Search window.\n- Fixed sound playback not stopping when closing sound trim edit window.\n- Renamed delighted to base in material generator where applicable.\n- Removed emission from default material generator assignments.\n- Fixed initial blank texture generation thumbnail to be similar to sprite placeholder.\n- Fixed a potential race condition when downloading generations.\n\n### Removed\n\n- Removed the generate button from the inspector of readonly animation clips."
+    "changelog": "### Added\n\n- Added upscale badge to generated sprites and textures.\n- Added preview images and descriptions to image reference operation picker dialog.\n\n### Changed\n\n- Changed animation trim tab loop scoring method when 'Use Best Loop' is unchecked.\n- Show favorited models first in model selector. GPT Image models understand text prompts very well and are favorited by default.\n\n### Fixed\n\n- Fixed 'ai' for 'AI' in tooltips.\n- Fixed some generations stuck at 25% completing only on domain reload.\n- Fixed favorite model icon color and state.\n- Fixed obsolete drag and drop handler warning for Unity Editor 6.3.\n- Fixed some image reference upload failures when Unity Editor loses focus.\n- Fixed checkbox layout in model selector.\n- Fixed missing tooltip in add to prompt control."
   },
   "upmCi": {
-    "footprint": "5651830b925d6395d43c1f59033c80091e975df7"
+    "footprint": "7f7b6c4eb9fd7276d141e798d03040eb506f3ca4"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "b30d305638c531718b7dba17920f1f4979b0b010"
+    "revision": "ecfed6d193e7369c66f3900ad45e714f0d94db32"
   }
 }

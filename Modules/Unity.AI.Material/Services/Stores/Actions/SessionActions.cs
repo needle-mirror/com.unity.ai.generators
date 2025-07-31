@@ -81,11 +81,11 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
             await promotedMaterialResult.CopyToProject(promotedMaterialResult.GetName(), await originalMaterialResult.GetMetadata(), generativePath);
+            await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedMaterialResult, true, false));
+            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
 
             Selection.activeObject = promotedAsset.GetObject();
             MaterialGeneratorWindow.Display(destFileName);
-
-            await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedMaterialResult, true, false));
         }
 
         public static readonly Func<(DragAndDropGenerationData data, IStoreApi api), AssetReference> promoteGenerationUnsafe = args =>

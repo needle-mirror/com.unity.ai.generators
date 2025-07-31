@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.UI.Utilities;
 
 namespace Unity.AI.Generators.UI.Payloads
 {
@@ -14,4 +15,5 @@ namespace Unity.AI.Generators.UI.Payloads
     record GenerationsProgressData(AssetReference asset, GenerationProgressData progress) : AsssetContext(asset);
     record GenerationAllowedData(AssetReference asset, bool allowed) : AsssetContext(asset);
     record GeneratedResultVisibleData(AssetReference asset, string elementID, int count) : AsssetContext(asset);
+    record FulfilledSkeletons(AssetReference asset, List<FulfilledSkeleton> skeletons) : AsssetContext(asset);
 }

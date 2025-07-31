@@ -15,6 +15,10 @@
                 <VisualElement class="button-spacer" />
                 <Button name="image-reference-settings-button" tooltip="More"><Image class="unity-button__image"/></Button>
             </VisualElement>
+            <VisualElement name="warning-background" class="hidden" />
         </editorui:ObjectField>
+    </VisualElement>
+    <VisualElement name="warning-icon-container" class="warning-icon-container hidden" tooltip="This control is not supported with this model. Remove by pressing X or choose a compatible model.">
+        <Image name="warning-icon"/>
     </VisualElement>
 </UXML>

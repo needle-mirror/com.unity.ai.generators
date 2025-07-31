@@ -21,6 +21,7 @@ Use the following topics to get started with Sprite Generator.
 | [Generate window](xref:generate-window-sprite) | Learn about the different options available on the **Generate** window. |
 | [Generate sprite from reference images](xref:reference-sprite) | Generate sprites from a reference image. |
 | [Manage generated sprites](xref:manage-sprite) | Learn to use the **Generations** panel to manage your generated sprites. |
+| [Sprite Editor workflow](https://docs.unity3d.com/Packages/com.unity.2d.enhancers@latest) | Generate and enhance sprites in context, directly from the Sprite Editor window. |
 
 ## Additional resources
 

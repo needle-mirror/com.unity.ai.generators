@@ -69,7 +69,7 @@ namespace Unity.AI.Animate.Windows
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             EditorGUI.BeginDisabledGroup(!OnAssetGenerationMultipleValidation(editor.targets) || isDisabledAndHasNoHistory);
-            var generateButtonTooltip = "Use generative ai to transform this animation clip.";
+            var generateButtonTooltip = "Use generative AI to transform this animation clip.";
             if (!Account.settings.AiGeneratorsEnabled)
             {
                 generateButtonTooltip = Generators.UI.AIDropdownIntegrations.GenerativeMenuRoot.generatorsIsDisabledTooltip;

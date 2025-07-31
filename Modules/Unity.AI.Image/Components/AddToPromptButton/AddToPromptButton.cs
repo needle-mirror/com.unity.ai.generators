@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Image.Services.Stores.Actions;
-using Unity.AI.Image.Services.Stores.Actions.Creators;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
@@ -23,10 +23,12 @@ namespace Unity.AI.Image.Components
     partial class AddToPromptButton : VisualElement
     {
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Image/Components/AddToPromptButton/AddToPromptButton.uxml";
+
         const int k_ValidationDebounceDelayMs = 125;
 
-        DropdownMenu m_AllowedOperatorsMenu;
         readonly Button m_AddToPrompt;
+
+        readonly Dictionary<ImageReferenceType, bool> m_TypesValidationResults = new();
 
         CancellationTokenSource m_DebouncedValidationCts;
 
@@ -37,11 +39,15 @@ namespace Unity.AI.Image.Components
 
             m_AddToPrompt = this.Q<Button>("add-to-prompt-button");
             m_AddToPrompt.SetEnabled(false); // Start disabled
-            m_AddToPrompt.clicked += () => {
-                if (m_AllowedOperatorsMenu != null && m_AllowedOperatorsMenu.MenuItems().Any())
-                    m_AllowedOperatorsMenu.Show(m_AddToPrompt.worldBound);
-            };
 
+            m_AddToPrompt.clickable = new Clickable(() => {
+                var asset = this.GetAsset();
+                if (asset == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openAddToPromptWindow, new AddToPromptWindowArgs(asset, this, m_TypesValidationResults));
+            });
+
+            this.UseAsset(_ => MarkDirty());
             this.Use(state => state.SelectSelectedModel(this)?.id, _ => MarkDirty());
             this.UseArray(state => state.SelectActiveReferencesTypes(this), _ => MarkDirty());
 
@@ -60,6 +66,13 @@ namespace Unity.AI.Image.Components
 
         void MarkDirty()
         {
+            if (!this.GetAsset().IsValid())
+            {
+                m_AddToPrompt.SetEnabled(false);
+                m_AddToPrompt.tooltip = "No asset to validate.";
+                return;
+            }
+
             var typesToValidate = GetTypesToValidate();
             if (typesToValidate.Length == 0)
             {
@@ -70,7 +83,7 @@ namespace Unity.AI.Image.Components
 
             // Try fast path with cached results first
             var (success, results) =
-                GenerationResultsSuperProxyValidations.canAddReferencesToPromptCached((new AddImageReferenceTypeData(this.GetAsset(), typesToValidate),
+                Services.Stores.Actions.Backend.Validation.canAddReferencesToPromptCached((new AddImageReferenceTypeData(this.GetAsset(), typesToValidate),
                     this.GetStoreApi()));
             if (success)
             {
@@ -101,7 +114,7 @@ namespace Unity.AI.Image.Components
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
-                var validationResults = await GenerationResultsSuperProxyValidations.canAddReferencesToPrompt(
+                var validationResults = await Services.Stores.Actions.Backend.Validation.canAddReferencesToPromptAsync(
                     (new AddImageReferenceTypeData(this.GetAsset(), typesToValidate), this.GetStoreApi()),
                     cancellationToken);
 
@@ -131,41 +144,24 @@ namespace Unity.AI.Image.Components
             }
         }
 
-        bool AddItemToMenu(ImageReferenceType type, bool enabled, bool active, AssetActionCreator<ImageReferenceActiveData> setImageReferenceIsActive)
-        {
-            var text = $"{type.GetInternalDisplayNameForType()} Reference";
-            if (enabled)
-            {
-                m_AllowedOperatorsMenu.AppendAction(text, _ => {
-                    this.Dispatch(setImageReferenceIsActive, new ImageReferenceActiveData(type, !active));
-                    if (!active)
-                        this.Dispatch(GenerationSettingsActions.setPendingPing, type.GetImageReferenceName());
-                }, _ => DropdownMenuAction.Status.Normal, active);
-            }
-            else
-            {
-                m_AllowedOperatorsMenu.AppendAction(text, _ => { }, _ => DropdownMenuAction.Status.Disabled, active);
-            }
-            return true;
-        }
-
         void Rebuild(ImageReferenceType[] typesToValidate, bool[] results)
         {
             var hasItems = false;
-            m_AllowedOperatorsMenu = new DropdownMenu(); // Create new menu
 
             if (results != null && typesToValidate.Length == results.Length) // Ensure results are valid
             {
+                m_TypesValidationResults.Clear();
                 for (var i = 0; i < typesToValidate.Length; i++)
                 {
-                    var isActive = this.GetState().SelectImageReferenceIsActive(this, typesToValidate[i]);
-                    if (AddItemToMenu(typesToValidate[i], results[i], isActive, GenerationSettingsActions.setImageReferenceActive))
-                        hasItems = true;
+                    if (m_TypesValidationResults.TryAdd(typesToValidate[i], results[i]))
+                    {
+                        hasItems = hasItems || results[i];
+                    }
                 }
             }
 
             m_AddToPrompt.SetEnabled(hasItems);
-            m_AddToPrompt.tooltip = !hasItems ? "No items available to add." : "Use to guide generation using an existing image as reference.";
+            m_AddToPrompt.tooltip = !hasItems ? "No controls available to add for this model." : "Add additional controls to guide generation using images as references.";
         }
 
         static ImageReferenceType[] GetTypesToValidate()

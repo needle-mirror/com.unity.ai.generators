@@ -29,74 +29,24 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public const string slice = "generationResults";
         public static Creator<GenerationAudioClips> setGeneratedAudioClips => new($"{slice}/setGeneratedAudioClips");
 
-        static bool s_SetGeneratedAudioClipsAsyncMutex = false;
+        static readonly SemaphoreSlim k_SetGeneratedAudioClipsAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationAudioClips> setGeneratedAudioClipsAsync = new($"{slice}/setGeneratedAudioClipsAsync",
             async (payload, api) =>
         {
-            // Wait if another invocation is already running.
-            while (s_SetGeneratedAudioClipsAsyncMutex)
-                await EditorTask.Yield();
+            using var editorFocus = new EditorAsyncKeepAliveScope("Caching sound generations.");
 
-            s_SetGeneratedAudioClipsAsyncMutex = true;
-            var taskID = Progress.Start("Precaching generations.");
+            // Create a 30-second timeout token
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var timeoutToken = cancellationTokenSource.Token;
+
+            int taskID = 0;
             try
             {
-                var timer = Stopwatch.StartNew();
-                const float timeoutInSeconds = 2.0f;
-                const int minPrecache = 8;
-                const int maxInFlight = 4;
-                var processedAudioClips = 0;
-                var inFlightTasks = new List<Task>();
+                taskID = Progress.Start("Precaching generations.");
 
-                // Iterate over all audioClips (assuming payload.audioClips is ordered by last write time)
-                foreach (var audioClip in payload.audioClips)
-                {
-                    // After minPrecache is reached, wait until the state indicates a user visible count.
-                    int precacheCount;
-                    if (processedAudioClips < minPrecache)
-                        precacheCount = minPrecache;
-                    else
-                    {
-                        // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
-                        var visibleCount = await WaitForVisibleCount();
-                        precacheCount = Math.Max(minPrecache, visibleCount);
-                    }
-
-                    // If we've already processed as many audioClips as desired by the current target, stop processing.
-                    if (processedAudioClips >= precacheCount)
-                        break;
-
-                    processedAudioClips++;
-
-                    // Report progress with current target count.
-                    precacheCount = Math.Min(payload.audioClips.Count, precacheCount);
-                    Progress.Report(taskID, processedAudioClips, precacheCount, $"Precaching {precacheCount} generations");
-
-                    // Skip audioClip if it is already cached.
-                    if (AudioClipCache.Peek(audioClip.uri))
-                        continue;
-
-                    var loadTask = audioClip.GetAudioClip();
-                    inFlightTasks.Add(loadTask);
-
-                    if (inFlightTasks.Count >= maxInFlight)
-                    {
-                        await Task.WhenAny(inFlightTasks);
-                        inFlightTasks.RemoveAll(t => t.IsCompleted);
-                    }
-                }
-
-                if (inFlightTasks.Count > 0)
-                    await Task.WhenAll(inFlightTasks);
-
-                // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
-                async Task<int> WaitForVisibleCount()
-                {
-                    int visible;
-                    while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
-                        await EditorTask.Yield();
-                    return visible;
-                }
+                // Wait to acquire the semaphore
+                await k_SetGeneratedAudioClipsAsyncSemaphore.WaitAsync(timeoutToken);
+                await EditorTask.RunOnMainThread(() => PreCacheGeneratedAudioClips(payload, taskID, api, timeoutToken), timeoutToken);
             }
             finally
             {
@@ -106,15 +56,81 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 }
                 finally
                 {
-                    s_SetGeneratedAudioClipsAsyncMutex = false;
-                    Progress.Finish(taskID);
+                    k_SetGeneratedAudioClipsAsyncSemaphore.Release();
+                    if (Progress.Exists(taskID))
+                        Progress.Finish(taskID);
                 }
             }
         });
+
+        static async Task PreCacheGeneratedAudioClips(GenerationAudioClips payload, int taskID, AsyncThunkApi<bool> api, CancellationToken timeoutToken)
+        {
+            var timer = Stopwatch.StartNew();
+            const float timeoutInSeconds = 2.0f;
+            const int minPrecache = 8;
+            const int maxInFlight = 4;
+            var processedAudioClips = 0;
+            var inFlightTasks = new List<Task>();
+
+            // Iterate over all audioClips (assuming payload.audioClips is ordered by last write time)
+            foreach (var audioClip in payload.audioClips)
+            {
+                // Check for timeout cancellation
+                timeoutToken.ThrowIfCancellationRequested();
+
+                // After minPrecache is reached, wait until the state indicates a user visible count.
+                int precacheCount;
+                if (processedAudioClips < minPrecache)
+                    precacheCount = minPrecache;
+                else
+                {
+                    // Even if we returned with a visible item count we still want to check the count in case the user closed the UI or resized it smaller; to early out.
+                    var visibleCount = await WaitForVisibleCount();
+                    precacheCount = Math.Max(minPrecache, visibleCount);
+                }
+
+                // If we've already processed as many audioClips as desired by the current target, stop processing.
+                if (processedAudioClips >= precacheCount)
+                    break;
+
+                processedAudioClips++;
+
+                // Report progress with current target count.
+                precacheCount = Math.Min(payload.audioClips.Count, precacheCount);
+                Progress.Report(taskID, processedAudioClips, precacheCount, $"Precaching {precacheCount} generations");
+
+                // Skip audioClip if it is already cached.
+                if (AudioClipCache.Peek(audioClip.uri))
+                    continue;
+
+                var loadTask = audioClip.GetAudioClip();
+                inFlightTasks.Add(loadTask);
+
+                if (inFlightTasks.Count >= maxInFlight)
+                {
+                    await Task.WhenAny(inFlightTasks);
+                    inFlightTasks.RemoveAll(t => t.IsCompleted);
+                }
+            }
+
+            if (inFlightTasks.Count > 0)
+                await Task.WhenAll(inFlightTasks);
+
+            // Helper function: Wait for up to 2 seconds until UI visible count is > 0.
+            async Task<int> WaitForVisibleCount()
+            {
+                int visible;
+                while ((visible = api.State.SelectGeneratedResultVisibleCount(payload.asset)) <= 0 && timer.Elapsed.TotalSeconds < timeoutInSeconds)
+                    await EditorTask.Yield();
+                return visible;
+            }
+        }
+
         public static Creator<GeneratedResultVisibleData> setGeneratedResultVisibleCount => new($"{slice}/setGeneratedResultVisibleCount");
 
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
+        public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
         public static Creator<SelectedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
@@ -188,7 +204,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                                 string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
                                 data.generationMetadata,
                                 data.customSeeds.ToArray(),
-                                false),
+                                false, false),
                             CancellationToken.None);
                     }
 
@@ -214,44 +230,40 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public static readonly AsyncThunkCreatorWithArg<AssetReference> quoteAudioClipsMain = new($"{slice}/quoteAudioClipsMain",
             async (asset, api) =>
             {
-                try { await api.Dispatch(GenerationResultsSuperProxyActions.quoteAudioClips, new(asset, api.State.SelectGenerationSetting(asset))); }
+                try { await api.Dispatch(Backend.Quote.quoteAudioClips, new(asset, api.State.SelectGenerationSetting(asset))); }
                 catch (OperationCanceledException) { /* ignored */ }
             });
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> generateAudioClipsMain = new($"{slice}/generateAudioClipsMain", async (asset, api) =>
         {
-            var taskID = Progress.Start($"{api.State.SelectProgressLabel(asset)} with {api.State.SelectGenerationSetting(asset).prompt}.");
-            SkeletonExtensions.Acquire(taskID);
+            var progressTaskId = Progress.Start($"{api.State.SelectProgressLabel(asset)} with {api.State.SelectGenerationSetting(asset).prompt}.");
+            SkeletonExtensions.Acquire(progressTaskId);
             try
             {
                 api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var modelSettings = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, modelSettings.selectedModelID);
-                await api.Dispatch(GenerationResultsSuperProxyActions.generateAudioClips, new(asset, modelSettings, taskID), CancellationToken.None);
+                await api.Dispatch(Backend.Generation.generateAudioClips, new(asset, modelSettings, progressTaskId), CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(taskID);
-                SkeletonExtensions.Release(taskID);
-
-                api.Dispatch(removeGeneratedSkeletons, new(asset, taskID));
+                Progress.Finish(progressTaskId);
+                SkeletonExtensions.Release(progressTaskId);
             }
         });
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAudioData> downloadAudioClipsMain = new($"{slice}/downloadAudioClipsMain", async (arg, api) =>
         {
-            var taskID = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
-            SkeletonExtensions.Acquire(taskID);
+            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
+            SkeletonExtensions.Acquire(progressTaskId);
             try
             {
-                await api.Dispatch(GenerationResultsSuperProxyActions.downloadAudioClips, arg with { progressTaskId = taskID }, CancellationToken.None);
+                await api.Dispatch(Backend.Generation.downloadAudioClips, arg with { progressTaskId = progressTaskId }, CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(taskID);
-                SkeletonExtensions.Release(taskID);
-
-                api.Dispatch(removeGeneratedSkeletons, new(arg.asset, taskID));
+                Progress.Finish(progressTaskId);
+                SkeletonExtensions.Release(progressTaskId);
             }
         });
     }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Unity.AI.Generators.Asset;
 using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
@@ -11,7 +12,7 @@ namespace Unity.AI.Generators.UI.Utilities
         public static string GetTempFileName()
         {
             // this folder is automatically cleaned up by Unity Editor
-            var tempFolderPath = Path.Combine(projectRootPath, "Temp", "Generated Assets", "Undo");
+            var tempFolderPath = Path.Combine(projectRootPath, "Temp", AssetReferenceExtensions.GetGeneratedAssetsRoot(), "Undo");
 
             if (!Directory.Exists(tempFolderPath))
                 Directory.CreateDirectory(tempFolderPath);

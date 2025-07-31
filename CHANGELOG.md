@@ -4,6 +4,28 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.17] - 2025-07-31
+
+### Added
+
+- Added upscale badge to generated sprites and textures.
+- Added preview images and descriptions to image reference operation picker dialog.
+
+### Changed
+
+- Changed animation trim tab loop scoring method when 'Use Best Loop' is unchecked.
+- Show favorited models first in model selector. GPT Image models understand text prompts very well and are favorited by default.
+
+### Fixed
+
+- Fixed 'ai' for 'AI' in tooltips.
+- Fixed some generations stuck at 25% completing only on domain reload.
+- Fixed favorite model icon color and state.
+- Fixed obsolete drag and drop handler warning for Unity Editor 6.3.
+- Fixed some image reference upload failures when Unity Editor loses focus.
+- Fixed checkbox layout in model selector.
+- Fixed missing tooltip in add to prompt control.
+
 ## [1.0.0-pre.16] - 2025-07-16
 
 ### Added

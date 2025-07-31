@@ -7,6 +7,7 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.States;
+using Unity.AI.Toolkit;
 using UnityEngine;
 
 namespace Unity.AI.ModelSelector.Services.Stores.Actions
@@ -29,8 +30,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 
             try
             {
-                await api.Dispatch(ModelSelectorSuperProxyActions.fetchModels, data);
-                api.Dispatch(setEnvironment, data.environment);
+                await api.api.Dispatch(ModelSelectorSuperProxyActions.fetchModels, data);
+                api.api.Dispatch(setEnvironment, data.environment);
             }
             finally
             {

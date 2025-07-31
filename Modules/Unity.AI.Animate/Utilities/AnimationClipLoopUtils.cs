@@ -74,6 +74,77 @@ namespace Unity.AI.Animate.Services.Utilities
         }
 
         /// <summary>
+        /// Evaluates the looping quality of a specific range in an animation clip.
+        /// </summary>
+        /// <param name="clip">The source animation clip.</param>
+        /// <param name="searchWindowStart">Normalized start time (0-1) for the loop range to evaluate.</param>
+        /// <param name="searchWindowEnd">Normalized end time (0-1) for the loop range to evaluate.</param>
+        /// <returns>A score between 0 and 1 indicating loop quality, where 1 is a perfect loop.</returns>
+        public static float ScoreLoopQuality(this AnimationClip clip, float searchWindowStart = 0f, float searchWindowEnd = 1f)
+        {
+            if (clip == null)
+                return 0f;
+
+            searchWindowStart = Mathf.Clamp01(searchWindowStart);
+            searchWindowEnd = Mathf.Clamp01(searchWindowEnd);
+
+            // Convert normalized times to seconds
+            var startTimeSeconds = searchWindowStart * clip.length;
+            var endTimeSeconds = searchWindowEnd * clip.length;
+
+            if (endTimeSeconds - startTimeSeconds < k_MinLoopDurationSeconds ||
+                Mathf.Approximately(startTimeSeconds, endTimeSeconds))
+                return 0f;
+
+            var cacheEntry = GetOrCreateClipCache(clip);
+            var relevantBindings = new List<EditorCurveBinding>();
+            var amplitudeCheckBindings = new List<EditorCurveBinding>();
+
+            // Get relevant bindings from cache or build them
+            if (cacheEntry.curveCache.Count != 0)
+            {
+                foreach (var binding in cacheEntry.curveCache.Keys)
+                {
+                    relevantBindings.Add(binding);
+                    if (IsAmplitudeTracked(binding))
+                    {
+                        amplitudeCheckBindings.Add(binding);
+                    }
+                }
+            }
+            else
+            {
+                var allCurveBindings = AnimationUtility.GetCurveBindings(clip);
+                foreach (var binding in allCurveBindings)
+                {
+                    if (binding.type != typeof(Animator))
+                        continue;
+
+                    var curve = AnimationUtility.GetEditorCurve(clip, binding);
+                    if (curve == null || curve.keys.Length <= 1)
+                        continue;
+
+                    relevantBindings.Add(binding);
+                    cacheEntry.curveCache[binding] = curve;
+
+                    if (IsAmplitudeTracked(binding))
+                        amplitudeCheckBindings.Add(binding);
+                }
+            }
+
+            if (relevantBindings.Count == 0)
+                return 0f;
+
+            // Evaluate the actual loop quality
+            var totalOriginalAmplitude = CalculateMotionAmplitude(amplitudeCheckBindings, cacheEntry.curveCache, 0f, clip.length);
+            var (score, _) = EvaluateLoopSimilarity(relevantBindings, cacheEntry.curveCache, cacheEntry.sampleCache,
+                startTimeSeconds, endTimeSeconds, 1f / 60f, amplitudeCheckBindings, totalOriginalAmplitude);
+
+            // Convert to a 0-1 score where 1 is perfect
+            return 1f - Mathf.Clamp01(score);
+        }
+
+        /// <summary>
         /// Asynchronously attempts to find an optimal, high-quality loop within an animation clip.
         /// </summary>
         /// <param name="clip">The source animation clip.</param>
@@ -226,7 +297,7 @@ namespace Unity.AI.Animate.Services.Utilities
                         // Report more granular progress considering both loops
                         var outerProgress = (float)currentDurationStep / durationStepCount;
                         var innerProgress = (float)currentInnerStepCount / (maxStartIndex - currentStartIndex + 1);
-                        var combinedProgress = 0.1f + 0.8f * (outerProgress - 1f/durationStepCount + innerProgress/durationStepCount);
+                        var combinedProgress = 0.1f + 0.8f * (outerProgress - 1f / durationStepCount + innerProgress / durationStepCount);
                         progressCallback?.Invoke(combinedProgress);
                     }
 
@@ -348,7 +419,8 @@ namespace Unity.AI.Animate.Services.Utilities
             if (k_ClipCache.Count >= k_MaxCachedClips)
                 CleanupCache();
 
-            cacheEntry = new ClipCacheEntry {
+            cacheEntry = new ClipCacheEntry
+            {
                 clipLength = clip.length
             };
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
@@ -18,42 +19,153 @@ namespace Unity.AI.Generators.UI.Utilities
                 throw new ArgumentException("The URI must represent a remote file (http, https, etc.)", nameof(sourceUri));
 
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(sourceUri.Segments[^1]);
-            var tempFilePath = Path.Combine(Path.GetTempPath(), $"{fileNameWithoutExtension}_{Guid.NewGuid()}");
+            var tempFilePath = Path.GetFullPath(FileUtil.GetUniqueTempPathInProject());
+            var tempFilePathPartial = tempFilePath + ".part";
+            const int maxRetries = 3;
 
             try
             {
-                {
-                    using var response = await httpClient.GetAsync(sourceUri).ConfigureAwaitMainThread();
-                    response.EnsureSuccessStatusCode();
+                // Check destination folder permissions early
+                EnsureDirectoryExists(destinationFolder);
 
+                // Perform download with retries
+                for (var attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
                     {
-                        await using var writeFileStream = FileIO.OpenWriteAsync(tempFilePath);
-                        await response.Content.CopyToAsync(writeFileStream).ConfigureAwaitMainThread();
+                        using var response = await httpClient.GetAsync(sourceUri, HttpCompletionOption.ResponseHeadersRead).ConfigureAwaitMainThread();
+                        response.EnsureSuccessStatusCode();
+
+                        // Check if we have enough disk space
+                        var contentLength = response.Content.Headers.ContentLength;
+                        if (contentLength.HasValue && !EnsureDiskSpace(contentLength.Value, Path.GetDirectoryName(tempFilePath)))
+                            throw new IOException($"Insufficient disk space to download {BytesToMegabytes(contentLength.Value):F2}MB file");
+
+                        {
+                            await using var writeFileStream = FileIO.OpenWriteAsync(tempFilePathPartial);
+                            await response.Content.CopyToAsync(writeFileStream).ConfigureAwaitMainThread();
+                            await writeFileStream.FlushAsync();
+                        }
+
+                        // Rename from .part to actual temp file once complete
+                        SafeMove(tempFilePathPartial, tempFilePath);
+                        break; // Success - exit retry loop
+                    }
+                    catch (HttpRequestException ex) when (attempt < maxRetries)
+                    {
+                        Debug.LogWarning($"Download attempt {attempt}/{maxRetries} failed: {ex.Message}. Retrying...");
+                        await EditorTask.Delay((int)TimeSpan.FromSeconds(Math.Pow(2, attempt)).TotalMilliseconds); // Exponential backoff
                     }
                 }
 
-                string destinationPath;
+                string extension;
 
                 {
                     await using var fileStream = FileIO.OpenReadAsync(tempFilePath);
-                    var extension = FileIO.GetFileExtension(fileStream);
+                    extension = FileIO.GetFileExtension(fileStream);
 
-                    destinationFileNameWithoutExtension ??= fileNameWithoutExtension;
-                    destinationPath = Path.Combine(destinationFolder, $"{destinationFileNameWithoutExtension}{extension}");
+                    // Validate file content is as expected
+                    if (string.IsNullOrEmpty(extension))
+                        throw new InvalidDataException("Downloaded file has an unknown format");
                 }
 
-                if (File.Exists(destinationPath))
-                    File.Delete(destinationPath);
-                File.Move(tempFilePath, destinationPath);
+                destinationFileNameWithoutExtension ??= fileNameWithoutExtension;
+                var destinationPath = Path.Combine(destinationFolder, $"{destinationFileNameWithoutExtension}{extension}");
+
+                // Use safe copy method instead of move for reliability
+                destinationPath = SafeCopyToDestination(tempFilePath, destinationPath);
 
                 return new Uri(Path.GetFullPath(destinationPath));
             }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error downloading file from {sourceUri}: {ex.Message}");
+                throw new HttpRequestException($"Failed to download file: {ex.Message}", ex);
+            }
             finally
             {
-                if (File.Exists(tempFilePath))
-                    File.Delete(tempFilePath);
+                SafeDeleteFile(tempFilePathPartial);
+                SafeDeleteFile(tempFilePath);
             }
         }
+
+        static void SafeDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to delete temporary file {path}: {ex.Message}");
+            }
+        }
+
+        static void SafeMove(string sourcePath, string destinationPath)
+        {
+            if (File.Exists(destinationPath))
+                File.Delete(destinationPath);
+
+            // Try to move first (more efficient)
+            try
+            {
+                File.Move(sourcePath, destinationPath);
+            }
+            catch (IOException)
+            {
+                // Fall back to copy+delete if move fails (e.g., across drives)
+                File.Copy(sourcePath, destinationPath);
+                SafeDeleteFile(sourcePath);
+            }
+        }
+
+        static string SafeCopyToDestination(string sourcePath, string destinationPath)
+        {
+            try
+            {
+                if (File.Exists(destinationPath))
+                    File.Delete(destinationPath);
+
+                File.Copy(sourcePath, destinationPath);
+                return destinationPath; // Success: return the original path
+            }
+            catch (IOException ex)
+            {
+                // The original path failed, so log the specific reason and try a fallback.
+                var folder = Path.GetDirectoryName(destinationPath);
+                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(destinationPath);
+                var extension = Path.GetExtension(destinationPath);
+                var alternateDestination = Path.Combine(folder, $"{fileNameWithoutExt}_{DateTime.Now:yyyyMMdd_HHmmss}{extension}");
+
+                // Use the exception message for better diagnostics.
+                Debug.LogWarning($"Could not save to {destinationPath} ({ex.Message}). Trying alternate: {alternateDestination}");
+
+                // Attempt the copy to the new alternate path.
+                // If this fails, it will throw an exception that will be caught by the main try-catch block.
+                File.Copy(sourcePath, alternateDestination);
+
+                // Success: return the new, alternate path.
+                return alternateDestination;
+            }
+        }
+
+        static void EnsureDirectoryExists(string path)
+        {
+            if (Directory.Exists(path))
+                return;
+
+            try { Directory.CreateDirectory(path); }
+            catch (Exception ex) { throw new IOException($"Cannot create directory at {path}: {ex.Message}", ex); }
+        }
+
+        static bool EnsureDiskSpace(long requiredBytes, string directoryPath)
+        {
+            try { return new DriveInfo(Path.GetPathRoot(directoryPath)).AvailableFreeSpace > requiredBytes * 1.5; } // 50% margin
+            catch { return true; } // If we can't determine the space, assume it's sufficient
+        }
+
+        static double BytesToMegabytes(long bytes) => bytes / (1024.0 * 1024.0);
 
         public static GeneratedAssetMetadata GetGenerationMetadata(Uri resultUri)
         {

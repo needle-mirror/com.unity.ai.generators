@@ -108,7 +108,7 @@ namespace Unity.AI.Animate.Services.Utilities
                     prepareProgress = Mathf.Min(0.09f, prepareProgress + 0.005f);
                     progressCallback?.Invoke(prepareProgress);
 
-                    if (EditorFocusScope.ShowProgressOrCancelIfUnfocused("Preparing video converter", "Preparing video...", prepareProgress))
+                    if (EditorAsyncKeepAliveScope.ShowProgressOrCancelIfUnfocused("Preparing video converter", "Preparing video...", prepareProgress))
                         throw new OperationCanceledException();
 
                     if (!Application.isPlaying)
@@ -183,7 +183,7 @@ namespace Unity.AI.Animate.Services.Utilities
                         while (videoPlayer.frame < frame)
                         {
                             // this progress bar forces the VideoPlayer to work even when the Editor is out of focus
-                            if (EditorFocusScope.ShowProgressOrCancelIfUnfocused("Converting video", $"Converting {frame}/{endFrame} ({videoPlayer.frame})",
+                            if (EditorAsyncKeepAliveScope.ShowProgressOrCancelIfUnfocused("Converting video", $"Converting {frame}/{endFrame} ({videoPlayer.frame})",
                                     frame / (float)endFrame))
                                 throw new OperationCanceledException();
 

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Image.Services.Stores.Actions;
-using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
@@ -10,6 +9,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Stores.Selectors
@@ -55,10 +55,54 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static IEnumerable<TextureResult> SelectGeneratedTextures(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedTextures;
         public static IEnumerable<TextureSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
         public static IEnumerable<TextureSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
+
+        /// <summary>
+        /// Returns a combined list of generated textures and skeletons for an element.
+        ///
+        /// This method intelligently filters out skeletons that have already been fulfilled
+        /// with a corresponding TextureResult. The logic is as follows:
+        ///
+        /// 1. All texture results are included (completed generations)
+        /// 2. Skeletons are included only if:
+        ///    - They don't have a corresponding entry in fulfilledSkeletons, OR
+        ///    - Their corresponding fulfilledSkeleton doesn't yet have a matching TextureResult
+        ///
+        /// This ensures we don't show duplicate items for both the skeleton and its result.
+        /// </summary>
+        /// <param name="state">The state to select from</param>
+        /// <param name="element">The visual element associated with the asset</param>
+        /// <returns>Combined collection of TextureResults and TextureSkeletons</returns>
         public static IEnumerable<TextureResult> SelectGeneratedTexturesAndSkeletons(this IState state, VisualElement element)
         {
             var generationResults = state.SelectGenerationResult(element);
-            return generationResults.generatedSkeletons.Concat(generationResults.generatedTextures);
+            var textures = generationResults.generatedTextures;
+            var skeletons = generationResults.generatedSkeletons;
+            var fulfilledSkeletons = generationResults.fulfilledSkeletons;
+
+            // Create a HashSet of result URIs for O(1) lookups
+            var textureUris = new HashSet<string>(
+                textures
+                    .Where(texture => texture.uri != null)
+                    .Select(texture => texture.uri.GetAbsolutePath())
+            );
+
+            // Find skeletons that have been fulfilled and have matching texture results
+            var skeletonsToExclude = new HashSet<int>();
+
+            foreach (var fulfilled in fulfilledSkeletons)
+            {
+                // Check if this fulfilled skeleton has a matching texture result using O(1) lookup
+                if (textureUris.Contains(fulfilled.resultUri))
+                {
+                    skeletonsToExclude.Add(fulfilled.progressTaskID);
+                }
+            }
+
+            // Filter skeletons to include only those not in the exclude list
+            var filteredSkeletons = skeletons.Where(skeleton => !skeletonsToExclude.Contains(skeleton.taskID));
+
+            // Return all texture results plus the filtered skeletons
+            return filteredSkeletons.Concat(textures);
         }
 
         public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedTextures.Count > 0;

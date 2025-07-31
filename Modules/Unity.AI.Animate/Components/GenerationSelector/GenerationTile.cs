@@ -161,26 +161,22 @@ namespace Unity.AI.Animate.Components
             if (animationClipResult is TextureSkeleton)
                 return;
 
-            evt.menu.AppendAction("Select", async _ =>
+            evt.menu.AppendAction("Select", _ =>
             {
                 if (this.GetAsset() == null || animationClipResult == null)
                     return;
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, false, false));
-                AssetDatabase.Refresh();
+                this.GetStoreApi().Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, false, false));
             }, DropdownMenuAction.AlwaysEnabled);
-            evt.menu.AppendAction("Promote to current asset", async _ =>
+            evt.menu.AppendAction("Promote to current asset", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                await store.Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, true, false));
+                this.GetStoreApi().Dispatch(GenerationResultsActions.selectGeneration, new(asset, animationClipResult, true, false));
             }, DropdownMenuAction.AlwaysEnabled);
             evt.menu.AppendAction("Promote to new asset", _ =>
             {
                 var asset = this.GetAsset();
-                var store = this.GetStoreApi(); // fixme: this is weird, otherwise promoteFocusedGeneration doesn't work
-                store.Dispatch(SessionActions.promoteGeneration, new (asset, animationClipResult));
+                this.GetStoreApi().Dispatch(SessionActions.promoteGeneration, new (asset, animationClipResult));
             }, DropdownMenuAction.AlwaysEnabled);
 
             evt.menu.AppendAction(
@@ -197,13 +193,12 @@ namespace Unity.AI.Animate.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
                 if (this.GetAsset() == null || animationClipResult == null)
                     return;
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, animationClipResult));
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, animationClipResult));
             }, showGenerationDataStatus);
 
             if (Unsupported.IsDeveloperMode() && HasFbxDownloadOption())
@@ -249,15 +244,12 @@ namespace Unity.AI.Animate.Components
             {
                 showGenerationDataStatus = DropdownMenuAction.Status.Disabled;
             }
-            evt.menu.AppendAction("Show Generation Data", async _ =>
+            evt.menu.AppendAction("Show Generation Data", _ =>
             {
-                if (this.GetAsset() == null || animationClipResult == null)
-                    return;
-
                 var asset = this.GetAsset();
-                var store = this.GetStore();
-
-                await store.Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, animationClipResult));
+                if (asset == null || animationClipResult == null)
+                    return;
+                this.GetStoreApi().Dispatch(GenerationSettingsActions.openGenerationDataWindow, new GenerationDataWindowArgs(asset, this, animationClipResult));
             }, showGenerationDataStatus);
         }
 

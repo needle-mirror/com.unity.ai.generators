@@ -141,6 +141,6 @@ namespace Unity.AI.Generators.UI.Utilities
         }
 
         public static void SetupInfoIcon(this VisualElement visualElement) => visualElement.Q<VisualElement>(className: "info-icon").style.backgroundImage =
-            new StyleBackground(EditorGUIUtility.Load($"Icons/PackageManager/{(EditorGUIUtility.isProSkin ? "Dark" : "Light")}/Info.png") as Texture2D);
+            new StyleBackground(EditorGUIUtility.IconContent($"Icons/PackageManager/{(EditorGUIUtility.isProSkin ? "Dark" : "Light")}/Info.png").image as Texture2D);
     }
 }
