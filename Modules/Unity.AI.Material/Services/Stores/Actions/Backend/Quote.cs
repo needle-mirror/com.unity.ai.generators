@@ -23,6 +23,7 @@ using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Material.Services.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Random = UnityEngine.Random;
@@ -47,21 +48,20 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
             try
             {
-                SendValidatingMessage();
+                api.DispatchValidatingUserMessage(arg.asset);
 
                 var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
+                api.DispatchValidatingMessage(arg.asset);
+
                 if (cancellationTokenSource.IsCancellationRequested)
-                {
-                    SendValidatingMessage();
                     return;
-                }
 
                 if (!success)
                 {
                     var messages = new[]
                     {
-                        $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"."
+                        $"Invalid Unity Cloud configuration. Could not obtain organizations for user \"{UnityConnectProvider.userName}\"."
                     };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
@@ -72,13 +72,13 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
                 if (cancellationTokenSource.IsCancellationRequested)
                 {
-                    SendValidatingMessage();
+                    api.DispatchValidatingMessage(arg.asset);
                     return;
                 }
 
                 if (!asset.Exists())
                 {
-                    var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                    var messages = new[] { "Selected asset is invalid. Please select a valid asset." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
@@ -101,8 +101,8 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 var patternImageReference = generationSetting.SelectPatternImageReference();
                 var seed = Random.Range(0, int.MaxValue - variations);
                 Guid.TryParse(modelID, out var generativeModelID);
-                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                     unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
                     defaultOperationTimeout: Constants.realtimeTimeout);
                 var imageComponent = builder.ImageComponent();
@@ -124,14 +124,14 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                         var request = ImageTransformRequestBuilder.Initialize();
                         var requests = materialGenerations.Select(m => request.Upscale(new(m[MapType.Preview], 2, null, null))).ToList();
                         quoteResults = await EditorTask.Run(() =>
-                            imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token));
+                            imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.Pbr:
                     {
                         if (generativeModelID == Guid.Empty)
                         {
-                            var messages = new[] { $"Error reason is 'Invalid Model'." };
+                            var messages = new[] { "No model selected. Please select a valid model." };
                             api.Dispatch(GenerationActions.setGenerationValidationResult,
                                 new(arg.asset, new(false, AiResultErrorEnum.UnknownModel, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                             return;
@@ -141,14 +141,14 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
                         var requests = materialGenerations.Select(m => new Texture2DPbrRequest(generativeModelID, m[MapType.Preview])).ToList();
                         quoteResults = await EditorTask.Run(() =>
-                            imageComponent.GeneratePbrQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token));
+                            imageComponent.GeneratePbrQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.Generation:
                     {
                         if (generativeModelID == Guid.Empty)
                         {
-                            var messages = new[] { $"Error reason is 'Invalid Model'." };
+                            var messages = new[] { "No model selected. Please select a valid model." };
                             api.Dispatch(GenerationActions.setGenerationValidationResult,
                                 new(arg.asset, new(false, AiResultErrorEnum.UnknownModel, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                             return;
@@ -165,14 +165,14 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                                 new CompositionReference(patternGuid, patternImageReference.strength));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                         quoteResults = await EditorTask.Run(() =>
-                            imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token));
+                            imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
                         break;
                     }
                 }
 
                 if (cancellationTokenSource.IsCancellationRequested)
                 {
-                    SendValidatingMessage();
+                    api.DispatchValidatingMessage(arg.asset);
                     return;
                 }
 
@@ -183,15 +183,14 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
                 if (!quoteResults.Result.IsSuccessful)
                 {
+                    var errorEnum = quoteResults.Result.Error.AiResponseError;
                     var messages = quoteResults.Result.Error.Errors.Count == 0
-                        ? new[]
-                        {
-                            $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})."
-                        }
-                        : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                        ? new[] { $"An error occurred during validation ({WebUtils.selectedEnvironment})." }
+                        : quoteResults.Result.Error.Errors.Distinct().ToArray();
+
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
-                            new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
+                            new(quoteResults.Result.IsSuccessful, errorEnum, 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
@@ -210,13 +209,6 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 }
 
                 cancellationTokenSource.Dispose();
-            }
-
-            void SendValidatingMessage()
-            {
-                var messages = new[] { "Validating generation inputs..." };
-                api.Dispatch(GenerationActions.setGenerationValidationResult,
-                    new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
             }
         }
     }

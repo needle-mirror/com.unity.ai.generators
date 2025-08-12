@@ -14,10 +14,12 @@ namespace Unity.AI.Sound.Windows
 {
     static class SoundGeneratorInspectorButton
     {
-        [GenerateContextMenu(nameof(GenerateAudioClipValidation))]
+        [GenerateContextMenu(nameof(GenerateAudioClipValidation), nameof(GenerateAudioClipHasGenerations))]
         public static void GenerateAudioClip() => OnAssetGenerationRequest(new[] { Selection.activeObject });
 
         public static bool GenerateAudioClipValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
+
+        public static bool GenerateAudioClipHasGenerations() => IncludesGenerationHistory(new[] { Selection.activeObject });
 
         [MenuItem("Assets/Create/Audio/Generate Audio Clip", false, -1000)]
         public static void EmptyAudioClipMenu() => CreateAndNameAudioClip();

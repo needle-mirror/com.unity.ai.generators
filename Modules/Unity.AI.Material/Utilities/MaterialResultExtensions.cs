@@ -51,105 +51,144 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static async Task CopyToProject(this MaterialResult materialResult, string generatedMaterialName, GenerationMetadata generationMetadata, string cacheDirectory)
         {
-            if (!materialResult.uri.IsFile)
-                throw new ArgumentException("CopyToProject should only be used for local files.", nameof(materialResult));
-
-            if (string.IsNullOrEmpty(cacheDirectory))
-                throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
-
-            var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
-            if (AssetUtils.supportedExtensions.Contains(extension.ToLowerInvariant()))
+            try
             {
-                // already a local .mat!
-                var path = materialResult.uri.GetLocalPath();
-                if (!File.Exists(path))
-                    throw new FileNotFoundException($"The file {path} does not exist.", path);
+                if (!materialResult.uri.IsFile)
+                    throw new ArgumentException("CopyToProject should only be used for local files.", nameof(materialResult));
 
-                var fileName = Path.GetFileName(path);
-                var newPath = Path.Combine(cacheDirectory, fileName);
-                var newUri = new Uri(Path.GetFullPath(newPath));
-                if (newUri == materialResult.uri)
+                if (string.IsNullOrEmpty(cacheDirectory))
+                    throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
+
+                var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
+                if (AssetUtils.supportedExtensions.Contains(extension.ToLowerInvariant()))
+                {
+                    // already a local .mat!
+                    var path = materialResult.uri.GetLocalPath();
+                    if (!File.Exists(path))
+                        throw new FileNotFoundException($"The file {path} does not exist.", path);
+
+                    var fileName = Path.GetFileName(path);
+                    var newPath = Path.Combine(cacheDirectory, fileName);
+                    var newUri = new Uri(Path.GetFullPath(newPath));
+                    if (newUri == materialResult.uri)
+                        return;
+
+                    Directory.CreateDirectory(cacheDirectory);
+                    await FileIO.CopyFileAsync(materialResult.uri.GetLocalPath(), newUri.GetLocalPath(), true);
+                    Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
+                    materialResult.uri = newUri;
+
+                    try
+                    {
+                        await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
+                            JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                    }
+                    catch (Exception e)
+                    {
+                        // log an error but not absolutely critical as generations can be used without metadata
+                        Debug.LogException(e);
+                    }
+
                     return;
-
-                Directory.CreateDirectory(cacheDirectory);
-                await FileIO.CopyFileAsync(materialResult.uri.GetLocalPath(), newUri.GetLocalPath(), true);
-                Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
-                materialResult.uri = newUri;
-
-                try
-                {
-                    await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
-                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
-                }
-                catch (Exception e)
-                {
-                    // log an error but not absolutely critical as generations can be used without metadata
-                    Debug.LogException(e);
                 }
 
-                GenerationFileSystemWatcher.nudge?.Invoke();
-                return;
+                materialResult.Sanitize();
+
+                {
+                    var previewResult = GetPreview(materialResult);
+                    var fileName = $"{generatedMaterialName}_{MapType.Preview}" + extension;
+                    var newUri = new Uri(Path.GetFullPath(Path.Combine(cacheDirectory, fileName)));
+                    if (newUri == previewResult.uri)
+                        return;
+
+                    Directory.CreateDirectory(cacheDirectory);
+                    var downloadTasks = new List<Task>();
+                    foreach (var (mapType, textureResult) in materialResult.textures)
+                    {
+                        if (mapType == MapType.Preview)
+                            continue;
+
+                        downloadTasks.Add(textureResult.CopyToProjectAsync(cacheDirectory, $"{generatedMaterialName}_{mapType}"));
+                    }
+                    await Task.WhenAll(downloadTasks);
+
+                    // preview triggers the file watcher and must be done last
+                    foreach (var (mapType, textureResult) in materialResult.textures)
+                    {
+                        if (mapType != MapType.Preview)
+                            continue;
+                        await textureResult.CopyToProjectAsync(cacheDirectory, $"{generatedMaterialName}_{mapType}");
+                    }
+
+                    try
+                    {
+                        await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
+                            JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                    }
+                    catch (Exception e)
+                    {
+                        // log an error but not absolutely critical as generations can be used without metadata
+                        Debug.LogException(e);
+                    }
+                }
             }
-
-            materialResult.Sanitize();
-
+            finally
             {
-                var previewResult = GetPreview(materialResult);
-                var fileName = $"{generatedMaterialName}_{MapType.Preview}" + extension;
-                var newUri = new Uri(Path.GetFullPath(Path.Combine(cacheDirectory, fileName)));
-                if (newUri == previewResult.uri)
-                    return;
-
-                Directory.CreateDirectory(cacheDirectory);
-                foreach (var generatedTexture in materialResult.textures)
-                    generatedTexture.Value.CopyToProject(cacheDirectory, $"{generatedMaterialName}_{generatedTexture.Key}");
-
-                try
-                {
-                    await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
-                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
-                }
-                catch (Exception e)
-                {
-                    // log an error but not absolutely critical as generations can be used without metadata
-                    Debug.LogException(e);
-                }
-
                 GenerationFileSystemWatcher.nudge?.Invoke();
             }
         }
 
         public static async Task DownloadToProject(this MaterialResult materialResult, string generatedMaterialName, GenerationMetadata generationMetadata, string cacheDirectory, HttpClient httpClient)
         {
-            if (string.IsNullOrEmpty(cacheDirectory))
-                throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
-
-            Directory.CreateDirectory(cacheDirectory);
-            var downloadTasks = new List<Task>();
-            foreach (var (mapType, textureResult) in materialResult.textures)
-            {
-                if (textureResult.uri.IsFile)
-                    textureResult.CopyToProject(cacheDirectory, $"{generatedMaterialName}_{mapType}");
-                else
-                    downloadTasks.Add(textureResult.DownloadToProject(cacheDirectory, $"{generatedMaterialName}_{mapType}", httpClient));
-            }
-
-            await Task.WhenAll(downloadTasks);
-            var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
-            var fileName = $"{generatedMaterialName}_{MapType.Preview}" + extension;
-
             try
             {
-                await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
-                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
-            }
-            catch (Exception e)
-            {
-                // log an error but not absolutely critical as generations can be used without metadata
-                Debug.LogException(e);
-            }
+                if (string.IsNullOrEmpty(cacheDirectory))
+                    throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
 
-            GenerationFileSystemWatcher.nudge?.Invoke();
+                Directory.CreateDirectory(cacheDirectory);
+                var downloadTasks = new List<Task>();
+                foreach (var (mapType, textureResult) in materialResult.textures)
+                {
+                    if (mapType == MapType.Preview)
+                        continue;
+
+                    if (textureResult.uri.IsFile)
+                        downloadTasks.Add(textureResult.CopyToProjectAsync(cacheDirectory, $"{generatedMaterialName}_{mapType}"));
+                    else
+                        downloadTasks.Add(textureResult.DownloadToProject(cacheDirectory, $"{generatedMaterialName}_{mapType}", httpClient));
+                }
+                await Task.WhenAll(downloadTasks);
+
+                // preview triggers the file watcher and must be done last
+                foreach (var (mapType, textureResult) in materialResult.textures)
+                {
+                    if (mapType != MapType.Preview)
+                        continue;
+
+                    if (textureResult.uri.IsFile)
+                        await textureResult.CopyToProjectAsync(cacheDirectory, $"{generatedMaterialName}_{mapType}");
+                    else
+                        await textureResult.DownloadToProject(cacheDirectory, $"{generatedMaterialName}_{mapType}", httpClient);
+                }
+
+                var extension = Path.GetExtension(materialResult.uri.GetLocalPath());
+                var fileName = $"{generatedMaterialName}_{MapType.Preview}" + extension;
+
+                try
+                {
+                    await FileIO.WriteAllTextAsync($"{materialResult.uri.GetLocalPath()}.json",
+                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                }
+                catch (Exception e)
+                {
+                    // log an error but not absolutely critical as generations can be used without metadata
+                    Debug.LogException(e);
+                }
+            }
+            finally
+            {
+                GenerationFileSystemWatcher.nudge?.Invoke();
+            }
         }
 
         public static async Task<GenerationMetadata> GetMetadata(this MaterialResult materialResult)
@@ -306,86 +345,135 @@ namespace Unity.AI.Material.Services.Utilities
 
         public static async Task GenerateAOFromHeight(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Height))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Height))
+                    return;
 
-            var occlusion = AmbientOcclusionUtils.GenerateAOMap(await materialResult.textures[MapType.Height].GetTexture());
-            var filePath = Path.Combine(Application.temporaryCachePath, $"occlusion_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, occlusion.EncodeToPNG());
-            materialResult.textures[MapType.Occlusion] = TextureResult.FromPath(filePath);
+                var occlusion = AmbientOcclusionUtils.GenerateAOMap(await materialResult.textures[MapType.Height].GetTexture());
+                var filePath = Path.Combine(Application.temporaryCachePath, $"occlusion_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, occlusion.EncodeToPNG());
+                materialResult.textures[MapType.Occlusion] = TextureResult.FromPath(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static async Task InvertRoughnessInPlace(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Roughness))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Roughness))
+                    return;
 
-            var originalRoughnessMap = await materialResult.textures[MapType.Roughness].GetTexture();
-            var roughnessMap = SmoothnessUtils.GenerateSmoothnessMap(originalRoughnessMap);
-            var filePath = Path.Combine(Application.temporaryCachePath, $"roughness_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, roughnessMap.EncodeToPNG());
-            materialResult.textures[MapType.Roughness] = TextureResult.FromPath(filePath);
-            originalRoughnessMap.SafeDestroy();
+                var originalRoughnessMap = await materialResult.textures[MapType.Roughness].GetTexture();
+                var roughnessMap = SmoothnessUtils.GenerateSmoothnessMap(originalRoughnessMap);
+                var filePath = Path.Combine(Application.temporaryCachePath, $"roughness_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, roughnessMap.EncodeToPNG());
+                materialResult.textures[MapType.Roughness] = TextureResult.FromPath(filePath);
+                originalRoughnessMap.SafeDestroy();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static async Task GenerateRoughnessFromSmoothness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Smoothness))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Smoothness))
+                    return;
 
-            var roughnessMap = SmoothnessUtils.GenerateSmoothnessMap(await materialResult.textures[MapType.Smoothness].GetTexture());
-            var filePath = Path.Combine(Application.temporaryCachePath, $"roughness_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, roughnessMap.EncodeToPNG());
-            materialResult.textures[MapType.Roughness] = TextureResult.FromPath(filePath);
+                var roughnessMap = SmoothnessUtils.GenerateSmoothnessMap(await materialResult.textures[MapType.Smoothness].GetTexture());
+                var filePath = Path.Combine(Application.temporaryCachePath, $"roughness_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, roughnessMap.EncodeToPNG());
+                materialResult.textures[MapType.Roughness] = TextureResult.FromPath(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static async Task GenerateSmoothnessFromRoughness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Roughness))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Roughness))
+                    return;
 
-            var smoothnessMap = SmoothnessUtils.GenerateSmoothnessMap(await materialResult.textures[MapType.Roughness].GetTexture());
-            var filePath = Path.Combine(Application.temporaryCachePath, $"smoothness_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, smoothnessMap.EncodeToPNG());
-            materialResult.textures[MapType.Smoothness] = TextureResult.FromPath(filePath);
+                var smoothnessMap = SmoothnessUtils.GenerateSmoothnessMap(await materialResult.textures[MapType.Roughness].GetTexture());
+                var filePath = Path.Combine(Application.temporaryCachePath, $"smoothness_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, smoothnessMap.EncodeToPNG());
+                materialResult.textures[MapType.Smoothness] = TextureResult.FromPath(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static async Task GenerateMetallicSmoothnessFromMetallicAndRoughness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Roughness))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Roughness))
+                    return;
 
-            var metallicSmoothness = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(await materialResult.textures[MapType.Roughness].GetTexture(),
-                await materialResult.textures[MapType.Metallic].GetTexture());
-            var filePath = Path.Combine(Application.temporaryCachePath, $"metallicsmoothness_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, metallicSmoothness.EncodeToPNG());
-            materialResult.textures[MapType.MetallicSmoothness] = TextureResult.FromPath(filePath);
+                var metallicSmoothness = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(await materialResult.textures[MapType.Roughness].GetTexture(),
+                    await materialResult.textures[MapType.Metallic].GetTexture());
+                var filePath = Path.Combine(Application.temporaryCachePath, $"metallicsmoothness_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, metallicSmoothness.EncodeToPNG());
+                materialResult.textures[MapType.MetallicSmoothness] = TextureResult.FromPath(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static async Task GenerateNonMetallicSmoothnessFromRoughness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Roughness))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Roughness))
+                    return;
 
-            var nonMetallicSmoothnessMap = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(
-                await materialResult.textures[MapType.Roughness].GetTexture());
-            var filePath = Path.Combine(Application.temporaryCachePath, $"nonmetallicsmoothness_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, nonMetallicSmoothnessMap.EncodeToPNG());
-            materialResult.textures[MapType.NonMetallicSmoothness] = TextureResult.FromPath(filePath);
+                var nonMetallicSmoothnessMap = MetallicSmoothnessUtils.GenerateMetallicSmoothnessMap(
+                    await materialResult.textures[MapType.Roughness].GetTexture());
+                var filePath = Path.Combine(Application.temporaryCachePath, $"nonmetallicsmoothness_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, nonMetallicSmoothnessMap.EncodeToPNG());
+                materialResult.textures[MapType.NonMetallicSmoothness] = TextureResult.FromPath(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static async Task GenerateMaskMapFromAOAndMetallicAndRoughness(this MaterialResult materialResult)
         {
-            if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Occlusion) || !materialResult.textures.ContainsKey(MapType.Roughness))
-                return;
+            try
+            {
+                if (!materialResult.textures.ContainsKey(MapType.Metallic) || !materialResult.textures.ContainsKey(MapType.Occlusion) || !materialResult.textures.ContainsKey(MapType.Roughness))
+                    return;
 
-            var maskMap = MaskMapUtils.GenerateMaskMap(
-                await materialResult.textures[MapType.Roughness].GetTexture(),
-                await materialResult.textures[MapType.Metallic].GetTexture(),
-                await materialResult.textures[MapType.Occlusion].GetTexture());
-            var filePath = Path.Combine(Application.temporaryCachePath, $"maskmap_{Guid.NewGuid()}.png");
-            await FileIO.WriteAllBytesAsync(filePath, maskMap.EncodeToPNG());
-            materialResult.textures[MapType.MaskMap] = TextureResult.FromPath(filePath);
+                var maskMap = MaskMapUtils.GenerateMaskMap(
+                    await materialResult.textures[MapType.Roughness].GetTexture(),
+                    await materialResult.textures[MapType.Metallic].GetTexture(),
+                    await materialResult.textures[MapType.Occlusion].GetTexture());
+                var filePath = Path.Combine(Application.temporaryCachePath, $"maskmap_{Guid.NewGuid()}.png");
+                await FileIO.WriteAllBytesAsync(filePath, maskMap.EncodeToPNG());
+                materialResult.textures[MapType.MaskMap] = TextureResult.FromPath(filePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         public static void Sanitize(this MaterialResult materialResult)

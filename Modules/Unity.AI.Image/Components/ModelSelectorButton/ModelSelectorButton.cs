@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
@@ -67,21 +66,10 @@ namespace Unity.AI.Image.Components
             });
         }
 
-        // Prevents concurrent execution within this modality (e.g.: multiple asset windows open) of discoverModels when multiple requests overlap
-        static readonly SemaphoreSlim k_Mutex = new(1, 1);
-
         static async void DiscoverModels(IStoreApi store)
         {
-            try
-            {
-                using var editorFocus = new EditorAsyncKeepAliveScope("Discovering AI Models for image.");
-                await k_Mutex.WaitAsync();
-                await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
-            }
-            finally
-            {
-                k_Mutex.Release();
-            }
+            using var editorFocus = new EditorAsyncKeepAliveScope("Discovering AI Models for image.");
+            await store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels, new DiscoverModelsData(WebUtils.selectedEnvironment));
         }
     }
 }

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit;
+using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -41,8 +42,16 @@ namespace Unity.AI.Animate.Services.Utilities
             var renderKey = new RenderKey(animationClip, time, width, height);
 
             // Check if we already have a pending render for this key
-            if (k_PendingRenderCache.TryGetValue(renderKey, out var pendingTexture) && pendingTexture != null)
-                return pendingTexture;
+            if (k_PendingRenderCache.TryGetValue(renderKey, out var pendingTexture))
+            {
+                if (pendingTexture.IsValid())
+                    return pendingTexture;
+
+                // Evict invalid texture from cache
+                k_PendingRenderCache.Remove(renderKey);
+                if (pendingTexture != null)
+                    RenderTexture.ReleaseTemporary(pendingTexture);
+            }
 
             // Create a new render texture or reuse the provided one
             if (!reusableBuffer || reusableBuffer.width != width || reusableBuffer.height != height)

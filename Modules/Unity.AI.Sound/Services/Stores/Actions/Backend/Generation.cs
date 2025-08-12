@@ -25,6 +25,7 @@ using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Logger = Unity.AI.Generators.Sdk.Logger;
 using Random = UnityEngine.Random;
@@ -111,13 +112,13 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 using var progressTokenSource1 = new CancellationTokenSource();
                 try
                 {
-                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.25f,
+                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.24f,
                         value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request."), 1, progressTokenSource1.Token);
 
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-                    var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                        projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                         unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
                     var audioComponent = builder.AudioComponent();
 
@@ -134,7 +135,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                         requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                     }
 
-                    var generateResults = await EditorTask.Run(() => audioComponent.Generate(requests));
+                    using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.generateTimeout);
+
+                    var generateResults = await EditorTask.Run(() => audioComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                     if (!generateResults.Batch.IsSuccessful)
                     {
                         api.DispatchFailedBatchMessage(arg.asset, generateResults);
@@ -169,6 +172,13 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                     api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
 
                     // we can simply return without throwing or additional logging because the error is already logged
+                    return;
+                }
+                catch (OperationCanceledException)
+                {
+                    api.DispatchGenerationRequestFailedMessage(asset);
+
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                     return;
                 }
                 catch (Exception e)
@@ -247,17 +257,29 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
             if (soundReference.asset.IsValid())
             {
-                using var httpClientLease = HttpClientManager.instance.AcquireLease();
-
-                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
-                var assetComponent = builder.AssetComponent();
-
-                await using var uploadStream = await ReferenceAssetStream(api.State, asset);
-                var assetStreamWithResult = await assetComponent.StoreAssetWithResult(uploadStream, httpClientLease.client);
-                if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out referenceGuid))
+                try
                 {
+                    using var httpClientLease = HttpClientManager.instance.AcquireLease();
+
+                    var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment,
+                        logger: new Logger(),
+                        unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset),
+                        enableDebugLogging: true, defaultOperationTimeout: Constants.referenceUploadCreateUrlTimeout);
+                    var assetComponent = builder.AssetComponent();
+
+                    using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                    await using var uploadStream = await ReferenceAssetStream(api.State, asset);
+                    var assetStreamWithResult = await assetComponent.StoreAssetWithResult(uploadStream, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                    if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out referenceGuid))
+                    {
+                        throw new HandledFailureException();
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    api.DispatchReferenceUploadFailedMessage(asset);
                     throw new HandledFailureException();
                 }
             }
@@ -295,13 +317,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
-            var retryTimeout = arg.retryable ? Constants.soundRetryTimeout : Constants.noTimeout;
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
-                defaultOperationTimeout: retryTimeout);
-            var assetComponent = builder.AssetComponent();
+            var retryTimeout = arg.retryable ? Constants.soundDownloadCreateUrlRetryTimeout : Constants.noTimeout;
 
             using var retryTokenSource = new CancellationTokenSource(retryTimeout);
 
@@ -312,6 +328,12 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
                     _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."), variations, progressTokenSource2.Token);
+
+                var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
+                    defaultOperationTimeout: retryTimeout);
+                var assetComponent = builder.AssetComponent();
 
                 var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
                 foreach (var jobId in arg.jobIds)

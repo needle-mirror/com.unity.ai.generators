@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Common.Enums;
+using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
@@ -15,6 +16,7 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
+using Unity.AI.ModelSelector.Services.Utilities;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -319,8 +321,15 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             if (!asset.IsValid())
                 return new(0);
 
-            var path = Path.GetFullPath(asset.GetPath());
-            return new Timestamp(File.GetLastWriteTime(path).ToUniversalTime().Ticks);
+            try
+            {
+                var path = Path.GetFullPath(asset.GetPath());
+                return new Timestamp(File.GetLastWriteTime(path).ToUniversalTime().Ticks);
+            }
+            catch
+            {
+                return new(0);
+            }
         }
         public static Timestamp SelectBaseImageBytesTimestamp(this IState state, VisualElement element) => state.SelectBaseImageBytesTimestamp(element.GetAsset());
 
@@ -559,5 +568,48 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;
 
         public static float SelectGenerationPaneWidth(this IState state, VisualElement element) => state.SelectGenerationSetting(element).generationPaneWidth;
+
+        public static bool SelectCanAddReferencesToPrompt(this IState state, AddImageReferenceTypeData payload, ImageReferenceType typeToAdd)
+        {
+            var asset = new AssetReference { guid = payload.asset.guid };
+            var generationSetting = state.SelectGenerationSetting(asset);
+            var mode = generationSetting.SelectRefinementMode();
+            var model = state.SelectSelectedModel(asset);
+            var refs = generationSetting.SelectImageReferencesByRefinement();
+
+            // Early out if no valid model is selected
+            if (string.IsNullOrEmpty(model?.id) || !model.IsValid())
+                return false;
+
+            // Special case for PromptImage with Unity Texture2D provider - never allowed
+            if (model is { modality: ModalityEnum.Texture2d, provider: ProviderEnum.Unity } &&
+                typeToAdd == ImageReferenceType.PromptImage)
+                return false;
+
+            // Only validate for Generation mode
+            if (mode != RefinementMode.Generation)
+                return false;
+
+            // Get current active references and add the type we're testing
+            var activeReferencesBitmask = state.SelectActiveReferencesBitMask(asset);
+            var testMask = activeReferencesBitmask | (1 << (int)typeToAdd);
+
+            // Create text prompt for validation
+            var textPrompt = new TextPrompt("reference test", "");
+
+            // Build reference objects based on the test mask
+            bool IsActive(ImageReferenceType refType) => (testMask & (1 << (int)refType)) != 0;
+
+            var imagePrompt = IsActive(ImageReferenceType.PromptImage) ? new ImagePrompt(Guid.NewGuid(), refs[mode][ImageReferenceType.PromptImage].strength) : null;
+            var styleReference = IsActive(ImageReferenceType.StyleImage) ? new StyleReference(Guid.NewGuid(), refs[mode][ImageReferenceType.StyleImage].strength) : null;
+            var compositionReference = IsActive(ImageReferenceType.CompositionImage) ? new CompositionReference(Guid.NewGuid(), refs[mode][ImageReferenceType.CompositionImage].strength) : null;
+            var poseReference = IsActive(ImageReferenceType.PoseImage) ? new PoseReference(Guid.NewGuid(), refs[mode][ImageReferenceType.PoseImage].strength) : null;
+            var depthReference = IsActive(ImageReferenceType.DepthImage) ? new DepthReference(Guid.NewGuid(), refs[mode][ImageReferenceType.DepthImage].strength) : null;
+            var lineArtReference = IsActive(ImageReferenceType.LineArtImage) ? new LineArtReference(Guid.NewGuid(), refs[mode][ImageReferenceType.LineArtImage].strength) : null;
+            var featureReference = IsActive(ImageReferenceType.FeatureImage) ? new FeatureReference(Guid.NewGuid(), refs[mode][ImageReferenceType.FeatureImage].strength) : null;
+
+            // Use the CanGenerateWithReferences extension method to validate
+            return model.CanGenerateWithReferences(textPrompt, imagePrompt, styleReference, compositionReference, poseReference, depthReference, lineArtReference, featureReference);
+        }
     }
 }

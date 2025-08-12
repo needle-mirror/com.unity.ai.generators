@@ -1,9 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Sound.Services.Stores.Actions;
-using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
@@ -16,6 +16,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
 using Unity.AI.Toolkit;
+using AiEditorToolsSdk.Components.Common.Enums;
 
 namespace Unity.AI.Sound.Components
 {
@@ -75,6 +76,12 @@ namespace Unity.AI.Sound.Components
         {
             m_PointsIndicator.SetShown(result.cost > 0);
             m_PointsIndicator.text = result.cost.ToString();
+
+            if (result.success)
+            {
+                tooltip = "";
+                return;
+            }
 
             tooltip = result.feedback.Count > 0 ? string.Join("\n", result.feedback.Select(f => f.message)) : string.Empty;
         }

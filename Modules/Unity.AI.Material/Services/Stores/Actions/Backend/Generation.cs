@@ -30,6 +30,7 @@ using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Logger = Unity.AI.Generators.Sdk.Logger;
 using Random = UnityEngine.Random;
@@ -126,16 +127,18 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 using var progressTokenSource1 = new CancellationTokenSource();
                 try
                 {
-                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.25f,
+                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.24f,
                         value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request."), 1,
                         progressTokenSource1.Token);
 
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-                    var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                        projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                         unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
                     var imageComponent = builder.ImageComponent();
+
+                    using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.generateTimeout);
 
                     switch (refinementMode)
                     {
@@ -145,7 +148,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
                             var request = ImageTransformRequestBuilder.Initialize();
                             var requests = materialGenerations.Select(m => request.Upscale(new(m[MapType.Preview], 2, null, null))).ToList();
-                            var upscaleResults = await EditorTask.Run(() => imageComponent.Transform(requests));
+                            var upscaleResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
 
                             if (!upscaleResults.Batch.IsSuccessful)
                             {
@@ -183,7 +186,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                             materialGenerations = new List<Dictionary<MapType, Guid>> { new() { [MapType.Preview] = uploadReferences.assetGuid } };
 
                             var requests = materialGenerations.Select(m => new Texture2DPbrRequest(generativeModelID, m[MapType.Preview])).ToList();
-                            var pbrResults = await EditorTask.Run(() => imageComponent.GeneratePbr(requests));
+                            var pbrResults = await EditorTask.Run(() => imageComponent.GeneratePbr(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
 
                             if (!pbrResults.Batch.IsSuccessful)
                             {
@@ -224,7 +227,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                                 .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
                                     new CompositionReference(uploadReferences.patternGuid, patternImageReference.strength));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            var generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
+                            var generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
 
                             if (!generateResults.Batch.IsSuccessful)
                             {
@@ -272,6 +275,15 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                     api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
 
                     // we can simply return without throwing or additional logging because the error is already logged
+                    return;
+                }
+                catch (OperationCanceledException)
+                {
+                    AbortCleanup(materialGenerations);
+
+                    api.DispatchGenerationRequestFailedMessage(asset);
+
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                     return;
                 }
                 catch (Exception e)
@@ -363,20 +375,30 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+            var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                 unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.noTimeout);
+                defaultOperationTimeout: Constants.referenceUploadCreateUrlTimeout);
             var assetComponent = builder.AssetComponent();
 
             switch (refinementMode)
             {
                 case RefinementMode.Upscale:
                 {
-                    await using var assetStream = await ReferenceAssetStream(api.State, asset);
-                    var assetStreamWithResult = await assetComponent.StoreAssetWithResult(assetStream, httpClientLease.client);
-                    if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out assetGuid))
+                    try
                     {
+                        using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                        await using var assetStream = await ReferenceAssetStream(api.State, asset);
+                        var assetStreamWithResult = await assetComponent.StoreAssetWithResult(assetStream, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                        if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out assetGuid))
+                        {
+                            throw new HandledFailureException();
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        api.DispatchReferenceUploadFailedMessage(asset);
                         throw new HandledFailureException();
                     }
 
@@ -384,14 +406,24 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 }
                 case RefinementMode.Pbr:
                 {
-                    await using var assetStream = await PromptAssetStream(api.State, asset);
-                    var assetStreamWithResult = await assetComponent.StoreAssetWithResultPreservingStream(assetStream, httpClientLease.client);
-                    if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out assetGuid))
+                    try
                     {
+                        using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                        await using var assetStream = await PromptAssetStream(api.State, asset);
+                        var assetStreamWithResult = await assetComponent.StoreAssetWithResultPreservingStream(assetStream, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                        if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out assetGuid))
+                        {
+                            throw new HandledFailureException();
+                        }
+
+                        await GenerationRecovery.AddCachedDownload(assetStream, assetGuid.ToString());
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        api.DispatchReferenceUploadFailedMessage(asset);
                         throw new HandledFailureException();
                     }
-
-                    await GenerationRecovery.AddCachedDownload(assetStream, assetGuid.ToString());
 
                     break;
                 }
@@ -399,10 +431,20 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 {
                     if (patternImageReference.asset.IsValid())
                     {
-                        var patternStream = await PatternAssetStream(api.State, asset);
-                        var patternStreamWithResult = await assetComponent.StoreAssetWithResult(patternStream, httpClientLease.client);
-                        if (!api.DispatchStoreAssetMessage(asset, patternStreamWithResult, out patternGuid))
+                        try
                         {
+                            using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                            var patternStream = await PatternAssetStream(api.State, asset);
+                            var patternStreamWithResult = await assetComponent.StoreAssetWithResult(patternStream, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                            if (!api.DispatchStoreAssetMessage(asset, patternStreamWithResult, out patternGuid))
+                            {
+                                throw new HandledFailureException();
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            api.DispatchReferenceUploadFailedMessage(asset);
                             throw new HandledFailureException();
                         }
                     }
@@ -444,13 +486,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
-            var retryTimeout = arg.retryable ? Constants.imageRetryTimeout : Constants.noTimeout;
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
-                defaultOperationTimeout: retryTimeout);
-            var assetComponent = builder.AssetComponent();
+            var retryTimeout = arg.retryable ? Constants.imageDownloadCreateUrlRetryTimeout : Constants.noTimeout;
 
             using var retryTokenSource = new CancellationTokenSource(retryTimeout);
 
@@ -461,6 +497,12 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
                     _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."), variations, progressTokenSource3.Token);
+
+                var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
+                    defaultOperationTimeout: retryTimeout);
+                var assetComponent = builder.AssetComponent();
 
                 var jobIdList = arg.jobIds.SelectMany(dictionary => dictionary.Values) // Get all JobId values
                     .Where(jobId => !GenerationRecovery.HasCachedDownload(jobId.ToString())) // Filter out the ones that are already cached

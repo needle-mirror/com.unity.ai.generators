@@ -45,8 +45,16 @@ namespace Unity.AI.Generators.UI.Utilities
             var bucketedProgress = progress <= 0 ? 0 : Mathf.Clamp(Mathf.Round(progress / 0.05f) * 0.05f, 0.05f, 1f);
 
             var key = Tuple.Create(texWidth, texHeight, bucketedProgress);
-            if (k_Cache.TryGetValue(key, out var cached) && cached)
-                return cached;
+            if (k_Cache.TryGetValue(key, out var cached))
+            {
+                if (cached.IsValid())
+                    return cached;
+
+                // Evict invalid texture from cache
+                k_Cache.Remove(key);
+                if (cached != null)
+                    RenderTexture.ReleaseTemporary(cached);
+            }
 
             var rt = RenderTexture.GetTemporary(texWidth, texHeight, 0);
             if (!s_ProgressDiskMaterial)

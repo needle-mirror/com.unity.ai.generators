@@ -18,6 +18,7 @@ using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Random = UnityEngine.Random;
@@ -43,21 +44,20 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
 
             try
             {
-                SendValidatingMessage();
+                api.DispatchValidatingUserMessage(arg.asset);
 
                 var success = await WebUtilities.WaitForCloudProjectSettings(arg.asset);
 
+                api.DispatchValidatingMessage(arg.asset);
+
                 if (cancellationTokenSource.IsCancellationRequested)
-                {
-                    SendValidatingMessage();
                     return;
-                }
 
                 if (!success)
                 {
                     var messages = new[]
                     {
-                        $"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\"."
+                        $"Invalid Unity Cloud configuration. Could not obtain organizations for user \"{UnityConnectProvider.userName}\"."
                     };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
@@ -68,13 +68,13 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
 
                 if (cancellationTokenSource.IsCancellationRequested)
                 {
-                    SendValidatingMessage();
+                    api.DispatchValidatingMessage(arg.asset);
                     return;
                 }
 
                 if (!asset.Exists())
                 {
-                    var messages = new[] { $"Error reason is 'Invalid Asset'." };
+                    var messages = new[] { "Selected asset is invalid. Please select a valid asset." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
@@ -94,7 +94,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
 
                 if (generativeModelID == Guid.Empty)
                 {
-                    var messages = new[] { $"Error reason is 'Invalid Model'." };
+                    var messages = new[] { "No model selected. Please select a valid model." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset, new(false, AiResultErrorEnum.UnknownModel, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
@@ -102,8 +102,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
 
                 var referenceVideoGuid = generationSetting.SelectVideoReference().asset.IsValid() ? Guid.NewGuid() : Guid.Empty;
 
-                var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                    projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                     unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
                     defaultOperationTimeout: Constants.realtimeTimeout);
                 var animationComponent = builder.AnimationComponent();
@@ -132,19 +132,24 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                 }
 
                 var quoteResults = await EditorTask.Run(() =>
-                    animationComponent.GenerateAnimationQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token));
+                    animationComponent.GenerateAnimationQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+
+                if (cancellationTokenSource.IsCancellationRequested)
+                {
+                    api.DispatchValidatingMessage(arg.asset);
+                    return;
+                }
+
                 if (!quoteResults.Result.IsSuccessful)
                 {
+                    var errorEnum = quoteResults.Result.Error.AiResponseError;
                     var messages = quoteResults.Result.Error.Errors.Count == 0
-                        ? new[]
-                        {
-                            $"Error reason is '{quoteResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({WebUtils.selectedEnvironment})."
-                        }
-                        : quoteResults.Result.Error.Errors.Distinct().Select(m => $"{quoteResults.Result.Error.AiResponseError.ToString()}: {m}").ToArray();
+                        ? new[] { $"An error occurred during validation ({WebUtils.selectedEnvironment})." }
+                        : quoteResults.Result.Error.Errors.Distinct().ToArray();
 
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
-                            new(quoteResults.Result.IsSuccessful, quoteResults.Result.Error.AiResponseError, 0,
+                            new(quoteResults.Result.IsSuccessful, errorEnum, 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
@@ -164,13 +169,6 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                 }
 
                 cancellationTokenSource.Dispose();
-            }
-
-            void SendValidatingMessage()
-            {
-                var messages = new[] { "Validating generation inputs..." };
-                api.Dispatch(GenerationActions.setGenerationValidationResult,
-                    new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
             }
         }
     }

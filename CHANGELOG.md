@@ -4,6 +4,28 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.18] - 2025-08-12
+
+### Added
+
+- Added rounded corners to progress spinners.
+
+### Changed
+
+- Changed text to motion to always orient generated humanoid animation forward.
+
+### Fixed
+
+- Fixed potential null reference when docking and undocking generator panels on Mac.
+- Fixed potential render texture cache corruption.
+- Fixed ime composition support in prompt fields.
+- Fixed some generations stuck at 25% completing only on domain reload (MacOS).
+
+### Removed
+
+- Removed non-functional negative prompt from GPT Image models.
+- Removed waiting for server progress dialog shown when Editor Application is out of focus.
+
 ## [1.0.0-pre.17] - 2025-07-31
 
 ### Added

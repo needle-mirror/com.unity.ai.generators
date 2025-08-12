@@ -14,10 +14,12 @@ namespace Unity.AI.Material.Windows
 {
     static class MaterialGeneratorInspectorButton
     {
-        [GenerateContextMenu(nameof(GenerateMaterialValidation))]
+        [GenerateContextMenu(nameof(GenerateMaterialValidation), nameof(GenerateMaterialHasGenerations))]
         public static void GenerateMaterial() => OnAssetGenerationRequest(new[] { Selection.activeObject });
 
         public static bool GenerateMaterialValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
+
+        public static bool GenerateMaterialHasGenerations() => IncludesGenerationHistory(new[] { Selection.activeObject });
 
         [MenuItem("Assets/Create/Rendering/Generate Material", false, -1000)]
         public static void EmptyMaterialMenu() => CreateAndNameMaterial();

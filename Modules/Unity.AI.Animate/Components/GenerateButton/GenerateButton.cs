@@ -1,9 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.Actions;
-using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
@@ -16,6 +16,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
+using AiEditorToolsSdk.Components.Common.Enums;
 
 namespace Unity.AI.Animate.Components
 {
@@ -75,6 +76,12 @@ namespace Unity.AI.Animate.Components
         {
             m_PointsIndicator.SetShown(result.cost > 0);
             m_PointsIndicator.text = result.cost.ToString();
+
+            if (result.success)
+            {
+                tooltip = "";
+                return;
+            }
 
             tooltip = result.feedback.Count > 0 ? string.Join("\n", result.feedback.Select(f => f.message)) : string.Empty;
         }

@@ -39,13 +39,18 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             var timeoutToken = cancellationTokenSource.Token;
 
+            var semaphoreAcquired = false;
+
             int taskID = 0;
             try
             {
                 taskID = Progress.Start("Precaching generations.");
 
                 // Wait to acquire the semaphore
-                await k_SetGeneratedAudioClipsAsyncSemaphore.WaitAsync(timeoutToken);
+                await k_SetGeneratedAudioClipsAsyncSemaphore.WaitAsync(timeoutToken).ConfigureAwaitMainThread();
+                semaphoreAcquired = true;
+
+                using var _ = new EditorAsyncKeepAliveScope("Caching generated sounds : finished waiting for semaphore.");
                 await EditorTask.RunOnMainThread(() => PreCacheGeneratedAudioClips(payload, taskID, api, timeoutToken), timeoutToken);
             }
             finally
@@ -56,7 +61,8 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 }
                 finally
                 {
-                    k_SetGeneratedAudioClipsAsyncSemaphore.Release();
+                    if (semaphoreAcquired)
+                        k_SetGeneratedAudioClipsAsyncSemaphore.Release();
                     if (Progress.Exists(taskID))
                         Progress.Finish(taskID);
                 }

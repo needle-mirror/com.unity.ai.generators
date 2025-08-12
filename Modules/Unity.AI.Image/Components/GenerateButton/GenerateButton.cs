@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +16,8 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
 using Unity.AI.Toolkit;
+using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.Toolkit.Accounts.Services;
 
 namespace Unity.AI.Image.Components
 {
@@ -71,12 +74,19 @@ namespace Unity.AI.Image.Components
                 _ = this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
             });
             this.Use(state => state.SelectGenerationValidationResult(this), OnGenerationValidationResultsChanged);
+            this.Use(_ => Account.sessionStatus.IsUsable, _ => OnGenerationValidationResultsChanged(this.GetState().SelectGenerationValidationResult(this)));
         }
 
         void OnGenerationValidationResultsChanged(GenerationValidationResult result)
         {
             m_PointsIndicator.SetShown(result.cost > 0);
             m_PointsIndicator.text = result.cost.ToString();
+
+            if (result.success)
+            {
+                tooltip = "";
+                return;
+            }
 
             tooltip = result.feedback.Count > 0 ? string.Join("\n", result.feedback.Select(f => f.message)) : string.Empty;
         }

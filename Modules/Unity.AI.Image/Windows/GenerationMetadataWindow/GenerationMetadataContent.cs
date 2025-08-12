@@ -234,6 +234,7 @@ namespace Unity.AI.Image.Windows
                     var doodlePad = doodleUI.Q<DoodlePad>();
                     if (doodlePad != null && m_GenerationMetadata?.doodles is { Length: > 0 })
                     {
+                        doodlePad.SetNone();
                         doodlePad.SetDoodle(doodleData.doodle);
                     }
                     doodleUseButton.clicked += () => { UseDoodle(doodleData); };

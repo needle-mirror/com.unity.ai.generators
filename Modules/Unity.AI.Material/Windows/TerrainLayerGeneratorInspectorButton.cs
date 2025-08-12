@@ -14,10 +14,12 @@ namespace Unity.AI.Material.Windows
 {
     static class TerrainLayerGeneratorInspectorButton
     {
-        [GenerateContextMenu(nameof(GenerateTerrainLayerValidation))]
+        [GenerateContextMenu(nameof(GenerateTerrainLayerValidation), nameof(GenerateTerrainLayerHasGenerations))]
         public static void GenerateTerrainLayer() => OnAssetGenerationRequest(new[] { Selection.activeObject });
 
         public static bool GenerateTerrainLayerValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
+
+        public static bool GenerateTerrainLayerHasGenerations() => IncludesGenerationHistory(new[] { Selection.activeObject });
 
         [MenuItem("Assets/Create/Terrain/Generate Terrain Layer", false, -1000)]
         public static void EmptyTerrainLayerMenu() => CreateAndNameTerrainLayer();

@@ -48,8 +48,18 @@ namespace Unity.AI.Material.Services.Utilities
 
             // Try to get from cache
             var cacheKey = new CacheKey(material.uri.GetLocalPath(), texWidth, texHeight);
-            if (k_Cache.TryGetValue(cacheKey, out var cachedTexture) && cachedTexture && !invalidateCache)
-                return cachedTexture;
+            if (k_Cache.TryGetValue(cacheKey, out var cachedTexture) && !invalidateCache)
+            {
+                if (cachedTexture.IsValid())
+                    return cachedTexture;
+
+                // Evict invalid texture from cache
+                k_Cache.Remove(cacheKey);
+                if (cachedTexture != null)
+                    RenderTexture.ReleaseTemporary(cachedTexture);
+                cachedTexture = null;
+            }
+
             if (!cachedTexture)
                 cachedTexture = RenderTexture.GetTemporary(texWidth, texHeight, 0);
             k_Cache[cacheKey] = cachedTexture;

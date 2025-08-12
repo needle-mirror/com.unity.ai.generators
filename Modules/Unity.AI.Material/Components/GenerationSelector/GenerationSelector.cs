@@ -95,8 +95,14 @@ namespace Unity.AI.Material.Components
             OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize()));
         }
 
-        void OnItemViewMaxCountChanged(int count) => this.Dispatch(GenerationResultsActions.setGeneratedResultVisibleCount,
-            new(this.GetAsset(), m_ElementID, m_GridView.IsElementShown() ? count : 0));
+        void OnItemViewMaxCountChanged(int count)
+        {
+            var asset = this.GetAsset();
+            if (!asset.IsValid())
+                return;
+            this.Dispatch(GenerationResultsActions.setGeneratedResultVisibleCount,
+                new(asset, m_ElementID, m_GridView.IsElementShown() ? count : 0));
+        }
 
         void OnGeneratedTexturesChanged(List<MaterialResult> materials) => UpdateItems(materials);
 

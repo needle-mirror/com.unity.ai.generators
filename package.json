@@ -1,28 +1,28 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.17",
+  "version": "1.0.0-pre.18",
   "unity": "6000.2",
   "unityRelease": "0b4",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.17"
+    "com.unity.ai.toolkit": "1.0.0-pre.18"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.17"
+    "com.unity.ai.generators.tests": "1.0.0-pre.18"
   },
   "_upm": {
-    "changelog": "### Added\n\n- Added upscale badge to generated sprites and textures.\n- Added preview images and descriptions to image reference operation picker dialog.\n\n### Changed\n\n- Changed animation trim tab loop scoring method when 'Use Best Loop' is unchecked.\n- Show favorited models first in model selector. GPT Image models understand text prompts very well and are favorited by default.\n\n### Fixed\n\n- Fixed 'ai' for 'AI' in tooltips.\n- Fixed some generations stuck at 25% completing only on domain reload.\n- Fixed favorite model icon color and state.\n- Fixed obsolete drag and drop handler warning for Unity Editor 6.3.\n- Fixed some image reference upload failures when Unity Editor loses focus.\n- Fixed checkbox layout in model selector.\n- Fixed missing tooltip in add to prompt control."
+    "changelog": "### Added\n\n- Added rounded corners to progress spinners.\n\n### Changed\n\n- Changed text to motion to always orient generated humanoid animation forward.\n\n### Fixed\n\n- Fixed potential null reference when docking and undocking generator panels on Mac.\n- Fixed potential render texture cache corruption.\n- Fixed ime composition support in prompt fields.\n- Fixed some generations stuck at 25% completing only on domain reload (MacOS).\n\n### Removed\n\n- Removed non-functional negative prompt from GPT Image models.\n- Removed waiting for server progress dialog shown when Editor Application is out of focus."
   },
   "upmCi": {
-    "footprint": "7f7b6c4eb9fd7276d141e798d03040eb506f3ca4"
+    "footprint": "33ff6902f35bfe79e6204bcf47571d8d5f174d78"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "ecfed6d193e7369c66f3900ad45e714f0d94db32"
+    "revision": "b6a7d1a85b7cba93ba611c88e365df751c08a04b"
   }
 }

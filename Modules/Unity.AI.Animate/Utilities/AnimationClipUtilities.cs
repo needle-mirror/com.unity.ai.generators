@@ -79,7 +79,9 @@ namespace Unity.AI.Animate.Services.Utilities
                 );
 
                 // Finally export to an AnimationClip using the reference posing armature
-                return timeline.ExportToHumanoidClip(armatureMapping);
+                var clip = timeline.ExportToHumanoidClip(armatureMapping);
+                clip.NormalizeRootTransform();
+                return clip;
             }
             finally
             {

@@ -30,6 +30,7 @@ using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Debug = UnityEngine.Debug;
 using Logger = Unity.AI.Generators.Sdk.Logger;
@@ -125,18 +126,20 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 using var progressTokenSource2 = new CancellationTokenSource();
                 try
                 {
-                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.25f,
+                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.24f,
                         value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request."), 1, progressTokenSource2.Token);
 
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-                    var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                        projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                         unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
                     var imageComponent = builder.ImageComponent();
 
                     BatchOperationResult<ImageGenerateResult> generateResults = null;
                     BatchOperationResult<ImageTransformResult> transformResults = null;
+
+                    using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.generateTimeout);
 
                     switch (refinementMode)
                     {
@@ -145,7 +148,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, useCustomSeed ? customSeed : null)
                                 .Recolor(new Recolor(uploadReferences.assetGuid, uploadReferences.paletteAssetGuid));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
+                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                             break;
                         }
                         case RefinementMode.Pixelate:
@@ -154,7 +157,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                 .Pixelate(new Pixelate(uploadReferences.assetGuid, pixelateResizeToTargetSize, pixelateTargetSize, pixelatePixelBlockSize, pixelateMode,
                                     pixelateOutlineThickness))
                                 .AsSingleInAList();
-                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests));
+                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                             break;
                         }
                         case RefinementMode.Inpaint:
@@ -163,21 +166,21 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                 .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt),
                                     new MaskReference(uploadReferences.assetGuid, uploadReferences.maskGuid, uploadReferences.inpaintMaskImageReference.strength));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
+                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                             break;
                         }
                         case RefinementMode.RemoveBackground:
                         {
                             var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(uploadReferences.assetGuid));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests));
+                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                             break;
                         }
                         case RefinementMode.Upscale:
                         {
                             var request = ImageTransformRequestBuilder.Initialize().Upscale(new(uploadReferences.assetGuid, upscaleFactor, null, null));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests));
+                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                             break;
                         }
                         case RefinementMode.Generation:
@@ -218,7 +221,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                         : null);
 
                                 var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                                generateResults = await EditorTask.Run(() => imageComponent.Generate(requests));
+                                generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
                             }
                             catch (UnhandledReferenceCombinationException e)
                             {
@@ -310,6 +313,13 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 // we can simply return without throwing or additional logging because the error is already logged
                 return;
             }
+            catch (OperationCanceledException)
+            {
+                api.DispatchGenerationRequestFailedMessage(asset);
+
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                return;
+            }
             catch (Exception e)
             {
                 Debug.LogException(e);
@@ -391,10 +401,10 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+            var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
                 unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.noTimeout);
+                defaultOperationTimeout: Constants.referenceUploadCreateUrlTimeout);
             var assetComponent = builder.AssetComponent();
 
             var refineAsset = refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor
@@ -418,11 +428,18 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                         streamToStore = convertedStream;
                     }
 
-                    var mainAssetWithResult = await assetComponent.StoreAssetWithResult(streamToStore, httpClientLease.client);
+                    using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                    var mainAssetWithResult = await assetComponent.StoreAssetWithResult(streamToStore, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
                     if (!api.DispatchStoreAssetMessage(asset, mainAssetWithResult, out assetGuid))
                     {
                         throw new HandledFailureException();
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    api.DispatchReferenceUploadFailedMessage(asset);
+                    throw new HandledFailureException();
                 }
                 finally
                 {
@@ -439,14 +456,24 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
                     if (paletteImageReference.SelectImageReferenceIsValid())
                     {
-                        await using var paletteAsset = await paletteImageReference.SelectImageReferenceStream();
-
-                        // 2x3 pixels expected from CreatePaletteApproximation
-                        await using var paletteApproximation = await TextureUtils.CreatePaletteApproximation(paletteAsset);
-
-                        var assetWithResult = await assetComponent.StoreAssetWithResult(paletteApproximation, httpClientLease.client);
-                        if (!api.DispatchStoreAssetMessage(asset, assetWithResult, out paletteAssetGuid))
+                        try
                         {
+                            await using var paletteAsset = await paletteImageReference.SelectImageReferenceStream();
+
+                            // 2x3 pixels expected from CreatePaletteApproximation
+                            await using var paletteApproximation = await TextureUtils.CreatePaletteApproximation(paletteAsset);
+
+                            using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                            var assetWithResult = await assetComponent.StoreAssetWithResult(paletteApproximation, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                            if (!api.DispatchStoreAssetMessage(asset, assetWithResult, out paletteAssetGuid))
+                            {
+                                throw new HandledFailureException();
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            api.DispatchReferenceUploadFailedMessage(asset);
                             throw new HandledFailureException();
                         }
                     }
@@ -466,11 +493,21 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     inpaintMaskImageReference = imageReferences[refinementMode][ImageReferenceType.InPaintMaskImage];
                     if (inpaintMaskImageReference.SelectImageReferenceIsValid())
                     {
-                        await using var maskAsset = ImageFileUtilities.CheckImageSize(await inpaintMaskImageReference.SelectImageReferenceStream());
-
-                        var assetWithResult = await assetComponent.StoreAssetWithResult(maskAsset, httpClientLease.client);
-                        if (!api.DispatchStoreAssetMessage(asset, assetWithResult, out maskGuid))
+                        try
                         {
+                            await using var maskAsset = ImageFileUtilities.CheckImageSize(await inpaintMaskImageReference.SelectImageReferenceStream());
+
+                            using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
+                            var assetWithResult = await assetComponent.StoreAssetWithResult(maskAsset, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                            if (!api.DispatchStoreAssetMessage(asset, assetWithResult, out maskGuid))
+                            {
+                                throw new HandledFailureException();
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            api.DispatchReferenceUploadFailedMessage(asset);
                             throw new HandledFailureException();
                         }
                     }
@@ -482,6 +519,8 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     var streamsToDispose = new List<Stream>();
                     try
                     {
+                        using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
+
                         Dictionary<ImageReferenceType, Task<OperationResult<BlobAssetResult>>> referenceAssetTasks = new();
                         foreach (var (imageReferenceType, imageReference) in imageReferences[refinementMode])
                         {
@@ -492,7 +531,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                             var referenceAsset = ImageFileUtilities.CheckImageSize(await imageReference.SelectImageReferenceStream());
                             streamsToDispose.Add(referenceAsset);
-                            referenceAssetTasks.Add(imageReferenceType, assetComponent.StoreAssetWithResult(referenceAsset, httpClientLease.client));
+                            referenceAssetTasks.Add(imageReferenceType, assetComponent.StoreAssetWithResult(referenceAsset, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None));
                         }
 
                         // await as late as possible as we want to upload everything in parallel
@@ -511,6 +550,11 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                             referenceGuids[imageReferenceType] = referenceGuid;
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        api.DispatchReferenceUploadFailedMessage(asset);
+                        throw new HandledFailureException();
                     }
                     finally
                     {
@@ -550,13 +594,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
-            var retryTimeout = arg.retryable ? Constants.imageRetryTimeout : Constants.noTimeout;
-
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
-                defaultOperationTimeout: retryTimeout);
-            var assetComponent = builder.AssetComponent();
+            var retryTimeout = arg.retryable ? Constants.imageDownloadCreateUrlRetryTimeout : Constants.noTimeout;
 
             using var retryTokenSource = new CancellationTokenSource(retryTimeout);
 
@@ -567,6 +605,12 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
             {
                 _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
                     _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server."), variations, progressTokenSource2.Token);
+
+                var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
+                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
+                    defaultOperationTimeout: retryTimeout);
+                var assetComponent = builder.AssetComponent();
 
                 var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
                 foreach (var jobId in arg.jobIds)
@@ -671,7 +715,10 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     })
                     .ToList();
 
-                await Task.WhenAll(saveTasks); // saves to project and is picked up by GenerationFileSystemWatcherManipulator
+                foreach (var saveTask in saveTasks)
+                {
+                    await saveTask; // saves to project and is picked up by GenerationFileSystemWatcherManipulator
+                }
 
                 // the ui handles results, skeletons, and fulfilled skeletons to determine which tiles are ready for display (see Selectors.SelectGeneratedTexturesAndSkeletons)
                 api.Dispatch(GenerationResultsActions.setFulfilledSkeletons,

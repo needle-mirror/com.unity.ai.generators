@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit;
 using UnityEditor;
@@ -33,27 +34,34 @@ namespace Unity.AI.Generators.UI.Utilities
                 {
                     try
                     {
-                        using var response = await httpClient.GetAsync(sourceUri, HttpCompletionOption.ResponseHeadersRead).ConfigureAwaitMainThread();
+                        var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                        using var response = await httpClient.GetAsync(sourceUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken:cancellationTokenSource.Token).ConfigureAwaitMainThread();
                         response.EnsureSuccessStatusCode();
 
                         // Check if we have enough disk space
                         var contentLength = response.Content.Headers.ContentLength;
                         if (contentLength.HasValue && !EnsureDiskSpace(contentLength.Value, Path.GetDirectoryName(tempFilePath)))
                             throw new IOException($"Insufficient disk space to download {BytesToMegabytes(contentLength.Value):F2}MB file");
-
                         {
                             await using var writeFileStream = FileIO.OpenWriteAsync(tempFilePathPartial);
-                            await response.Content.CopyToAsync(writeFileStream).ConfigureAwaitMainThread();
-                            await writeFileStream.FlushAsync();
+#if FULLY_ASYNC
+                            await using var contentStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                            await contentStream.CopyToAsync(writeFileStream, cancellationTokenSource.Token).ConfigureAwait(false);
+                            await writeFileStream.FlushAsync(cancellationTokenSource.Token).ConfigureAwaitMainThread();
+#else
+                            response.Content.CopyToAsync(writeFileStream).Wait();
+                            writeFileStream.Flush();
+#endif
                         }
 
                         // Rename from .part to actual temp file once complete
                         SafeMove(tempFilePathPartial, tempFilePath);
                         break; // Success - exit retry loop
                     }
-                    catch (HttpRequestException ex) when (attempt < maxRetries)
+                    catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException && attempt < maxRetries)
                     {
-                        Debug.LogWarning($"Download attempt {attempt}/{maxRetries} failed: {ex.Message}. Retrying...");
+                        var reason = ex is OperationCanceledException ? "timed out" : $"failed: {ex.GetType().Name}";
+                        Debug.LogWarning($"Download attempt {attempt}/{maxRetries} {reason}. Retrying...");
                         await EditorTask.Delay((int)TimeSpan.FromSeconds(Math.Pow(2, attempt)).TotalMilliseconds); // Exponential backoff
                     }
                 }

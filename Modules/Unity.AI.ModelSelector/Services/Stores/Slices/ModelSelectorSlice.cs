@@ -50,7 +50,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                             isFavorite = model.isFavorite,
                             favoriteProcessing = model.favoriteProcessing,
                             operations = model.operations,
-                            operationCombinations = model.operationCombinations,
                             imageSizes = model.imageSizes
                         }).ToList(),
                         environment = state.settings.environment,

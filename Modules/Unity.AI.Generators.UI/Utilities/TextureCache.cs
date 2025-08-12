@@ -102,6 +102,9 @@ namespace Unity.AI.Generators.UI.Utilities
         /// </summary>
         public static async Task<RenderTexture> GetPreview(Uri uri, int sizeHint)
         {
+            if (uri == null)
+                return null;
+
             if (sizeHint <= 1)
                 return null;
 
@@ -138,9 +141,17 @@ namespace Unity.AI.Generators.UI.Utilities
                 var targetHeight = Mathf.RoundToInt(texture.height * scale);
                 var key = (targetWidth, targetHeight);
 
-                // Re-use cached render texture if available.
-                if (k_RenderCache[uri].ContainsKey(key) && k_RenderCache[uri][key])
-                    return k_RenderCache[uri][key];
+                // Re-use cached render texture if available and valid.
+                if (k_RenderCache[uri].TryGetValue(key, out var existing))
+                {
+                    if (existing.IsValid())
+                        return existing;
+
+                    // Evict invalid texture from cache
+                    k_RenderCache[uri].Remove(key);
+                    if (existing != null)
+                        existing.Release();
+                }
 
                 // Create the RenderTexture for the preview.
                 var preview = new RenderTexture(targetWidth, targetHeight, 0) { hideFlags = HideFlags.HideAndDontSave };
@@ -172,9 +183,20 @@ namespace Unity.AI.Generators.UI.Utilities
             // (Note: This fallback may result in a larger texture if no image exists,
             //  but in general you would only get here if the file did not exist.)
             var fallbackKey = (sizeHint, sizeHint);
-            if (!k_RenderCache[uri].ContainsKey(fallbackKey))
-                k_RenderCache[uri][fallbackKey] = new RenderTexture(sizeHint, sizeHint, 0) { hideFlags = HideFlags.HideAndDontSave};
-            return k_RenderCache[uri][fallbackKey];
+            if (k_RenderCache[uri].TryGetValue(fallbackKey, out var fallbackTexture))
+            {
+                if (fallbackTexture.IsValid())
+                    return fallbackTexture;
+
+                // Evict invalid texture from cache
+                k_RenderCache[uri].Remove(fallbackKey);
+                if (fallbackTexture != null)
+                    fallbackTexture.Release();
+            }
+
+            var newFallback = new RenderTexture(sizeHint, sizeHint, 0) { hideFlags = HideFlags.HideAndDontSave };
+            k_RenderCache[uri][fallbackKey] = newFallback;
+            return newFallback;
         }
 
         public static async Task<Texture2D> GetNormalMap(Uri uri)

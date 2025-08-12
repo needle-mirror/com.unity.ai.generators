@@ -15,10 +15,12 @@ namespace Unity.AI.Image.Windows
 {
     static class TextureGeneratorInspectorButton
     {
-        [GenerateContextMenu(nameof(GenerateImageValidation))]
+        [GenerateContextMenu(nameof(GenerateImageValidation), nameof(GenerateImageHasGenerations))]
         public static void GenerateImage() => OnAssetGenerationRequest(new[] { Selection.activeObject });
 
         public static bool GenerateImageValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
+
+        public static bool GenerateImageHasGenerations() => IncludesGenerationHistory(new[] { Selection.activeObject });
 #if !ENHANCERS_2D_PRESENT
         [MenuItem("Assets/Create/2D/Generate Sprite", false, -1000)]
         public static void Empty2dSpriteMenu() => CreateAndNameSprite();

@@ -6,7 +6,7 @@
     <ScrollView name="generatePanelScrollView" horizontal-scroller-visibility="Hidden">
         <!-- Model Selector Row -->
         <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
-            <VisualElement class="flex-row items-center flex-no-shrink pb-8 pl-5">
+            <VisualElement class="flex-row items-center flex-no-shrink pb-6 pl-5">
                 <ui:SelectedModelTitleCard />
                 <ui:ModelSelectorButton />
             </VisualElement>
@@ -20,7 +20,7 @@
         <VisualElement class="flex-no-shrink p-8-7-8-8 bg-light">
             <Label class="font-bold p-4 pb-8" text="Options"/>
             <ui:GenerateVariationsSlider />
-            <ui:DimensionsDropDown />
+            <ui:DimensionsDropDown class="pt-2" />
             <ui:GenerationOptions class="pt-8" />
         </VisualElement>
         <!-- Image Reference: Image Reference -->

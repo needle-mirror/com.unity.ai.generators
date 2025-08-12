@@ -12,7 +12,7 @@ namespace Unity.AI.Material.Services.Utilities
 {
     static class TextureResultExtensions
     {
-        public static void CopyToProject(this TextureResult textureResult, string cacheDirectory, string newFileName)
+        public static async Task CopyToProjectAsync(this TextureResult textureResult, string cacheDirectory, string newFileName)
         {
             if (!textureResult.uri.IsFile)
                 throw new ArgumentException("CopyToProject should only be used for local files.", nameof(textureResult));
@@ -21,7 +21,7 @@ namespace Unity.AI.Material.Services.Utilities
             var extension = Path.GetExtension(path);
             if (!ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase)))
             {
-                using var fileStream = FileIO.OpenReadAsync(path);
+                await using var fileStream = FileIO.OpenReadAsync(path);
                 extension = FileIO.GetFileExtension(fileStream);
             }
 
@@ -40,11 +40,9 @@ namespace Unity.AI.Material.Services.Utilities
             if (newUri == textureResult.uri)
                 return;
 
-            FileIO.CopyFile(path, newPath, overwrite: true);
+            await FileIO.CopyFileAsync(path, newPath, overwrite: true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
             textureResult.uri = newUri;
-
-            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task DownloadToProject(this TextureResult textureResult, string cacheDirectory, string newFileName, HttpClient httpClient)
@@ -62,8 +60,6 @@ namespace Unity.AI.Material.Services.Utilities
                 return;
 
             textureResult.uri = newUri;
-
-            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task<Texture2D> GetTexture(this TextureResult textureResult) => await TextureCache.GetTexture(textureResult.uri);

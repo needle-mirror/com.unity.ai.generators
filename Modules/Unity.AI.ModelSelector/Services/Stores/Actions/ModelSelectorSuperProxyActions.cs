@@ -13,6 +13,7 @@ using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using UnityEngine;
 using Constants = Unity.AI.Generators.Sdk.Constants;
@@ -57,7 +58,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             return model;
         }
 
-        const string k_PreferredFavorite = "gpt";
+        const string k_PreferredFavorite = "gpt image";
 
         // Prevents concurrent execution globally of fetchModels when multiple requests overlap
         static readonly SemaphoreSlim k_Mutex = new(1, 1);
@@ -72,13 +73,13 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 
             try
             {
-                await k_Mutex.WaitAsync();
+                await k_Mutex.WaitAsync().ConfigureAwaitMainThread();
 
                 // Check cache first
                 if (ModelsCache.IsValid(data.environment))
                 {
-                    if (Unsupported.IsDeveloperMode())
-                        Debug.Log($"Using cached models (age: {(DateTime.Now - ModelsCache.cacheTimestamp).TotalSeconds:F1}s)");
+                    //if (Unsupported.IsDeveloperMode())
+                    //    Debug.Log($"Using cached models (age: {(DateTime.Now - ModelsCache.cacheTimestamp).TotalSeconds:F1}s)");
                     return ModelsCache.models;
                 }
 
@@ -98,8 +99,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
                     var timeout = Constants.modelsFetchTimeout;
 
-                    var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                        projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: data.environment, logger: new Logger(),
+                    var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: data.environment, logger: new Logger(),
                         unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true, defaultOperationTimeout: timeout);
                     var generativeModelsComponent = builder.GenerativeModelsComponent();
 
@@ -167,7 +168,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                         {
                             var isFavorite = favoritesSuccessful && favoritesResults.Result.Value
                                 .Any(f => f.GenerativeModelId == modelResult.GenerativeModelId);
-                            if (modelResult.Name.ToLower().Contains(k_PreferredFavorite))
+                            if (modelResult.Name.ToLower().StartsWith(k_PreferredFavorite))
                                 isFavorite = true;
                             models.Add(FromSuperProxy(modelResult, isFavorite));
                         }
@@ -177,6 +178,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                     if (favoritesSuccessful)
                     {
                         ModelsCache.UpdateCache(models, data.environment);
+                        //if (Unsupported.IsDeveloperMode())
+                        //    Debug.Log("Models cache updated successfully.");
                     }
                 }
             }
@@ -198,7 +201,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             }
 
             void LogInvalidCloudProjectSettings() =>
-                Debug.Log($"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{CloudProjectSettings.userName}\".");
+                Debug.Log($"Error reason is 'Invalid Unity Cloud configuration': Could not obtain organizations for user \"{UnityConnectProvider.userName}\".");
         });
 
         public static readonly AsyncThunkCreator<(FavoriteModelPayload,string), bool> setModelFavorite = new($"{ModelSelectorActions.slice}/setModelFavoriteSuperProxy", async (arg, api) =>
@@ -209,8 +212,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 return false;
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
-            var builder = Builder.Build(orgId: CloudProjectSettings.organizationKey, userId: CloudProjectSettings.userId,
-                projectId: CloudProjectSettings.projectId, httpClient: httpClientLease.client, baseUrl: environment, logger: new Logger(),
+            var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
+                projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: environment, logger: new Logger(),
                 unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true);
             var generativeModelsComponent = builder.GenerativeModelsComponent();
 

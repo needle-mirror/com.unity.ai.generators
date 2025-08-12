@@ -14,10 +14,12 @@ namespace Unity.AI.Animate.Windows
 {
     static class AnimateGeneratorInspectorButton
     {
-        [GenerateContextMenu(nameof(GenerateAnimateValidation))]
+        [GenerateContextMenu(nameof(GenerateAnimateValidation), nameof(GenerateAnimateHasGenerations))]
         public static void GenerateAnimate() => OnAssetGenerationRequest(new[] { Selection.activeObject });
 
         public static bool GenerateAnimateValidation() => OnAssetGenerationValidation(new[] { Selection.activeObject }) && Selection.objects.Length == 1;
+
+        public static bool GenerateAnimateHasGenerations() => IncludesGenerationHistory(new[] { Selection.activeObject });
 
         [MenuItem("Assets/Create/Animation/Generate Animation Clip", false, -1000)]
         public static void EmptyAnimateMenu() => CreateAndNameAnimate();

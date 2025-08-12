@@ -67,7 +67,7 @@ namespace Unity.AI.Image.Utilities
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Prompt")]
         [InternalDisplayName("Image")]
-        [OperationSubTypes(OperationSubTypeEnum.TextPrompt)]
+        [OperationSubTypes(OperationSubTypeEnum.ReferencePrompt)]
         PromptImage,
 
         [DisplayOrder(1)]

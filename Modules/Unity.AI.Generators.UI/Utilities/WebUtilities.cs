@@ -1,9 +1,10 @@
 ﻿using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -39,22 +40,14 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        public static async Task<bool> WaitForCloudProjectSettings(CancellationToken cancellationToken = default)
+        public static async Task<bool> WaitForCloudProjectSettings()
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Waiting for Cloud Project Settings");
-
-            while (AreCloudProjectSettingsInvalid())
-            {
-                if (cancellationToken.IsCancellationRequested)
-                    return false;
-
-                await EditorTask.Yield();
-            }
-
-            return true;
+            return await Toolkit.Accounts.Services.States.ApiAccessibleState.WaitForCloudProjectSettings();
         }
 
-        public static bool AreCloudProjectSettingsInvalid() => string.IsNullOrWhiteSpace(CloudProjectSettings.organizationKey) || string.IsNullOrWhiteSpace(CloudProjectSettings.userId);
+        public static bool AreCloudProjectSettingsInvalid() => string.IsNullOrWhiteSpace(UnityConnectProvider.organizationKey) || string.IsNullOrWhiteSpace(UnityConnectProvider.userId);
+
         public static bool AreCloudProjectSettingsValid() => !AreCloudProjectSettingsInvalid();
 
         const string k_InternalMenu = "internal:";

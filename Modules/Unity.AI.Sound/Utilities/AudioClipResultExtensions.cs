@@ -80,75 +80,85 @@ namespace Unity.AI.Sound.Services.Utilities
 
         public static async Task CopyToProject(this AudioClipResult audioClipResult, GenerationMetadata generationMetadata, string cacheDirectory)
         {
-            if (!audioClipResult.uri.IsFile)
-                throw new ArgumentException("CopyToProject should only be used for local files.", nameof(audioClipResult));
-
-            var extension = Path.GetExtension(audioClipResult.uri.GetLocalPath());
-            if (!AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException("Only .wav files are supported.", nameof(audioClipResult));
-
-            var path = audioClipResult.uri.GetLocalPath();
-            var fileName = Path.GetFileName(path);
-            if (!File.Exists(path))
-                throw new FileNotFoundException($"The file {path} does not exist.", path);
-            if (string.IsNullOrEmpty(cacheDirectory))
-                throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
-
-            Directory.CreateDirectory(cacheDirectory);
-            var newPath = Path.Combine(cacheDirectory, fileName);
-            var newUri = new Uri(Path.GetFullPath(newPath));
-            if (newUri == audioClipResult.uri)
-                return;
-
-            await FileIO.CopyFileAsync(path, newPath, overwrite: true);
-            Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
-            audioClipResult.uri = newUri;
-
             try
             {
-                await FileIO.WriteAllTextAsync($"{audioClipResult.uri.GetLocalPath()}.json",
-                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
-            }
-            catch (Exception e)
-            {
-                // log an error but not absolutely critical as generations can be used without metadata
-                Debug.LogException(e);
-            }
+                if (!audioClipResult.uri.IsFile)
+                    throw new ArgumentException("CopyToProject should only be used for local files.", nameof(audioClipResult));
 
-            GenerationFileSystemWatcher.nudge?.Invoke();
+                var extension = Path.GetExtension(audioClipResult.uri.GetLocalPath());
+                if (!AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException("Only .wav files are supported.", nameof(audioClipResult));
+
+                var path = audioClipResult.uri.GetLocalPath();
+                var fileName = Path.GetFileName(path);
+                if (!File.Exists(path))
+                    throw new FileNotFoundException($"The file {path} does not exist.", path);
+                if (string.IsNullOrEmpty(cacheDirectory))
+                    throw new ArgumentException("Cache directory must be specified.", nameof(cacheDirectory));
+
+                Directory.CreateDirectory(cacheDirectory);
+                var newPath = Path.Combine(cacheDirectory, fileName);
+                var newUri = new Uri(Path.GetFullPath(newPath));
+                if (newUri == audioClipResult.uri)
+                    return;
+
+                await FileIO.CopyFileAsync(path, newPath, overwrite: true);
+                Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
+                audioClipResult.uri = newUri;
+
+                try
+                {
+                    await FileIO.WriteAllTextAsync($"{audioClipResult.uri.GetLocalPath()}.json",
+                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                }
+                catch (Exception e)
+                {
+                    // log an error but not absolutely critical as generations can be used without metadata
+                    Debug.LogException(e);
+                }
+            }
+            finally
+            {
+                GenerationFileSystemWatcher.nudge?.Invoke();
+            }
         }
 
         public static async Task DownloadToProject(this AudioClipResult audioClipResult, GenerationMetadata generationMetadata, string cacheDirectory, HttpClient httpClient)
         {
-            if (audioClipResult.uri.IsFile)
-                throw new ArgumentException("DownloadToProject should only be used for remote files.", nameof(audioClipResult));
-
-            if (string.IsNullOrEmpty(cacheDirectory))
-                throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
-
-            Directory.CreateDirectory(cacheDirectory);
-
-            var newUri = await UriExtensions.DownloadFile(audioClipResult.uri, cacheDirectory, httpClient);
-            if (newUri == audioClipResult.uri)
-                return;
-
-            audioClipResult.uri = newUri;
-
             try
             {
-                var path = audioClipResult.uri.GetLocalPath();
-                var fileName = Path.GetFileName(path);
+                if (audioClipResult.uri.IsFile)
+                    throw new ArgumentException("DownloadToProject should only be used for remote files.", nameof(audioClipResult));
 
-                await FileIO.WriteAllTextAsync($"{audioClipResult.uri.GetLocalPath()}.json",
-                    JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                if (string.IsNullOrEmpty(cacheDirectory))
+                    throw new ArgumentException("Cache directory must be specified for remote files.", nameof(cacheDirectory));
+
+                Directory.CreateDirectory(cacheDirectory);
+
+                var newUri = await UriExtensions.DownloadFile(audioClipResult.uri, cacheDirectory, httpClient);
+                if (newUri == audioClipResult.uri)
+                    return;
+
+                audioClipResult.uri = newUri;
+
+                try
+                {
+                    var path = audioClipResult.uri.GetLocalPath();
+                    var fileName = Path.GetFileName(path);
+
+                    await FileIO.WriteAllTextAsync($"{audioClipResult.uri.GetLocalPath()}.json",
+                        JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                }
+                catch (Exception e)
+                {
+                    // log an error but not absolutely critical as generations can be used without metadata
+                    Debug.LogException(e);
+                }
             }
-            catch (Exception e)
+            finally
             {
-                // log an error but not absolutely critical as generations can be used without metadata
-                Debug.LogException(e);
+                GenerationFileSystemWatcher.nudge?.Invoke();
             }
-
-            GenerationFileSystemWatcher.nudge?.Invoke();
         }
 
         public static async Task<GenerationMetadata> GetMetadata(this AudioClipResult audioClipResult)
@@ -237,7 +247,7 @@ namespace Unity.AI.Sound.Services.Utilities
             return  FileIO.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
         }
 
-        public static bool CopyTo(this AudioClipResult generatedAudioClip, string destFileName)
+        public static async Task<bool> CopyToAsync(this AudioClipResult generatedAudioClip, string destFileName)
         {
             var sourceFileName = generatedAudioClip.uri.GetLocalPath();
             if (!File.Exists(sourceFileName))
@@ -248,7 +258,7 @@ namespace Unity.AI.Sound.Services.Utilities
             if (destExtension != sourceExtension)
                 throw new InvalidOperationException($"Cannot copy file with extension {sourceExtension} to {destExtension}");
 
-            FileIO.CopyFile(sourceFileName, destFileName, true);
+            await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
             Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
             return true;
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using AiEditorToolsSdk.Components.Asset.Responses;
 using AiEditorToolsSdk.Components.Common.Enums;
@@ -6,11 +7,10 @@ using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Payloads;
-using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using UnityEngine;
 
@@ -27,7 +27,7 @@ namespace Unity.AI.Generators.UI.Actions
 
         public static Func<IStoreApi, string> selectedEnvironment = null;
 
-        public static void DispatchProgress(this IStoreApi api, AssetReference asset, GenerationProgressData payload, string description, bool backgroundReport = true)
+        public static void DispatchProgress(this IStoreApi api, AssetReference asset, GenerationProgressData payload, string description, bool backgroundReport = false)
         {
             if (backgroundReport)
                 EditorAsyncKeepAliveScope.ShowProgressOrCancelIfUnfocused("Editor background worker", description, payload.progress);
@@ -57,6 +57,15 @@ namespace Unity.AI.Generators.UI.Actions
             return true;
         }
 
+        public static void DispatchValidatingUserMessage(this IStoreApi api, AssetReference asset)
+        {
+            var messages = new[] { "Validating user, project and organization..." };
+            api.Dispatch(setGenerationValidationResult,
+                new(asset,
+                    new(false, AiResultErrorEnum.Unknown, 0,
+                        messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+        }
+
         public static void DispatchValidatingMessage(this IStoreApi api, AssetReference asset)
         {
             var messages = new[] { "Validating generation inputs..." };
@@ -69,7 +78,29 @@ namespace Unity.AI.Generators.UI.Actions
         public static void DispatchInvalidCloudProjectMessage(this IStoreApi api, AssetReference asset)
         {
             api.Dispatch(setGenerationAllowed, new(asset, true));
-            var messages = new[] { $"Could not obtain organizations for user \"{CloudProjectSettings.userName}\"." };
+            var messages = new[] { $"Could not obtain organizations for user \"{UnityConnectProvider.userName}\"." };
+            foreach (var message in messages)
+            {
+                Debug.Log(message);
+                api.Dispatch(addGenerationFeedback, new GenerationsFeedbackData(asset, new GenerationFeedbackData(message)));
+            }
+        }
+
+        public static void DispatchReferenceUploadFailedMessage(this IStoreApi api, AssetReference asset)
+        {
+            api.Dispatch(setGenerationAllowed, new(asset, true));
+            var messages = new[] { $"Could not upload references. Please try again." };
+            foreach (var message in messages)
+            {
+                Debug.Log(message);
+                api.Dispatch(addGenerationFeedback, new GenerationsFeedbackData(asset, new GenerationFeedbackData(message)));
+            }
+        }
+
+        public static void DispatchGenerationRequestFailedMessage(this IStoreApi api, AssetReference asset)
+        {
+            api.Dispatch(setGenerationAllowed, new(asset, true));
+            var messages = new[] { $"Could not make generation request. Please try again." };
             foreach (var message in messages)
             {
                 Debug.Log(message);

@@ -24,7 +24,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public ProviderEnum provider = ProviderEnum.None;
         public ModalityEnum modality = ModalityEnum.None;
         public List<OperationSubTypeEnum> operations = new();
-        public List<List<OperationSubTypeEnum>> operationCombinations = Array.Empty<List<OperationSubTypeEnum>>().ToList();
         public ImageDimensions nativeResolution = new() { width = 1024, height = 1024 };
         public List<ImageDimensions> imageSizes = new[]{ new ImageDimensions { width = 1024, height = 1024 } }.ToList();
         public string baseModelId;

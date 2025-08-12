@@ -68,85 +68,90 @@
             float4 frag(v2f i) : SV_Target
             {
                 // --- Aspect Ratio Correction ---
-                // Calculate aspect ratio (width / height)
-                // Use max to avoid division by zero if texture isn't set properly
                 float aspect = 1.0;
                 if (_MainTex_TexelSize.x > 0.0) {
-                     aspect = _MainTex_TexelSize.y / _MainTex_TexelSize.x;
+                    aspect = _MainTex_TexelSize.y / _MainTex_TexelSize.x;
                 }
-
-
-                // Center UVs and scale to [-1, 1] range conceptually (based on height)
-                // Then apply aspect correction to the X coordinate
-                float2 pos = (i.uv - 0.5) * 2.0; // Range [-1, 1] if square
-                pos.x *= aspect; // Correct X based on aspect ratio. Y remains [-1, 1]
+                float2 pos = (i.uv - 0.5) * 2.0;
+                pos.x *= aspect;
 
                 // --- Calculations in Corrected Space ---
-                // Calculate distance from center in the aspect-corrected space
-                // A distance of 1.0 now corresponds to the distance from center to top/bottom edge
                 float dist = length(pos);
-
-                // Calculate angle (0 rad = +X axis, PI/2 rad = +Y axis)
-                // We want 0 degrees at the top (+Y), so we calculate angle relative to +Y
-                float angle = atan2(pos.x, pos.y); // Note: atan2(y,x) gives angle from +X. atan2(x,y) gives angle from +Y.
+                // We still need the original angle for the wrapAngle helper if we were to use it,
+                // but the new method avoids it for the main body.
+                // float angle = atan2(pos.x, pos.y);
 
                 // --- Define Arc ---
-                // Convert normalized values [0, 1] to angles [0, 2*PI] (clockwise from top)
-                // Ensure _Value is always >= _StartValue for arc calculation logic
                 float startNorm = frac(_StartValue);
-                float range = _Value - _StartValue; // Use original values to detect > 1 turns
+                float range = _Value - _StartValue;
 
-                 // Handle near-zero difference edge case slightly differently for SDF
                 if (abs(range) < 1e-5) return _BackgroundColor;
-                if (range >= (1.0 - 1e-5)) range = 1.0; // Treat near-full circle as full circle
+                if (range >= (1.0 - 1e-5)) range = 1.0;
 
                 float startAngle = startNorm * UNITY_TWO_PI;
-                float endAngle = startNorm * UNITY_TWO_PI + range * UNITY_TWO_PI; // Use range to potentially exceed 2PI
+                float endAngle = startNorm * UNITY_TWO_PI + range * UNITY_TWO_PI;
 
-                // Center and half-width of the angle arc (for SDF)
                 float arcCenter = (startAngle + endAngle) * 0.5;
                 float arcHalfWidth = (endAngle - startAngle) * 0.5;
 
                 // --- Signed Distance Field (SDF) ---
-                // SDF calculation: positive outside the shape, negative inside.
-
                 // 1. Radial distance (distance from the ring shape)
-                //    Positive outside the ring band, negative inside
                 float dist_radial = max(dist - _OuterRadius, _InnerRadius - dist);
 
-                // 2. Angular distance (distance from the valid arc)
-                //    Calculate the shortest angle difference to the center of the arc
-                //    wrapAngle ensures we get the shortest path (-PI to PI)
-                float deltaAngle = wrapAngle(angle - arcCenter);
-                //    Positive outside the arc width, negative inside
-                float dist_angular = abs(deltaAngle) - arcHalfWidth;
+                // 2. Angular distance (distance from the valid arc) - ROBUST METHOD
+                float dist_angular;
+                {
+                    // Rotate the pixel's position so the arc is centered on the +Y axis
+                    float s = sin(-arcCenter);
+                    float c = cos(-arcCenter);
+                    float2x2 rot = float2x2(c, -s, s, c);
+                    float2 rotated_pos = mul(rot, pos);
 
-                // If it's a full circle, ignore angular distance
-                if (range >= 1.0) {
-                    dist_angular = -1e9; // Effectively infinitely inside angularly
+                    // Fold the space over the Y-axis. Now we only need to test against one edge.
+                    rotated_pos.x = abs(rotated_pos.x);
+
+                    // 'sc' is the direction vector of the arc's edge (at angle arcHalfWidth from +Y)
+                    float2 sc = float2(sin(arcHalfWidth), cos(arcHalfWidth));
+
+                    // Calculate signed distance to the edge line.
+                    // This is dot(rotated_pos, normal_vector_of_edge).
+                    // It's positive outside the wedge, negative inside.
+                    // This works for arcHalfWidth > PI/2 as well, correctly defining the "long way around" wedge.
+                    dist_angular = dot(rotated_pos, float2(sc.y, -sc.x));
                 }
 
-                // Combine radial and angular distances: max() takes the furthest distance *outside* the shape
-                float sdf = max(dist_radial, dist_angular);
+
+                // 3. End caps (circular caps at start and end angles)
+                float capRadius = (_OuterRadius - _InnerRadius) * 0.5;
+                float capCenterRadius = (_OuterRadius + _InnerRadius) * 0.5;
+                float2 startCapCenter = float2(-sin(startAngle), cos(startAngle)) * capCenterRadius;
+                float2 endCapCenter = float2(-sin(endAngle), cos(endAngle)) * capCenterRadius;
+                float dist_startCap = length(pos - startCapCenter) - capRadius;
+                float dist_endCap = length(pos - endCapCenter) - capRadius;
+
+                float sdf;
+
+                // If it's a full circle, just use the radial distance.
+                if (range >= 1.0) {
+                    sdf = dist_radial;
+                } else {
+                    // Union of the angular wedge and the two end caps
+                    float dist_arc_with_caps = min(dist_angular, min(dist_startCap, dist_endCap));
+                    // Intersection of that shape with the ring
+                    sdf = max(dist_radial, dist_arc_with_caps);
+                }
 
                 // --- Anti-Aliasing using fwidth ---
-                // Calculate width of the transition region based on screen-space derivatives
-                float aa = fwidth(sdf) * 0.707; // Use 0.707 (~sqrt(2)/2) or 0.5 for smoother AA width
-
-                // Smoothstep for anti-aliasing: transition from 1 (inside) to 0 (outside)
-                // sdf < -aa -> 1 (fully inside)
-                // sdf > +aa -> 0 (fully outside)
-                // smoothstep input goes from aa to -aa as sdf goes from -aa to aa
+                float aa = fwidth(sdf) * 0.707;
                 float coverage = smoothstep(aa, -aa, sdf);
 
                 // --- Final Color ---
-                // Modulate base color by its alpha and the SDF coverage
                 float4 finalColor = _Color;
                 finalColor.a *= coverage;
 
-                // Lerp between background and final color based on computed alpha
                 return lerp(_BackgroundColor, finalColor, finalColor.a);
             }
+
             ENDCG
         }
     }

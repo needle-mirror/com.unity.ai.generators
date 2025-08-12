@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using AiEditorToolsSdk.Domain.Abstractions.Services;
 using AiEditorToolsSdk.Domain.Core.Results;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using UnityEngine;
 
@@ -20,7 +21,7 @@ namespace Unity.AI.Generators.Sdk
 
         readonly int m_MainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
 
-        string m_Token = CloudProjectSettings.accessToken;
+        string m_Token = UnityConnectProvider.accessToken;
 
         public async Task<Result<string>> ForceRefreshToken()
         {
@@ -57,7 +58,7 @@ namespace Unity.AI.Generators.Sdk
                 var completedTask = await Task.WhenAny(tcs.Task, EditorTask.Delay((int)TimeSpan.FromSeconds(timeoutSeconds).TotalMilliseconds));
                 if (completedTask == tcs.Task)
                 {
-                    m_Token = CloudProjectSettings.accessToken;
+                    m_Token = UnityConnectProvider.accessToken;
 
                     var status = await tcs.Task;
                     if (status)
@@ -83,7 +84,7 @@ namespace Unity.AI.Generators.Sdk
             try
             {
                 return await EditorTask.RunOnMainThread(
-                    () => Task.FromResult(Result<string>.Ok(m_Token = CloudProjectSettings.accessToken)));
+                    () => Task.FromResult(Result<string>.Ok(m_Token = UnityConnectProvider.accessToken)));
             }
             catch
             {

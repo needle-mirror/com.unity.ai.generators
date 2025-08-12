@@ -10,10 +10,9 @@ namespace Unity.AI.Sound.Services.Utilities
 {
     static class AssetReferenceExtensions
     {
-#pragma warning disable CS1998
         public static async Task<bool> Replace(this AssetReference asset, AudioClipResult generatedAudioClip)
         {
-            if (generatedAudioClip.CopyTo(asset.GetPath()))
+            if (await generatedAudioClip.CopyToAsync(asset.GetPath()))
             {
                 asset.EnableGenerationLabel();
                 return true;
@@ -21,7 +20,6 @@ namespace Unity.AI.Sound.Services.Utilities
 
             return false;
         }
-#pragma warning restore CS1998
 
         public static Task<bool> IsBlank(this AssetReference asset) => Task.FromResult(GetObject(asset) is AudioClip { length: < 0.05f });
 

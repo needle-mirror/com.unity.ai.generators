@@ -36,10 +36,12 @@ namespace Unity.AI.Material.Services.Stores.Actions
             async (payload, api) =>
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Caching generated materials.");
-            
+
             // Create a 30-second timeout token
             using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             var timeoutToken = cancellationTokenSource.Token;
+
+            var semaphoreAcquired = false;
 
             var taskID = 0;
             try
@@ -47,7 +49,10 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 taskID = Progress.Start("Precaching generations.");
 
                 // Wait to acquire the semaphore
-                await k_SetGeneratedMaterialsAsyncSemaphore.WaitAsync(timeoutToken);
+                await k_SetGeneratedMaterialsAsyncSemaphore.WaitAsync(timeoutToken).ConfigureAwaitMainThread();
+                semaphoreAcquired = true;
+
+                using var _ = new EditorAsyncKeepAliveScope("Caching generated materials : finished waiting for semaphore.");
                 await EditorTask.RunOnMainThread(() => PreCacheGeneratedMaterials(payload, taskID, api, timeoutToken), timeoutToken);
             }
             finally
@@ -58,7 +63,8 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 }
                 finally
                 {
-                    k_SetGeneratedMaterialsAsyncSemaphore.Release();
+                    if (semaphoreAcquired)
+                        k_SetGeneratedMaterialsAsyncSemaphore.Release();
                     if (Progress.Exists(taskID))
                         Progress.Finish(taskID);
                 }
@@ -79,7 +85,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             {
                 // Check for timeout cancellation
                 timeoutToken.ThrowIfCancellationRequested();
-                
+
                 // After minPrecache is reached, wait until the state indicates a user visible count.
                 int precacheCount;
                 if (processedMaterials < minPrecache)
@@ -149,7 +155,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
             if (!Path.GetExtension(destFileName).Equals(Path.GetExtension(sourceFileName), StringComparison.OrdinalIgnoreCase))
             {
                 var destMaterial = asset.GetMaterialAdapter();
-                if (generatedMaterial.CopyTo(destMaterial, state, generatedMaterialMapping))
+                if (await generatedMaterial.CopyToAsync(destMaterial, state, generatedMaterialMapping))
                     destMaterial.AsObject.SafeCall(AssetDatabase.SaveAssetIfDirty);
             }
             else

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.Sdk;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -793,7 +794,9 @@ namespace Unity.AI.Generators.UI.Utilities
 
             if (!uri.IsFile)
             {
-                var data = await DownloadImage(uri);
+                using var httpClientLease = HttpClientManager.instance.AcquireLease();
+
+                var data = await DownloadImageWithFallback(uri, httpClientLease.client);
                 await using var candidateStream = new MemoryStream(data);
                 return (await CompatibleImageTexture(candidateStream), timestamp);
             }
@@ -946,8 +949,36 @@ namespace Unity.AI.Generators.UI.Utilities
         }
 
         static byte[] s_FailImageBytes = null;
+#if NEW_CODE
+        static async Task<byte[]> DownloadImageWithFallback(Uri uri, System.Net.Http.HttpClient httpClient)
+        {
+            try
+            {
+                var tempDir = FileUtil.GetUniqueTempPathInProject();
+                var downloadedUri = await UriExtensions.DownloadFile(uri, tempDir, httpClient);
+                var data = await FileIO.ReadAllBytesAsync(downloadedUri.GetLocalPath());
 
-        static async Task<byte[]> DownloadImage(Uri uri)
+                // Clean up temp file
+                try
+                {
+                    File.Delete(downloadedUri.GetLocalPath());
+                    Directory.Delete(tempDir, true);
+                }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
+
+                return data;
+            }
+            catch
+            {
+                s_FailImageBytes ??= await FileIO.ReadAllBytesAsync("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Fail.png");
+                return s_FailImageBytes;
+            }
+        }
+#else
+        static async Task<byte[]> DownloadImageWithFallback(Uri uri, System.Net.Http.HttpClient _)
         {
             using var uwr = UnityWebRequest.Get(uri.AbsoluteUri);
             await uwr.SendWebRequest();
@@ -960,6 +991,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
             return uwr.downloadHandler.data;
         }
+#endif
 
         static bool TryGetAspectRatio(string assetPath, out float aspect)
         {

@@ -31,7 +31,17 @@ namespace Unity.AI.Generators.Asset
 
         public static string GetGuid(this AssetReference asset) => asset.guid;
 
-        public static Uri GetUri(this AssetReference asset) => !asset.IsValid() ? null : new(Path.GetFullPath(asset.GetPath()));
+        public static Uri GetUri(this AssetReference asset)
+        {
+            if (!asset.IsValid())
+                return null;
+
+            var path = asset.GetPath();
+            if (string.IsNullOrEmpty(path))
+                return null;
+
+            return new(Path.GetFullPath(path));
+        }
 
         public static bool IsValid(this AssetReference asset) => asset != null && !string.IsNullOrEmpty(asset.GetGuid());
 

@@ -24,18 +24,11 @@ namespace Unity.AI.Material.Components
             var promptLimitIndicator = this.Q<Label>("prompt-limit-indicator");
             var negativePromptLimitIndicator = this.Q<Label>("negative-prompt-limit-indicator");
 
-            promptText.RegisterValueChangedCallback(evt =>
-            {
-                var truncatedPrompt = PromptUtilities.TruncatePrompt(evt.newValue);
-                promptText.SetValueWithoutNotify(truncatedPrompt);
-                this.Dispatch(GenerationSettingsActions.setPrompt, truncatedPrompt);
-            });
-            negativePromptText.RegisterValueChangedCallback(evt =>
-            {
-                var truncatedPrompt = PromptUtilities.TruncatePrompt(evt.newValue);
-                negativePromptText.SetValueWithoutNotify(truncatedPrompt);
-                this.Dispatch(GenerationSettingsActions.setNegativePrompt, truncatedPrompt);
-            });
+            promptText.maxLength = PromptUtilities.maxPromptLength;
+            negativePromptText.maxLength = PromptUtilities.maxPromptLength;
+
+            promptText.RegisterValueChangedCallback(evt => this.Dispatch(GenerationSettingsActions.setPrompt, PromptUtilities.TruncatePrompt(evt.newValue)));
+            negativePromptText.RegisterValueChangedCallback(evt => this.Dispatch(GenerationSettingsActions.setNegativePrompt, PromptUtilities.TruncatePrompt(evt.newValue)));
 
             promptText.RegisterTabEvent();
             negativePromptText.RegisterTabEvent();

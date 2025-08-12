@@ -546,7 +546,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (canSeek)
                     inputStream.Position = 0;
 
-                using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, false ? FileOptions.Asynchronous : FileOptions.None);
+                using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, false ? FileOptions.Asynchronous : FileOptions.None);
                 inputStream.CopyTo(fileStream);
             }
             finally
@@ -571,7 +571,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 if (canSeek)
                     inputStream.Position = 0;
 
-                await using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+                await using var fileStream = OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
                 await inputStream.CopyToAsync(fileStream).ConfigureAwaitMainThread();
             }
             finally
@@ -712,10 +712,10 @@ namespace Unity.AI.Generators.UI.Utilities
             OpenFileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
 
         public static FileStream OpenWrite(string path) =>
-            OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.None);
+            OpenFileStreamInternal(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.None);
 
         public static FileStream OpenWriteAsync(string path) =>
-            OpenFileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+            OpenFileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
 
         public static async Task<FileStream> OpenReadWithRetryAsync(string path, CancellationToken token,
             int maxRetries = 5, int initialRetryDelayMs = 100)

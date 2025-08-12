@@ -15,34 +15,36 @@ namespace Unity.AI.Generators.Sdk
     static class Extensions
     {
         public static Task<OperationResult<BlobAssetResult>> StoreAssetWithResult(this IAssetComponent assetComponent, Stream stream, HttpClient client) =>
-            StoreAssetWithResult(assetComponent, stream, client, CancellationToken.None);
+            StoreAssetWithResult(assetComponent, stream, client, CancellationToken.None, CancellationToken.None);
 
         /// <summary>
         /// Note that the input stream is disposed after the method call.
         /// </summary>
-        public static async Task<OperationResult<BlobAssetResult>> StoreAssetWithResult(this IAssetComponent assetComponent, Stream stream, HttpClient client, CancellationToken token)
+        public static async Task<OperationResult<BlobAssetResult>> StoreAssetWithResult(this IAssetComponent assetComponent, Stream stream, HttpClient client, CancellationToken sdkToken, CancellationToken putToken)
         {
 #if AI_TK_DEBUG_DUMP_STREAM
             stream = await DumpStreamToDisk(stream, "stream_dump");
 #endif
-            var assetResult = await EditorTask.Run(() => assetComponent.CreateAssetUploadUrl(cancellationToken: token));
+            var assetResult = await EditorTask.Run(() => assetComponent.CreateAssetUploadUrl(cancellationToken: sdkToken), sdkToken);
+            if (sdkToken.IsCancellationRequested)
+                throw new OperationCanceledException("Operation was cancelled while creating asset upload URL.", sdkToken);
             if (assetResult.Result.IsSuccessful)
             {
                 using var content = new StreamContent(stream);
                 content.Headers.Add("x-ms-blob-type", "BlockBlob");
-                using var response = await client.PutAsync(assetResult.Result.Value.AssetUrl.Url, content, token).ConfigureAwaitMainThread();
+                using var response = await client.PutAsync(assetResult.Result.Value.AssetUrl.Url, content, putToken).ConfigureAwaitMainThread();
                 response.EnsureSuccessStatusCode();
             }
             return assetResult;
         }
 
         public static Task<OperationResult<BlobAssetResult>> StoreAssetWithResultPreservingStream(this IAssetComponent assetComponent, Stream stream, HttpClient client) =>
-            StoreAssetWithResultPreservingStream(assetComponent, stream, client, CancellationToken.None);
+            StoreAssetWithResultPreservingStream(assetComponent, stream, client, CancellationToken.None, CancellationToken.None);
 
         /// <summary>
         /// Note that the input stream is not disposed after the method call.
         /// </summary>
-        public static async Task<OperationResult<BlobAssetResult>> StoreAssetWithResultPreservingStream(this IAssetComponent assetComponent, Stream stream, HttpClient client, CancellationToken token)
+        public static async Task<OperationResult<BlobAssetResult>> StoreAssetWithResultPreservingStream(this IAssetComponent assetComponent, Stream stream, HttpClient client, CancellationToken sdkToken, CancellationToken putToken)
         {
             long originalPosition = 0;
             var canSeek = stream.CanSeek;
@@ -56,7 +58,7 @@ namespace Unity.AI.Generators.Sdk
 #endif
                 // Use a wrapper that prevents the StreamContent from disposing the underlying stream
                 await using var wrapper = new NonDisposingStreamWrapper(stream);
-                return await StoreAssetWithResult(assetComponent, wrapper, client, token);
+                return await StoreAssetWithResult(assetComponent, wrapper, client, sdkToken, putToken);
             }
             finally
             {

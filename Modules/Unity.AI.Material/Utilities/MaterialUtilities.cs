@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
@@ -304,7 +305,17 @@ namespace Unity.AI.Material.Services.Utilities
             EditorUtility.SetDirty(to);
         }
 
-        public static bool CopyTo(this MaterialResult from, IMaterialAdapter to, IState state, Dictionary<MapType, string> generatedMaterialMapping)
+        public static bool CopyTo(this MaterialResult from, IMaterialAdapter to, IState state, Dictionary<MapType, string> generatedMaterialMapping) =>
+            CopyToInternal(from, to, state, generatedMaterialMapping, (source, dest) => {
+                FileIO.CopyFile(source, dest, overwrite: true);
+                return Task.CompletedTask;
+            }).GetAwaiter().GetResult();
+
+        public static async Task<bool> CopyToAsync(this MaterialResult from, IMaterialAdapter to, IState state, Dictionary<MapType, string> generatedMaterialMapping) =>
+            await CopyToInternal(from, to, state, generatedMaterialMapping, (source, dest) =>
+                FileIO.CopyFileAsync(source, dest, overwrite: true));
+
+        static async Task<bool> CopyToInternal(MaterialResult from, IMaterialAdapter to, IState state, Dictionary<MapType, string> generatedMaterialMapping, Func<string, string, Task> fileCopyFunc)
         {
             from.Sanitize();
 
@@ -348,7 +359,7 @@ namespace Unity.AI.Material.Services.Utilities
                 {
                     var extension = Path.GetExtension(sourceFilePath);
                     var destFilePath = Path.Combine(mapsPath, $"{materialProperty.TrimStart('_')}{extension}");
-                    FileIO.CopyFile(sourceFilePath, destFilePath, overwrite: true);
+                    await fileCopyFunc(sourceFilePath, destFilePath);
                     AssetDatabase.ImportAsset(destFilePath, ImportAssetOptions.ForceUpdate);
                     importedTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(destFilePath);
 

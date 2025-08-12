@@ -38,11 +38,7 @@ namespace Unity.AI.Generators.UI
             m_OnRebuild = onRebuild;
         }
 
-        async Task ScheduleRebuildOnMainThread()
-        {
-            await EditorThread.EnsureMainThreadAsync();
-            _ = Rebuild();
-        }
+        Task ScheduleRebuildOnMainThread() => EditorTask.RunOnMainThread(() => Rebuild());
 
         void OnNudge() => _ = ScheduleRebuildOnMainThread();
         void OnChanged(object sender, FileSystemEventArgs e) => _ = ScheduleRebuildOnMainThread();
@@ -68,10 +64,7 @@ namespace Unity.AI.Generators.UI
                 if (immediately)
                     await EditorTask.Yield(); // otherwise redux blows up
                 else
-                {
-                    using var editorFocus = new EditorAsyncKeepAliveScope("Generated assets watcher rebuild");
                     await EditorTask.Delay(k_DelayMs, token);
-                }
 
                 if (token.IsCancellationRequested)
                     return;
