@@ -28,6 +28,6 @@
     position: relative;
 }
 
-.doodles-container {
+.image-references-container {
     flex-direction: column;
 }

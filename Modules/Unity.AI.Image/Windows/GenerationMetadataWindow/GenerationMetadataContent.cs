@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Components;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
@@ -12,6 +14,7 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -47,7 +50,7 @@ namespace Unity.AI.Image.Windows
             InitNegativePrompt();
             InitCustomSeed();
             InitUpscaleFactor();
-            InitDoodles();
+            InitImageReferences();
 
             m_DismissButtons = this.Query<Button>(className: "data-button").ToList();
             foreach (var button in m_DismissButtons)
@@ -200,48 +203,85 @@ namespace Unity.AI.Image.Windows
             upscaleFactorContainer.EnableInClassList("hidden", upscaleFactor == 0);
         }
 
-        void InitDoodles()
+        void InitImageReferences()
         {
-            var doodlesContainer = this.Q<VisualElement>(className: "doodles-container");
-            var hasDoodles = m_GenerationMetadata.doodles is { Length: > 0 };
+            var imageReferencesContainer = this.Q<VisualElement>(className: "image-references-container");
+            var hasImageReferences = m_GenerationMetadata.doodles is { Length: > 0 };
 
-            if (hasDoodles)
+            imageReferencesContainer.EnableInClassList("hidden", !hasImageReferences);
+            if (!hasImageReferences)
+                return;
+
+            var doodleTemplate = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_UxmlDoodleTemplate);
+
+            foreach(var doodleData in m_GenerationMetadata.doodles)
             {
-                var doodleTemplate = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_UxmlDoodleTemplate);
+                if (m_GenerationMetadata?.doodles is not { Length: > 0 }) return;
+                if (!Enum.IsDefined(typeof(ImageReferenceType), doodleData.doodleReferenceType)) return;
 
-                foreach(var doodleData in m_GenerationMetadata.doodles)
+                var doodleUI = doodleTemplate.Instantiate();
+
+                var referenceTypeLabel = doodleUI.Q<Label>("doodle-type");
+                referenceTypeLabel.text = doodleData.label;
+
+                var doodleStrengthContainer = doodleUI.Q<VisualElement>(className: "doodle-strength-container");
+                var strength = doodleUI.Q<Label>("doodle-strength-metadata");
+
+                var displayStrength = doodleData.invertStrength ? 100 - doodleData.strength * 100.0f : doodleData.strength * 100.0f;
+                strength.text = displayStrength.ToString();
+                doodleStrengthContainer.EnableInClassList("hidden", Mathf.Approximately(doodleData.strength, 0f));
+
+                var imageReferenceUseButton = doodleUI.Q<Button>("use-doodle-button");
+                imageReferenceUseButton.clicked += () => { UseDoodle(doodleData); };
+
+                var imageReferenceCopyButton = doodleUI.Q<Button>("copy-doodle-button");
+
+                if (doodleData.doodle is { Length: > 0 }) // it's a doodle
                 {
-                    var doodleUI = doodleTemplate.Instantiate();
-                    doodlesContainer.Add(doodleUI);
+                    var doodlePad = doodleUI.Q<DoodlePad>();
+                    if (doodlePad == null) return;
 
-                    var label = doodleUI.Q<Label>("doodle-type");
-                    label.text = doodleData.label;
-
-                    var doodleStrengthContainer = this.Q<VisualElement>(className: "doodle-strength-container");
-                    var strength = doodleUI.Q<Label>("doodle-strength-metadata");
-
-                    var displayStrength = doodleData.invertStrength ? 100 - doodleData.strength * 100.0f : doodleData.strength * 100.0f;
-                    strength.text = (displayStrength).ToString();
-                    doodleStrengthContainer.EnableInClassList("hidden", Mathf.Approximately(doodleData.strength, 0f));
-
-                    var doodleCopyButton = doodleUI.Q<Button>("copy-doodle-button");
-                    doodleCopyButton.clicked += () =>
+                    doodlePad.EnableInClassList("hidden", false);
+                    doodlePad.SetDoodle(doodleData.doodle);
+                    doodlePad.SetNone();
+                    imageReferenceCopyButton.clicked += () =>
                     {
                         EditorGUIUtility.systemCopyBuffer = "MetadataDoodleBytes:" + Convert.ToBase64String(doodleData.doodle);
                     };
-
-                    var doodleUseButton = doodleUI.Q<Button>("use-doodle-button");
-                    var doodlePad = doodleUI.Q<DoodlePad>();
-                    if (doodlePad != null && m_GenerationMetadata?.doodles is { Length: > 0 })
-                    {
-                        doodlePad.SetNone();
-                        doodlePad.SetDoodle(doodleData.doodle);
-                    }
-                    doodleUseButton.clicked += () => { UseDoodle(doodleData); };
                 }
-            }
+                else // it's an asset reference
+                {
+                    var objectField = doodleUI.Q<ObjectField>("metadata-object-field__input-field");
+                    if (objectField == null) return;
 
-            doodlesContainer.EnableInClassList("hidden", !hasDoodles);
+                    objectField.EnableInClassList("hidden", false);
+                    objectField.SetEnabled(false);
+                    objectField.EnableInClassList("unity-disabled", false);
+
+                    var assetPath = AssetDatabase.GUIDToAssetPath(doodleData.assetReferenceGuid);
+                    if (!string.IsNullOrEmpty(assetPath) && File.Exists(assetPath))
+                    {
+                        var assetRef = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+                        objectField.SetValueWithoutNotify(assetRef);
+                        imageReferenceCopyButton.clicked += () =>
+                        {
+                            EditorGUIUtility.systemCopyBuffer = "MetadataAssetRef:" + doodleData.assetReferenceGuid;
+                        };
+                    }
+                    else
+                    {
+                        // asset reference not found, might have been deleted
+                        objectField.SetValueWithoutNotify(null);
+                        var objectFieldLabel = objectField.Q<Label>(className: "unity-object-field-display__label");
+                        objectFieldLabel.text = "Reference not found in project";
+
+                        imageReferenceCopyButton.SetEnabled(false);
+                        imageReferenceUseButton.SetEnabled(false);
+                    }
+                }
+
+                imageReferencesContainer.Add(doodleUI);
+            }
         }
 
         void UseRefinementMode()
@@ -289,47 +329,24 @@ namespace Unity.AI.Image.Windows
 
         void UseDoodle(GenerationDataDoodle doodleData)
         {
+            if (!Enum.IsDefined(typeof(ImageReferenceType), doodleData.doodleReferenceType)) return;
             var doodlePad = this.Q<DoodlePad>();
+            var objectField = this.Q<ObjectField>("metadata-object-field__input-field");
 
-            if (doodlePad != null)
+            UseRefinementMode();
+
+            if (doodlePad != null && doodleData.doodle is { Length: > 0 })
             {
-                UseRefinementMode();
-                switch (doodleData.doodleReferenceType)
-                {
-                    case ImageReferenceType.CompositionImage:
-                        ImageReferenceType.CompositionImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.DepthImage:
-                        ImageReferenceType.DepthImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.FeatureImage:
-                        ImageReferenceType.FeatureImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.LineArtImage:
-                        ImageReferenceType.LineArtImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.InPaintMaskImage:
-                        ImageReferenceType.InPaintMaskImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.PaletteImage:
-                        ImageReferenceType.PaletteImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.PoseImage:
-                        ImageReferenceType.PoseImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.PromptImage:
-                        ImageReferenceType.PromptImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    case ImageReferenceType.StyleImage:
-                        ImageReferenceType.StyleImage.SetDoodlePadData(doodlePad, doodleData.doodle);
-                        break;
-                    default:
-                        break;
-                }
-
-                if (!Mathf.Approximately(doodleData.strength, 0f))
-                    this.Dispatch(GenerationSettingsActions.setImageReferenceStrength, new (doodleData.doodleReferenceType, doodleData.strength));
+                doodleData.doodleReferenceType.SetDoodlePadData(doodlePad, doodleData.doodle);
             }
+            else if(objectField != null)
+            {
+                var assetReference = new AssetReference { guid = doodleData.assetReferenceGuid };
+                doodleData.doodleReferenceType.SetAssetReferenceObjectData(objectField, assetReference);
+            }
+
+            if (!Mathf.Approximately(doodleData.strength, 0f))
+                this.Dispatch(GenerationSettingsActions.setImageReferenceStrength, new (doodleData.doodleReferenceType, doodleData.strength));
         }
 
         void UsePixelate()

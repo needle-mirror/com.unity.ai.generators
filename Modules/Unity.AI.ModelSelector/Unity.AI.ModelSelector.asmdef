@@ -21,12 +21,6 @@
     ],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [
-        {
-            "name": "com.unity.ai.toolkit",
-            "expression": "[0,1.0.0)",
-            "define": "UNITY_AI_OPEN_BETA"
-        }
-    ],
+    "versionDefines": [],
     "noEngineReferences": false
 }

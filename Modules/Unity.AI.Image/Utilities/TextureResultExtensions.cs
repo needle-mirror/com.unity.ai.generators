@@ -245,10 +245,14 @@ namespace Unity.AI.Image.Services.Utilities
             {
                 // Retrieve the image reference (and its doodle) for this type.
                 var imageReference = setting.SelectImageReference(type);
+                var invertStrength = type.SelectImageReferenceInvertStrength();
                 if (imageReference?.doodle?.Length > 0)
                 {
-                    var invertStrength = type.SelectImageReferenceInvertStrength();
-                    doodles.Add(new GenerationDataDoodle(type, imageReference.doodle, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength));
+                    doodles.Add(new GenerationDataDoodle(type, imageReference.doodle, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength, null));
+                }
+                else if (!string.IsNullOrEmpty(imageReference?.asset.guid))
+                {
+                    doodles.Add(new GenerationDataDoodle(type, null, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength, imageReference.asset.guid));
                 }
             }
             return doodles;
@@ -279,14 +283,16 @@ namespace Unity.AI.Image.Services.Utilities
         public string label;
         public float strength;
         public bool invertStrength;
+        public string assetReferenceGuid;
 
-        public GenerationDataDoodle(ImageReferenceType referenceType, byte[] doodleData, string label, float strength, bool invertStrength)
+        public GenerationDataDoodle(ImageReferenceType referenceType, byte[] doodleData, string label, float strength, bool invertStrength, string assetReferenceGuid)
         {
             doodleReferenceType = referenceType;
             doodle = doodleData;
             this.label = label;
             this.strength = strength;
             this.invertStrength = invertStrength;
+            this.assetReferenceGuid = assetReferenceGuid;
         }
     }
 }

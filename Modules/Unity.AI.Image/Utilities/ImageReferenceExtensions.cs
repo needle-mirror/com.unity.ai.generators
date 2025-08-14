@@ -206,7 +206,8 @@ namespace Unity.AI.Image.Services.Utilities
                 else
                     menu.AddDisabledItem(new GUIContent("Clear"));
 
-                var canPaste = EditorGUIUtility.systemCopyBuffer.StartsWith("MetadataDoodleBytes:");
+                var canPaste = EditorGUIUtility.systemCopyBuffer.StartsWith("MetadataDoodleBytes:") ||
+                    EditorGUIUtility.systemCopyBuffer.StartsWith("MetadataAssetRef:");
                 if (canPaste)
                     menu.AddItem(new GUIContent("Paste"), false, TryPaste);
                 else
@@ -240,6 +241,7 @@ namespace Unity.AI.Image.Services.Utilities
 
                 e.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (e.type, ImageReferenceMode.Asset));
                 e.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (e.type, null));
+                e.Dispatch(GenerationSettingsActions.setImageReferenceAsset, new (e.type, null));
                 // also set the asset to None for consistency
                 objectField.value = null;
             }
@@ -248,10 +250,26 @@ namespace Unity.AI.Image.Services.Utilities
             {
                 try
                 {
-                    var imageString = EditorGUIUtility.systemCopyBuffer.Replace("MetadataDoodleBytes:", "");
-                    var bytes = Convert.FromBase64String(imageString);
-                    e.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (e.type, ImageReferenceMode.Doodle));
-                    e.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (e.type, bytes));
+                    var buffer = EditorGUIUtility.systemCopyBuffer;
+                    const string doodlePrefix = "MetadataDoodleBytes:";
+                    const string assetPrefix = "MetadataAssetRef:";
+
+                    if(buffer.StartsWith("MetadataDoodleBytes:"))
+                    {
+                        var imageString = buffer.Substring(doodlePrefix.Length);
+                        var bytes = Convert.FromBase64String(imageString);
+                        e.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (e.type, ImageReferenceMode.Doodle));
+                        e.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (e.type, bytes));
+                    }
+                    else if(buffer.StartsWith("MetadataAssetRef:"))
+                    {
+                        var imageGuid = buffer.Substring(assetPrefix.Length);
+                        var assetPath = AssetDatabase.GUIDToAssetPath(imageGuid);
+                        var assetRef = AssetReferenceExtensions.FromPath(assetPath);
+
+                        e.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (e.type, ImageReferenceMode.Asset));
+                        e.Dispatch(GenerationSettingsActions.setImageReferenceAsset, new (e.type, assetRef));
+                    }
                 }
                 catch
                 {

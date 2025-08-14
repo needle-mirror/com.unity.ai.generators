@@ -216,6 +216,7 @@ namespace Unity.AI.Image.Components
             m_SpinnerManipulator.Stop();
 
             m_Label.SetShown(result is TextureSkeleton);
+            m_Type.SetShown(false);
 
             image.style.backgroundImage = null;
 

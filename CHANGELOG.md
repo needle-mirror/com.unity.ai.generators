@@ -4,6 +4,17 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.19] - 2025-08-14
+
+### Added
+
+- Added Asset Reference field in Generation Data for sprite generators.
+
+### Fixed
+
+- Fixed badge visibility on non-upscaled generations.
+- Fixed Asset Reference not being cleared correctly in Image references.
+
 ## [1.0.0-pre.18] - 2025-08-12
 
 ### Added

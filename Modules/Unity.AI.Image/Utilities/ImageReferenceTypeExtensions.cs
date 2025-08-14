@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
@@ -132,6 +133,13 @@ namespace Unity.AI.Image.Utilities
         {
             imageReference.Dispatch(GenerationSettingsActions.setImageReferenceDoodle, new (type, data));
             imageReference.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (type, ImageReferenceMode.Doodle));
+            imageReference.Dispatch(GenerationSettingsActions.setImageReferenceActive, new (type, true));
+        }
+
+        public static void SetAssetReferenceObjectData(this ImageReferenceType type, VisualElement imageReference, AssetReference assetReference)
+        {
+            imageReference.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (type, ImageReferenceMode.Asset));
+            imageReference.Dispatch(GenerationSettingsActions.setImageReferenceAsset, new (type, assetReference));
             imageReference.Dispatch(GenerationSettingsActions.setImageReferenceActive, new (type, true));
         }
 

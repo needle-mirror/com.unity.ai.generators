@@ -15,18 +15,6 @@ namespace Unity.AI.Generators.Asset
         public static string GetGeneratedAssetsPath(string assetGuid) => Path.Combine(GetGeneratedAssetsRoot(), assetGuid);
         public static string GetGeneratedAssetsPath(this AssetReference asset) => GetGeneratedAssetsPath(asset.GetGuid());
 
-#if UNITY_AI_GENERATED_ASSETS_FOLDER_FIX
-        [InitializeOnLoadMethod]
-        static void FixGeneratedAssetsFolderOnLoad()
-        {
-            if (Application.isBatchMode)
-                return;
-
-            FolderIO.TryMergeAndAlwaysDeleteFolder(k_GeneratedAssetsRootDeprecated, GetGeneratedAssetsRoot());
-        }
-
-        const string k_GeneratedAssetsRootDeprecated = "Generated Assets";
-#endif
         public static string GetPath(this AssetReference asset) => !asset.IsValid() ? string.Empty : AssetDatabase.GUIDToAssetPath(asset.guid);
 
         public static string GetGuid(this AssetReference asset) => asset.guid;
