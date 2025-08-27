@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.Selectors;
@@ -10,6 +11,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Material.Components
@@ -25,6 +27,8 @@ namespace Unity.AI.Material.Components
 
         public MapType mapTypeValue => (MapType)Enum.Parse(typeof(MapType), mapType);
 
+        IReadOnlyDictionary<string, string> m_ShaderTextureProperties;
+
         public TexturePropertyField()
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
@@ -34,15 +38,22 @@ namespace Unity.AI.Material.Components
             AddToClassList("texture-property-field");
 
             this.UseAsset(SetAsset);
-            this.UseArray(state => Selectors.SelectGeneratedMaterialMapping(state, this), results => {
+            this.UseArray(state => Selectors.SelectGeneratedMaterialMapping(state, this), results =>
+            {
                 var choice = results.FirstOrDefault(p => p.Key == mapTypeValue);
                 if (!choice.Equals(default(KeyValuePair<MapType, string>)))
+                {
                     SetValueWithoutNotify(choice.Value);
+                    textElement.parent.tooltip = textElement.text;
+                }
             });
 
             RegisterCallback<FocusEvent>(_ => SetAsset(this.GetAsset()));
             this.RegisterValueChangedCallback(evt =>
-                this.Dispatch(GenerationResultsActions.setGeneratedMaterialMapping, new GenerationMaterialMappingData(this.GetAsset(), mapTypeValue, evt.newValue)));
+            {
+                this.Dispatch(GenerationResultsActions.setGeneratedMaterialMapping, new GenerationMaterialMappingData(this.GetAsset(), mapTypeValue, evt.newValue));
+                textElement.parent.tooltip = textElement.text;
+            });
         }
 
         void SetAsset(AssetReference asset)
@@ -61,6 +72,25 @@ namespace Unity.AI.Material.Components
             }
 
             choices = material.GetTexturePropertyNames().Prepend(GenerationResult.noneMapping).ToList();
+            m_ShaderTextureProperties = material.MapShaderNameToDescription();
+
+            formatSelectedValueCallback = FormatItem;
+            formatListItemCallback = FormatItem;
+
+            textElement.parent.pickingMode = PickingMode.Position;
+        }
+
+        string FormatItem(string data)
+        {
+            if (m_ShaderTextureProperties == null || data.Equals("None"))
+                return data;
+
+            var description = m_ShaderTextureProperties.GetValueOrDefault(data, data);
+
+            if (string.IsNullOrEmpty(description) || description.Equals(data))
+                return data;
+
+            return $"{description} ({data})";
         }
     }
 }

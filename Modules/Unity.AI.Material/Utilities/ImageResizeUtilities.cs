@@ -10,15 +10,73 @@ namespace Unity.AI.Material.Services.Utilities
         const int k_MinSize = 128;
         const int k_MaxSize = 2048;
 
+        public static byte[] ProcessImageForBackend(byte[] imageBytes, bool needsAlphaStrip, bool needsResize)
+        {
+            if (imageBytes == null || imageBytes.Length == 0 || (!needsAlphaStrip && !needsResize))
+                return imageBytes;
+
+            var previousActive = RenderTexture.active;
+            Texture2D sourceTexture = null;
+            Texture2D resultTexture = null;
+            RenderTexture rt1 = null;
+            RenderTexture rt2 = null;
+            Texture blitSource = null;
+
+            try
+            {
+                sourceTexture = new Texture2D(2, 2);
+                sourceTexture.LoadImage(imageBytes);
+                blitSource = sourceTexture;
+
+                if (needsAlphaStrip)
+                {
+                    rt1 = RenderTexture.GetTemporary(sourceTexture.width, sourceTexture.height);
+                    Graphics.Blit(sourceTexture, rt1, ImageFileUtilities.AlphaToGrayMaterial);
+                    blitSource = rt1;
+                }
+
+                if (needsResize)
+                {
+                    var targetSize = CalcTargetSize(sourceTexture.width, sourceTexture.height);
+                    rt2 = RenderTexture.GetTemporary(targetSize, targetSize);
+                    Graphics.Blit(blitSource, rt2);
+
+                    var targetFormat = (needsAlphaStrip || !ImageFileUtilities.HasAlphaChannel(imageBytes)) ? TextureFormat.RGB24 : TextureFormat.RGBA32;
+                    resultTexture = new Texture2D(targetSize, targetSize, targetFormat, false);
+                    RenderTexture.active = rt2;
+                    resultTexture.ReadPixels(new Rect(0, 0, targetSize, targetSize), 0, 0);
+                }
+                else // only alpha stripping was needed
+                {
+                    resultTexture = new Texture2D(sourceTexture.width, sourceTexture.height, TextureFormat.RGB24, false);
+                    RenderTexture.active = rt1;
+                    resultTexture.ReadPixels(new Rect(0, 0, rt1.width, rt1.height), 0, 0);
+                }
+
+                resultTexture.Apply();
+                return resultTexture.EncodeToPNG();
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                if (rt1)
+                    RenderTexture.ReleaseTemporary(rt1);
+                if (rt2)
+                    RenderTexture.ReleaseTemporary(rt2);
+                sourceTexture?.SafeDestroy();
+                resultTexture?.SafeDestroy();
+            }
+        }
+
         /// <summary>
         /// The 1P texture model has a very limited input size and format support.
         /// </summary>
-        public static byte[] ResizeForPbr(byte[] imageBytes, bool keepAlpha = false)
+        public static byte[] ResizeForPbr(byte[] imageBytes)
         {
             if (imageBytes == null || imageBytes.Length == 0)
                 return imageBytes;
 
-            if (!NeedsResize(imageBytes, keepAlpha))
+            if (!NeedsResize(imageBytes))
                 return imageBytes;
 
             var previousActive = RenderTexture.active;
@@ -35,7 +93,9 @@ namespace Unity.AI.Material.Services.Utilities
 
                 Graphics.Blit(sourceTexture, rt);
 
-                var resultTexture = new Texture2D(targetSize, targetSize, keepAlpha ? TextureFormat.RGBA32 : TextureFormat.RGB24, false);
+                var targetFormat = ImageFileUtilities.HasAlphaChannel(imageBytes) ? TextureFormat.RGBA32 : TextureFormat.RGB24;
+
+                var resultTexture = new Texture2D(targetSize, targetSize, targetFormat, false);
                 RenderTexture.active = rt;
                 resultTexture.ReadPixels(new Rect(0, 0, targetSize, targetSize), 0, 0);
                 resultTexture.Apply();
@@ -54,7 +114,7 @@ namespace Unity.AI.Material.Services.Utilities
         /// <summary>
         /// The 1P texture model has a very limited input size and format support.
         /// </summary>
-        public static Stream ResizeForPbr(Stream inputStream, bool keepAlpha = false)
+        public static Stream ResizeForPbr(Stream inputStream)
         {
             if (inputStream == null || inputStream.Length == 0)
                 return inputStream;
@@ -74,7 +134,7 @@ namespace Unity.AI.Material.Services.Utilities
 
                 inputStream.Position = 0;
 
-                var needsResize = NeedsResize(headerBuffer, keepAlpha);
+                var needsResize = NeedsResize(headerBuffer);
                 if (!needsResize)
                 {
                     inputStream.Position = originalPosition;
@@ -82,7 +142,7 @@ namespace Unity.AI.Material.Services.Utilities
                 }
 
                 var imageBytes = inputStream.ReadFully();
-                var resultBytes = ResizeForPbr(imageBytes, keepAlpha);
+                var resultBytes = ResizeForPbr(imageBytes);
 
                 return new MemoryStream(resultBytes);
             }
@@ -100,7 +160,7 @@ namespace Unity.AI.Material.Services.Utilities
         /// <summary>
         /// The 1P texture model has a very limited input size and format support.
         /// </summary>
-        public static bool NeedsResize(byte[] headerBytes, bool keepAlpha = false)
+        public static bool NeedsResize(byte[] headerBytes)
         {
             if (!ImageFileUtilities.TryGetImageDimensions(headerBytes, out var width, out var height))
                 return true;
@@ -114,7 +174,7 @@ namespace Unity.AI.Material.Services.Utilities
                 {
                     return extension switch
                     {
-                        ".png" => !keepAlpha && ImageFileUtilities.HasPngAlphaChannel(headerBytes),
+                        ".png" => false,
                         ".jpg" => false,
                         _ => true
                     };
@@ -127,7 +187,7 @@ namespace Unity.AI.Material.Services.Utilities
         /// <summary>
         /// The 1P texture model has a very limited input size and format support.
         /// </summary>
-        public static bool NeedsResize(Stream stream, bool keepAlpha = false)
+        public static bool NeedsResize(Stream stream)
         {
             if (stream == null || stream.Length == 0)
                 return false;
@@ -145,7 +205,7 @@ namespace Unity.AI.Material.Services.Utilities
                 var headerBuffer = new byte[bytesRead];
                 Array.Copy(headerBytes, headerBuffer, bytesRead);
 
-                return NeedsResize(headerBuffer, keepAlpha);
+                return NeedsResize(headerBuffer);
             }
             finally
             {

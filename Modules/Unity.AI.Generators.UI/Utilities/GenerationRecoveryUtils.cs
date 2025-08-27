@@ -13,7 +13,7 @@ namespace Unity.AI.Generators.UI.Utilities
     static class GenerationRecoveryUtils
     {
         public static string sessionId = Guid.NewGuid().ToString();
-        
+
         /// <summary>
         /// Loads interrupted downloads from a JSON file.
         /// </summary>
@@ -135,6 +135,64 @@ namespace Unity.AI.Generators.UI.Utilities
         }
 
         /// <summary>
+        /// Removes a specific set of job IDs from a single interrupted download entry,
+        /// identified by its unique task ID. If all job IDs are removed, the entire entry is deleted.
+        /// </summary>
+        /// <typeparam name="TData">The type of the download data, which must implement IInterruptedDownloadData.</typeparam>
+        /// <param name="dictionary">The dictionary of interrupted downloads.</param>
+        /// <param name="environment">The environment key.</param>
+        /// <param name="uniqueTaskId">The unique ID of the download entry to modify.</param>
+        /// <param name="idsToRemove">The collection of specific job IDs to remove from the entry.</param>
+        /// <returns>True if the dictionary was modified (either partially or by full removal), otherwise false.</returns>
+        public static bool RemovePartialInterruptedDownload<TData>(
+            this IDictionary<string, List<TData>> dictionary,
+            string environment,
+            string uniqueTaskId,
+            IReadOnlyCollection<string> idsToRemove) where TData : IInterruptedDownloadData
+        {
+            if (string.IsNullOrEmpty(environment) || string.IsNullOrEmpty(uniqueTaskId))
+                return false;
+
+            if (!dictionary.TryGetValue(environment, out var downloads) || downloads == null)
+                return false;
+
+            var download = downloads.FirstOrDefault(d => d != null && d.uniqueTaskId == uniqueTaskId);
+            if (download == null)
+                return false;
+
+            // If no specific IDs are provided to remove, or if the request is to remove all (or more) IDs,
+            // then we remove the entire download entry.
+            if (idsToRemove == null || idsToRemove.Count == 0 || idsToRemove.Count >= download.jobIds.Count)
+            {
+                return downloads.Remove(download);
+            }
+
+            // Perform a partial removal of the specified IDs.
+            var remainingIds = download.jobIds.ToList();
+            var initialCount = remainingIds.Count;
+
+            // This is more efficient than Contains in a loop if idsToRemove is large.
+            var idsToRemoveSet = new HashSet<string>(idsToRemove);
+            remainingIds.RemoveAll(id => idsToRemoveSet.Contains(id));
+
+            // If no IDs were actually removed, no modification was made.
+            if (initialCount == remainingIds.Count)
+            {
+                return false;
+            }
+
+            // If the partial removal resulted in an empty list, remove the entire entry.
+            if (remainingIds.Count == 0)
+            {
+                return downloads.Remove(download);
+            }
+
+            // Otherwise, update the existing entry with the smaller list of IDs.
+            download.jobIds = new ImmutableStringList(remainingIds);
+            return true;
+        }
+
+        /// <summary>
         /// Gets interrupted downloads for a specific asset.
         /// </summary>
         /// <typeparam name="TData">Type of the interrupted download data</typeparam>
@@ -166,7 +224,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             var hasChanges = false;
             var keysToCheck = dictionary.Keys.ToList();
-            
+
             foreach (var key in keysToCheck)
             {
                 var list = dictionary[key];
@@ -181,7 +239,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 var nullCount = list.RemoveAll(item => item == null);
                 if (nullCount <= 0)
                     continue;
-                
+
                 Debug.LogWarning($"Removed {nullCount} null entries from environment '{key}'.");
                 hasChanges = true;
             }

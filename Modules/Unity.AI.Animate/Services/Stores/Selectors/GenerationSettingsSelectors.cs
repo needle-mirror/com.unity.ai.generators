@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Animate.Services.Stores.Actions;
@@ -61,29 +60,29 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             return modelSettings?.name;
         }
 
-        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
+        public static List<string> SelectRefinementOperations(this IState state, AssetReference asset)
         {
             var mode = state.SelectRefinementMode(asset);
             var operations = mode switch
             {
-                RefinementMode.TextToMotion => new[] { OperationSubTypeEnum.TextPrompt },
-                RefinementMode.VideoToMotion => new[] { OperationSubTypeEnum.ReferencePrompt },
-                _ => new[] { OperationSubTypeEnum.TextPrompt }
+                RefinementMode.TextToMotion => new[] { ModelConstants.Operations.TextPrompt },
+                RefinementMode.VideoToMotion => new[] { ModelConstants.Operations.ReferencePrompt },
+                _ => new[] { ModelConstants.Operations.TextPrompt }
             };
             return operations.ToList();
         }
-        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+        public static List<string> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Animate },
-                state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Animate },
+                operations: state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Animate },
-                state.SelectRefinementOperations(element).ToArray());
+            ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Animate },
+                operations: state.SelectRefinementOperations(element).ToArray());
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {

@@ -53,7 +53,7 @@ namespace Unity.AI.Image.Components
             m_GridView.MakeTileGrid(GetPreviewSize);
             this.UseAsset(SetAsset);
             this.Use(state => state.SelectPreviewSizeFactor(), OnPreviewSizeChanged);
-            this.UseArray(state => state.SelectGeneratedTexturesAndSkeletons(this), OnGeneratedTexturesChanged);
+            this.Use(state => state.CalculateSelectorHash(this), OnGeneratedTexturesChanged);
 
             this.Use(state => state.SelectSelectedGeneration(this), OnGenerationSelected);
             this.UseArray(state => state.SelectGenerationProgress(this), OnGenerationProgressChanged);
@@ -107,7 +107,7 @@ namespace Unity.AI.Image.Components
                 new(asset, m_ElementID, m_GridView.IsElementShown() ? count : 0));
         }
 
-        void OnGeneratedTexturesChanged(List<TextureResult> textures) => UpdateItems(textures);
+        void OnGeneratedTexturesChanged(int _) => UpdateItems(this.GetState().SelectGeneratedTexturesAndSkeletons(this));
 
         void UpdateItems(IEnumerable<TextureResult> textures)
         {
@@ -117,6 +117,9 @@ namespace Unity.AI.Image.Components
 
         void SetAsset(AssetReference asset)
         {
+            if (asset.IsValid() && assetMonitor)
+                this.Dispatch(GenerationResultsActions.pruneFulfilledSkeletons, new(this.GetAsset()));
+
             OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize()));
 
             this.RemoveManipulator(m_GenerationFileSystemWatcher);

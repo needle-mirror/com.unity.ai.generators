@@ -34,6 +34,9 @@ namespace Unity.AI.ModelSelector.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
+            EnableInClassList("light-theme", !EditorGUIUtility.isProSkin);
+            EnableInClassList("dark-theme", EditorGUIUtility.isProSkin);
+
             AddToClassList("model-tile");
 
             m_ModelTileCarousel = this.Q<ModelTileCarousel>();

@@ -50,7 +50,7 @@ namespace Unity.AI.Material.Components
             m_GridView.MakeTileGrid(GetPreviewSize);
             this.UseAsset(SetAsset);
             this.Use(state => state.SelectPreviewSizeFactor(), OnPreviewSizeChanged);
-            this.UseArray(state => state.SelectGeneratedMaterialsAndSkeletons(this), OnGeneratedTexturesChanged);
+            this.Use(state => state.CalculateSelectorHash(this), OnGeneratedMaterialsChanged);
 
             this.Use(state => state.SelectSelectedGeneration(this), OnGenerationSelected);
             this.UseArray(state => state.SelectGenerationProgress(this), OnGenerationProgressChanged);
@@ -104,7 +104,7 @@ namespace Unity.AI.Material.Components
                 new(asset, m_ElementID, m_GridView.IsElementShown() ? count : 0));
         }
 
-        void OnGeneratedTexturesChanged(List<MaterialResult> materials) => UpdateItems(materials);
+        void OnGeneratedMaterialsChanged(int _) => UpdateItems(this.GetState().SelectGeneratedMaterialsAndSkeletons(this));
 
         void UpdateItems(IEnumerable<MaterialResult> materials)
         {
@@ -114,6 +114,9 @@ namespace Unity.AI.Material.Components
 
         void SetAsset(AssetReference asset)
         {
+            if (asset.IsValid() && assetMonitor)
+                this.Dispatch(GenerationResultsActions.pruneFulfilledSkeletons, new(this.GetAsset()));
+
             OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize()));
 
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
@@ -124,8 +127,7 @@ namespace Unity.AI.Material.Components
             if (!asset.IsValid() || !assetMonitor)
                 return;
 
-            m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset,
-                new[] { $"_{MapType.Preview}.png", $"_{MapType.Preview}.jpg", $"_{MapType.Preview}.exr", AssetUtils.materialExtension, AssetUtils.terrainLayerExtension },
+            m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, AssetUtils.supportedGeneratedExtensions,
                 files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedMaterialsAsync,
                     new(asset, files.Select(MaterialResult.FromPath).ToList())));
             this.AddManipulator(m_GenerationFileSystemWatcher);

@@ -37,6 +37,11 @@ namespace Unity.AI.Animate.Services.Utilities
 
         public int progressTaskId => taskId;
         public string uniqueTaskId => uniqueId;
+        public ImmutableStringList jobIds
+        {
+            get => ids;
+            set => ids = value;
+        }
     }
 
     static class GenerationRecovery
@@ -124,7 +129,7 @@ namespace Unity.AI.Animate.Services.Utilities
             s_InterruptedDownloadsByEnv.CleanupNullEntries();
             GenerationRecoveryUtils.SaveInterruptedDownloads(s_InterruptedDownloadsByEnv, interruptedDownloadsFilePath);
         }
-        
+
         /// <summary>
         /// Path to the file where interrupted downloads are stored.
         /// Can be overridden for testing purposes.

@@ -58,7 +58,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                         $"Invalid Unity Cloud configuration. Could not obtain organizations for user \"{UnityConnectProvider.userName}\"."
                     };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
-                        new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                        new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
 
@@ -74,7 +74,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 {
                     var messages = new[] { "Selected asset is invalid. Please select a valid asset." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
-                        new(arg.asset, new(false, AiResultErrorEnum.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                        new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
 
@@ -96,7 +96,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 {
                     var messages = new[] { "No model selected. Please select a valid model." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
-                        new(arg.asset, new(false, AiResultErrorEnum.UnknownModel, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                        new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.UnknownModel, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
 
@@ -145,15 +145,17 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,
-                            new(quoteResults.Result.IsSuccessful, errorEnum, 0,
+                            new(quoteResults.Result.IsSuccessful, errorEnum.ToString(), 0,
                                 messages.Select(m => new GenerationFeedbackData(m)).ToList())));
                     return;
                 }
 
+                var errEnum = !quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown;
+
                 api.Dispatch(GenerationActions.setGenerationValidationResult,
                     new(arg.asset,
                         new(quoteResults.Result.IsSuccessful,
-                            (!quoteResults.Result.IsSuccessful ? quoteResults.Result.Error.AiResponseError : AiResultErrorEnum.Unknown),
+                            errEnum.ToString(),
                             quoteResults.Result.Value.PointsCost, new List<GenerationFeedbackData>())));
             }
             finally

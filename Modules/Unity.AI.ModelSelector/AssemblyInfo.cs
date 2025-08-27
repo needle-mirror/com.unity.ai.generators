@@ -9,6 +9,9 @@ using UnityEditor.UIElements;
 [assembly: InternalsVisibleTo("Unity.AI.Material")]
 [assembly: InternalsVisibleTo("Unity.AI.Sound")]
 
+// Tests
+[assembly: InternalsVisibleTo("Unity.AI.Toolkit.Tests")]
+
 // We need to add this to make the record type work in Unity with the init keyword
 // The type System.Runtime.CompilerServices.IsExternalInit is defined in .NET 5 and later, which Unity does not support yet
 namespace System.Runtime.CompilerServices

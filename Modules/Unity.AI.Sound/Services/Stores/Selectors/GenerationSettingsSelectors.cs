@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Sound.Services.Stores.Actions;
@@ -53,10 +52,10 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
         }
 
         public static (bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
-            (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Sound }, null),
+            (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Sound }, operations: null),
                 timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Sound }, null);
+            ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), new[] { ModelConstants.Modalities.Sound }, null);
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {

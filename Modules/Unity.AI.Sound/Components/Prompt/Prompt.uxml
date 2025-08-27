@@ -1,4 +1,5 @@
 <UXML xmlns="UnityEngine.UIElements">
+    <Style src="./Prompt.uss"/>
     <VisualElement class="p-4 flex-row justify-between" tooltip="Use a few descriptive keywords to guide the AI to generate content.">
         <Label class="font-bold" text="Prompt"/>
         <Label name="prompt-limit-indicator" class="prompt-limit-indicator" text="0/1024" tooltip="Character limit for Prompt"/>

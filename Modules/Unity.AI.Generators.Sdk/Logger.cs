@@ -13,11 +13,10 @@ namespace Unity.AI.Generators.Sdk
         {
             try
             {
-                if (LoggerUtilities.sdkLogLevel == 0)
-                    return;
-
                 EditorTask.RunOnMainThread(() =>
                 {
+                    if (LoggerUtilities.sdkLogLevel == 0)
+                        return;
                     Debug.Log(message);
                 });
             }
@@ -33,11 +32,10 @@ namespace Unity.AI.Generators.Sdk
             {
                 lastException = exception;
 
-                if (LoggerUtilities.sdkLogLevel == 0)
-                    return;
-
                 EditorTask.RunOnMainThread(() =>
                 {
+                    if (LoggerUtilities.sdkLogLevel == 0)
+                        return;
                     Debug.Log(message);
                     LoggerUtilities.LogExceptionAsLog(exception);
                 });
@@ -54,11 +52,10 @@ namespace Unity.AI.Generators.Sdk
             {
                 lastException = exception;
 
-                if (LoggerUtilities.sdkLogLevel == 0)
-                    return;
-
                 EditorTask.RunOnMainThread(() =>
                 {
+                    if (LoggerUtilities.sdkLogLevel == 0)
+                        return;
                     LoggerUtilities.LogExceptionAsLog(exception);
                 });
             }

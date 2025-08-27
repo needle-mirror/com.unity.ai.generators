@@ -8,6 +8,7 @@ using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
 using UnityEngine.UIElements;
@@ -21,6 +22,8 @@ namespace Unity.AI.Material.Components
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
+
+            this.SetupInfoIcon();
 
             this.Q<Splitter>("vertical-splitter").Bind(
                 this,

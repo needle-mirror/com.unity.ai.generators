@@ -19,19 +19,19 @@ namespace Unity.AI.Generators.UI.Utilities
         /// <param name="onOptionSelected"></param>
         /// <returns>A task that completes when the user makes a choice, with a tuple containing whether there are
         /// interrupted downloads and which option was selected</returns>
-        public static async Task<bool> ShowResumeDownloadPopup(IEnumerable<IInterruptedDownloadData> interruptedDownloads, Action<int> onOptionSelected)
+        public static async Task<bool> ShowResumeDownloadPopup(IEnumerable<IInterruptedDownloadBase> interruptedDownloads, Action<int> onOptionSelected)
         {
             var hasInterruptedDownloads = false;
-            
+
             // Track already processed unique task IDs to avoid duplicate checks
             var processedUniqueIds = new HashSet<string>();
-            
+
             foreach (var data in interruptedDownloads)
             {
                 // Skip if we've already processed this unique task ID
                 if (!string.IsNullOrEmpty(data.uniqueTaskId) && !processedUniqueIds.Add(data.uniqueTaskId))
                     continue;
-                
+
                 // Check using the progress task ID from the interface
                 if (!Progress.Exists(data.progressTaskId))
                 {

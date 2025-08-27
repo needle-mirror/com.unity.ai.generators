@@ -16,7 +16,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
-using AiEditorToolsSdk.Components.Common.Enums;
 
 namespace Unity.AI.Animate.Components
 {

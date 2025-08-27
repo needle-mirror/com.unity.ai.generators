@@ -31,13 +31,13 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 name = info.Name,
                 tags = info.Tags,
                 description = info.Description,
-                provider = info.Provider,
+                provider = info.Provider.ToString(),
                 thumbnails = info.ThumbnailsUrls.ToList(),
                 icon = info.IconImageUrl,
-                modality = info.Modality,
+                modality = info.Modality.ToString(),
                 baseModelId = info.BaseModelId == Guid.Empty ? null : info.BaseModelId.ToString(),
                 isFavorite = isFavorite,
-                operations = info.OperationSubTypes.SelectMany(r => r).Distinct().ToList(),
+                operations = info.OperationSubTypes.SelectMany(r => r).Select(ost => ost.ToString()).Distinct().ToList(),
                 nativeResolution = new ImageDimensions { width = info.NativeResolutionWidth, height = info.NativeResolutionHeight },
                 imageSizes = info.ImageSizes
                     .Select(r => new ImageDimensions { width = r.Width, height = r.Height })
@@ -58,7 +58,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             return model;
         }
 
-        const string k_PreferredFavorite = "gpt image";
+        static readonly List<string> k_PreferredFavorites = new() { "gpt image", "flux.1 dev" };
 
         // Prevents concurrent execution globally of fetchModels when multiple requests overlap
         static readonly SemaphoreSlim k_Mutex = new(1, 1);
@@ -168,7 +168,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                         {
                             var isFavorite = favoritesSuccessful && favoritesResults.Result.Value
                                 .Any(f => f.GenerativeModelId == modelResult.GenerativeModelId);
-                            if (modelResult.Name.ToLower().StartsWith(k_PreferredFavorite))
+                            if (k_PreferredFavorites.Any(preferred => modelResult.Name.ToLower().StartsWith(preferred)))
                                 isFavorite = true;
                             models.Add(FromSuperProxy(modelResult, isFavorite));
                         }

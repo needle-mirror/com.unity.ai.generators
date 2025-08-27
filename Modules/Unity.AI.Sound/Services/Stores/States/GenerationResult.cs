@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Sound.Services.Undo;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Redux.Toolkit;
@@ -36,7 +36,7 @@ namespace Unity.AI.Sound.Services.Stores.States
         public AssetUndoManager assetUndoManager;
         public bool replaceWithoutConfirmation;
         public SerializableDictionary<string, GeneratedResultSelectorSettings> generatedResultSelectorSettings = new();
-        public GenerationValidationResult generationValidation = new(false, AiResultErrorEnum.Unknown, 1, new List<GenerationFeedbackData>());
+        public GenerationValidationResult generationValidation = new(false, BackendServiceConstants.ErrorTypes.Unknown, 1, new List<GenerationFeedbackData>());
     }
 
     [Serializable]

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
@@ -39,7 +38,7 @@ namespace Unity.AI.Image.Services.Stores.States
         public bool replaceWithoutConfirmation;
         public Action<AssetReference> promoteNewAssetPostAction = null;
         public SerializableDictionary<string, GeneratedResultSelectorSettings> generatedResultSelectorSettings = new();
-        public GenerationValidationResult generationValidation = new(true, AiResultErrorEnum.Unknown, 0, new List<GenerationFeedbackData>());
+        public GenerationValidationResult generationValidation = new(true, BackendServiceConstants.ErrorTypes.Unknown, 0, new List<GenerationFeedbackData>());
     }
 
     [Serializable]

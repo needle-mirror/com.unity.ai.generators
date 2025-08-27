@@ -56,21 +56,20 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
         public static IEnumerable<TextureSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
 
         /// <summary>
-        /// Returns a combined list of generated textures and skeletons for an element.
+        /// Returns a combined, deferred-execution collection of generated textures and skeletons for an element.
         ///
         /// This method intelligently filters out skeletons that have already been fulfilled
         /// with a corresponding TextureResult. The logic is as follows:
         ///
-        /// 1. All texture results are included (completed generations)
-        /// 2. Skeletons are included only if:
-        ///    - They don't have a corresponding entry in fulfilledSkeletons, OR
-        ///    - Their corresponding fulfilledSkeleton doesn't yet have a matching TextureResult
+        /// 1. All texture results are included (completed generations).
+        /// 2. Skeletons are included only if they don't have a corresponding fulfilled texture.
+        /// 3. For a given taskID, we exclude exactly the number of skeletons that have been fulfilled.
         ///
         /// This ensures we don't show duplicate items for both the skeleton and its result.
         /// </summary>
         /// <param name="state">The state to select from</param>
         /// <param name="element">The visual element associated with the asset</param>
-        /// <returns>Combined collection of TextureResults and TextureSkeletons</returns>
+        /// <returns>A deferred-execution collection of TextureResults and TextureSkeletons.</returns>
         public static IEnumerable<AudioClipResult> SelectGeneratedAudioClipsAndSkeletons(this IState state, VisualElement element)
         {
             var generationResults = state.SelectGenerationResult(element);
@@ -78,30 +77,93 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             var skeletons = generationResults.generatedSkeletons;
             var fulfilledSkeletons = generationResults.fulfilledSkeletons;
 
-            // Create a HashSet of result URIs for O(1) lookups
-            var audioClipUris = new HashSet<string>(
-                audioClips
-                    .Where(audioClip => audioClip.uri != null)
-                    .Select(audioClip => audioClip.uri.GetAbsolutePath())
-            );
-
-            // Find skeletons that have been fulfilled and have matching audio clip results
-            var skeletonsToExclude = new HashSet<int>();
-
-            foreach (var fulfilled in fulfilledSkeletons)
+            // 1. Yield all generated audioClips immediately. They are always included.
+            // This uses deferred execution, returning items one by one as the caller iterates.
+            foreach (var audioClip in audioClips)
             {
-                // Check if this fulfilled skeleton has a matching audio clip result using O(1) lookup
-                if (audioClipUris.Contains(fulfilled.resultUri))
-                {
-                    skeletonsToExclude.Add(fulfilled.progressTaskID);
-                }
+                yield return audioClip;
             }
 
-            // Filter skeletons to include only those not in the exclude list
-            var filteredSkeletons = skeletons.Where(skeleton => !skeletonsToExclude.Contains(skeleton.taskID));
+            // Early exit if there are no skeletons to process.
+            if (skeletons.Count == 0)
+            {
+                yield break;
+            }
 
-            // Return all audio clip results plus the filtered skeletons
-            return filteredSkeletons.Concat(audioClips);
+            // 2. Create a fast lookup set of fulfilled audioClip URIs for O(1) access.
+            // This is the core performance optimization. We get the absolute path to match
+            // the string format used in the original function's logic.
+            var fulfilledAudioClipUris = new HashSet<string>(
+                audioClips
+                    .Where(t => t.uri != null)
+                    .Select(t => t.uri.GetAbsolutePath())
+            );
+
+            // 3. Calculate how many skeletons have been fulfilled for each task ID.
+            // We group the `FulfilledSkeleton` records by task ID and, for each group,
+            // count how many of their result URIs exist in our fast lookup set.
+            var fulfilledCountByTaskId = fulfilledSkeletons
+                .GroupBy(fs => fs.progressTaskID)
+                .ToDictionary(
+                    group => group.Key, // The task ID
+                    group => group.Count(fs => fulfilledAudioClipUris.Contains(fs.resultUri))
+                );
+
+            // 4. Group the pending skeletons by task ID and yield the ones that haven't been fulfilled.
+            foreach (var skeletonGroup in skeletons.GroupBy(s => s.taskID))
+            {
+                var taskId = skeletonGroup.Key;
+                var countToSkip = fulfilledCountByTaskId.GetValueOrDefault(taskId, 0);
+
+                // Using LINQ's Skip() is a declarative way to ignore the fulfilled items.
+                // We then yield the remaining skeletons in the group.
+                foreach (var remainingSkeleton in skeletonGroup.Skip(countToSkip))
+                {
+                    // This works because AudioClipSkeleton inherits from AudioClipResult.
+                    yield return remainingSkeleton;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Calculates a deterministic hash code based on the state that influences the
+        /// SelectGeneratedAudioClipsAndSkeletons selector. If this hash code changes,
+        /// the output of the selector has likely changed.
+        ///
+        /// This is a high-performance way to check for changes without running the full
+        /// selector logic. It is designed to have no false negatives (a change in the
+        /// output will always change the hash) but may have rare false positives.
+        /// </summary>
+        /// <param name="state"></param>
+        /// <param name="element"></param>
+        /// <returns>An integer hash code representing the relevant state.</returns>
+        public static int CalculateSelectorHash(this IState state, VisualElement element)
+        {
+            var generationResults = state.SelectGenerationResult(element);
+            if (generationResults == null)
+                return 0;
+
+            // Use the modern HashCode struct for robust hash combining.
+            var hc = new HashCode();
+
+            // The final list depends on these three source collections.
+            // We combine their content-based hash codes.
+            // Note: The default GetHashCode() for a record is value-based, which is perfect here.
+
+            foreach (var audioClip in generationResults.generatedAudioClips)
+            {
+                hc.Add(audioClip.GetHashCode());
+            }
+            foreach (var skeleton in generationResults.generatedSkeletons)
+            {
+                hc.Add(skeleton.GetHashCode());
+            }
+            foreach (var fulfilled in generationResults.fulfilledSkeletons)
+            {
+                hc.Add(fulfilled.GetHashCode());
+            }
+
+            return hc.ToHashCode();
         }
 
         public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAudioClips.Count > 0;

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using AiEditorToolsSdk.Components.Asset.Responses;
 using AiEditorToolsSdk.Components.Common.Enums;
@@ -9,6 +8,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
 using Unity.AI.Toolkit.Connect;
 using UnityEditor;
@@ -62,7 +62,7 @@ namespace Unity.AI.Generators.UI.Actions
             var messages = new[] { "Validating user, project and organization..." };
             api.Dispatch(setGenerationValidationResult,
                 new(asset,
-                    new(false, AiResultErrorEnum.Unknown, 0,
+                    new(false, BackendServiceConstants.ErrorTypes.Unknown, 0,
                         messages.Select(m => new GenerationFeedbackData(m)).ToList())));
         }
 
@@ -71,14 +71,14 @@ namespace Unity.AI.Generators.UI.Actions
             var messages = new[] { "Validating generation inputs..." };
             api.Dispatch(setGenerationValidationResult,
                 new(asset,
-                    new(false, AiResultErrorEnum.Unknown, 0,
+                    new(false, BackendServiceConstants.ErrorTypes.Unknown, 0,
                         messages.Select(m => new GenerationFeedbackData(m)).ToList())));
         }
 
         public static void DispatchInvalidCloudProjectMessage(this IStoreApi api, AssetReference asset)
         {
             api.Dispatch(setGenerationAllowed, new(asset, true));
-            var messages = new[] { $"Could not obtain organizations for user \"{UnityConnectProvider.userName}\"." };
+            var messages = new[] { $"Could not obtain generators access for user \"{UnityConnectProvider.userName}\"." };
             foreach (var message in messages)
             {
                 Debug.Log(message);
@@ -134,9 +134,45 @@ namespace Unity.AI.Generators.UI.Actions
 
         public static void DispatchFailedDownloadMessage<T>(this IStoreApi api, AssetReference asset, OperationResult<T> result, string lastW3CTraceId = null, bool willRetry = false) where T : class
         {
+            if (result == null)
+            {
+                if (!willRetry)
+                    DispatchFailedDownloadMessage(api, asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown));
+                return;
+            }
+
             if (!result.Result.IsSuccessful && !willRetry)
                 DispatchFailedDownloadMessage(api, asset, result.Result.Error);
             Debug.Log($"Trace Id '{result.SdkTraceId}' => W3CTraceId '{(!string.IsNullOrWhiteSpace(result.W3CTraceId) ? result.W3CTraceId : lastW3CTraceId)}'");
+        }
+
+        public static bool DispatchSingleFailedDownloadMessage<T>(this IStoreApi api, AssetReference asset, OperationResult<T> result, string lastW3CTraceId = null, bool willRetry = false) where T : class
+        {
+            if (result == null)
+            {
+                if (!willRetry)
+                {
+                    DispatchFailedDownloadMessage(api, asset, new AiOperationFailedResult(AiResultErrorEnum.Unknown));
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (!result.Result.IsSuccessful && !willRetry)
+            {
+                if (result.Result.Error.AiResponseError != AiResultErrorEnum.SdkTimeout &&
+                    result.Result.Error.AiResponseError != AiResultErrorEnum.ServerTimeout)
+                {
+                    DispatchFilteredDownloadMessage(api, asset, result.Result.Error, string.IsNullOrEmpty(result.W3CTraceId) ? lastW3CTraceId : result.W3CTraceId);
+                    return true;
+                }
+
+                DispatchFailedDownloadMessage(api, asset, result.Result.Error);
+            }
+
+            Debug.Log($"Trace Id '{result.SdkTraceId}' => W3CTraceId '{(!string.IsNullOrWhiteSpace(result.W3CTraceId) ? result.W3CTraceId : lastW3CTraceId)}'");
+            return false;
         }
 
         public static void DispatchFailedDownloadMessage(this IStoreApi api, AssetReference asset, AiOperationFailedResult result)
@@ -155,6 +191,25 @@ namespace Unity.AI.Generators.UI.Actions
             }
         }
 
+        public static void DispatchFilteredDownloadMessage(this IStoreApi api, AssetReference asset, AiOperationFailedResult result, string lastW3CTraceId = null)
+        {
+            var selectedEnv = string.Empty;
+            if (selectedEnvironment != null)
+                selectedEnv = selectedEnvironment(api);
+
+            var messages = result.Errors.Count == 0
+                ? new[] { $"Generation was (likely) rejected by a content filter. Actual error was '{result.AiResponseError.ToString()}' from url '{selectedEnv}'." }
+                : result.Errors.Distinct().Select(m => $"{result.AiResponseError.ToString()}: {m}").ToArray();
+            foreach (var message in messages)
+            {
+                if (!string.IsNullOrEmpty(lastW3CTraceId))
+                    Debug.Log(message + $"\nW3CTraceId for last failure: '{lastW3CTraceId}'");
+                else
+                    Debug.Log(message);
+                api.Dispatch(addGenerationFeedback, new GenerationsFeedbackData(asset, new GenerationFeedbackData(message)));
+            }
+        }
+
         static JobStatusSdkEnum s_LastJobStatus = JobStatusSdkEnum.None;
 
         public static void DispatchJobUpdates(this IStoreApi _, JobStatusSdkEnum jobStatus)
@@ -162,9 +217,12 @@ namespace Unity.AI.Generators.UI.Actions
             if (s_LastJobStatus == jobStatus)
                 return;
             s_LastJobStatus = jobStatus;
-            if (LoggerUtilities.sdkLogLevel == 0)
-                return;
-            Debug.Log($"Job status: {jobStatus}");
+            EditorTask.RunOnMainThread(() =>
+            {
+                if (LoggerUtilities.sdkLogLevel == 0)
+                    return;
+                Debug.Log($"Job status: {jobStatus}");
+            });
         }
     }
 }

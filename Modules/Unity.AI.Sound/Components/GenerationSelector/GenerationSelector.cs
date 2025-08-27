@@ -50,7 +50,7 @@ namespace Unity.AI.Sound.Components
             m_GridView.MakeOscillogramGrid(GetHorizontalItemCount);
             this.UseAsset(SetAsset);
             this.Use(state => state.SelectPreviewSizeFactor(), OnPreviewSizeChanged);
-            this.UseArray(state => state.SelectGeneratedAudioClipsAndSkeletons(this), OnGeneratedAudioClipsAndSkeletonsChanged);
+            this.Use(state => state.CalculateSelectorHash(this), OnGeneratedAudioClipsChanged);
 
             this.Use(state => state.SelectSelectedGeneration(this), OnGenerationSelected);
             this.UseArray(state => state.SelectGenerationProgress(this), OnGenerationProgressChanged);
@@ -104,7 +104,7 @@ namespace Unity.AI.Sound.Components
                 new(asset, m_ElementID, m_GridView.IsElementShown() ? count : 0));
         }
 
-        void OnGeneratedAudioClipsAndSkeletonsChanged(List<AudioClipResult> audioClips) => UpdateItems(audioClips);
+        void OnGeneratedAudioClipsChanged(int _) => UpdateItems(this.GetState().SelectGeneratedAudioClipsAndSkeletons(this));
 
         void UpdateItems(IEnumerable<AudioClipResult> audioClips)
         {
@@ -114,6 +114,9 @@ namespace Unity.AI.Sound.Components
 
         void SetAsset(AssetReference asset)
         {
+            if (asset.IsValid() && assetMonitor)
+                this.Dispatch(GenerationResultsActions.pruneFulfilledSkeletons, new(this.GetAsset()));
+
             OnItemViewMaxCountChanged(this.GetOscillogramGridMaxItemsInElement(m_GridView.fixedItemHeight, GetHorizontalItemCount()));
 
             this.RemoveManipulator(m_GenerationFileSystemWatcher);

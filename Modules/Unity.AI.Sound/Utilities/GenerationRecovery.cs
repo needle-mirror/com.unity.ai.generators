@@ -37,6 +37,11 @@ namespace Unity.AI.Sound.Services.Utilities
 
         public int progressTaskId => taskId;
         public string uniqueTaskId => uniqueId;
+        public ImmutableStringList jobIds
+        {
+            get => ids;
+            set => ids = value;
+        }
     }
 
     static class GenerationRecovery
@@ -78,8 +83,26 @@ namespace Unity.AI.Sound.Services.Utilities
         public static void RemoveInterruptedDownload(InterruptedDownloadData data)
         {
             var environment = WebUtils.selectedEnvironment;
+
+            // If a uniqueId is present, use the new, reusable partial removal logic.
+            if (!string.IsNullOrEmpty(data.uniqueId))
+            {
+                var modified = s_InterruptedDownloadsByEnv.RemovePartialInterruptedDownload(
+                    environment,
+                    data.uniqueId,
+                    data.ids
+                );
+
+                if (modified)
+                {
+                    SaveInterruptedDownloads();
+                    return;
+                }
+            }
+
+            // Fall back to the original full-removal logic if no uniqueId or if no partial modification occurred.
             if (s_InterruptedDownloadsByEnv.RemoveInterruptedDownload(environment,
-                d => d != null && d.AreKeyFieldsEqual(data)) > 0)
+                    d => d != null && d.AreKeyFieldsEqual(data)) > 0)
             {
                 SaveInterruptedDownloads();
             }
@@ -124,7 +147,7 @@ namespace Unity.AI.Sound.Services.Utilities
             s_InterruptedDownloadsByEnv.CleanupNullEntries();
             GenerationRecoveryUtils.SaveInterruptedDownloads(s_InterruptedDownloadsByEnv, interruptedDownloadsFilePath);
         }
-        
+
         /// <summary>
         /// Path to the file where interrupted downloads are stored.
         /// Can be overridden for testing purposes.

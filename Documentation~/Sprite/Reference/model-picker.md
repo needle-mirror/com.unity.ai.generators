@@ -19,6 +19,13 @@ To select a model using the Model Picker, follow these steps:
    1. To find models that suit your asset type, such as **Characters** or **Props**, use the options in the **Tags** section.
    1. Reorder the model list with the **Sort** options: **Recently Used**, **Alphabetical**, **Reverse Alphabetical**.
 
+1. (Optional) To mark a model as a favorite, move your pointer over the model thumbnail and select the white star in the top-right corner. The star turns yellow when marked as favorite.
+
+    ![Select AI Model window with models, one marked as a favorite with a yellow star.](../../images/favorite.png)
+
+   1. To view only your favorites, select **Favorites** from the **Model** section.
+   2. To remove a favorite, deselect the yellow star.
+
 After you select a model, it shows in the **Generate** window.
 
 ## Additional resources

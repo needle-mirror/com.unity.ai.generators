@@ -1,27 +1,27 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.0.0-pre.19",
+  "version": "1.0.0-pre.20",
   "unity": "6000.2",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.0.0-pre.19"
+    "com.unity.ai.toolkit": "1.0.0-pre.20"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.0.0-pre.19"
+    "com.unity.ai.generators.tests": "1.0.0-pre.20"
   },
   "_upm": {
-    "changelog": "### Added\n\n- Added Asset Reference field in Generation Data for sprite generators.\n\n### Fixed\n\n- Fixed badge visibility on non-upscaled generations.\n- Fixed Asset Reference not being cleared correctly in Image references."
+    "changelog": "### Added\n\n- Expanded image generation capabilities to include BMP, GIF, TIFF, PSD, and HDR, in addition to existing support for PNG, JPG, and EXR.\n- Added pattern search button and window to material generator.\n- Added descriptive shader input label names to generated map material assignments.\n- Added simple heuristic for message log feedback when a generation was likely filtered by a content filter.\n\n### Changed\n\n- Allow partial completion and recovery of generated assets.\n- Improve image preview quality with multi-step blitting.\n- When no image model selected, automatically select favorited model, typically Flux 1.dev.\n\n### Fixed\n\n- Generation download recovery waits until connection is made on startup.\n- Searching generated assets is faster.\n- Remove alpha when sending image references as models do not look at alpha channel.\n- Fixed filters in model selector applying instantly to generator window.\n- Fixed UI offset in Generation Data window.\n- Fixed missing map assignments when promoting between generated material and terrain layer."
   },
   "upmCi": {
-    "footprint": "cd46efbe768402b394d084bd71a6427e6a79cc02"
+    "footprint": "dfa4f6ad542cf71112568df085788a9722837853"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/UnityAIWorkflows.git",
     "type": "git",
-    "revision": "55389365acd56d9d9c807df4560c5a77a6af63c4"
+    "revision": "84efef4741a539de4207f78fdb59d739e9878e2b"
   }
 }

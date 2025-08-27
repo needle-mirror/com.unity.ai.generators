@@ -4,126 +4,111 @@ uid: prompts
 
 # Prompt guidelines for asset generation
 
-Use this guidance to write effective prompts that improve asset generation results across different Generator tools.
+Unity AI Generators transform text prompts into sprite, texture, animation, sound, material, and terrain layer assets. Getting the results you want isn’t just about writing a good prompt, it’s about writing the right prompt for the model you use.
 
-When you generate assets with Generators, the prompt you provide is important in the quality of the output. Generators transform text prompts into sprites, textures, materials, animations, sounds, and terrain layers.
+Prompts work differently in image models than in text models, such as ChatGPT.
 
-To write good prompts, you need clarity, detail, and structure. This page explains general writing guidelines for all Generators and also includes Generator-specific advice. It also highlights common mistakes to avoid.
+* Text models are conversational and contextual. They understand abstract requests and can infer meaning.
+* Image models, such as Flux 1, are pattern recognizers and assemble visual elements.
 
-## General guidelines
+Your prompt approach must match the type of model you use.
 
-The following guidelines apply across all Generator tools.
+## Understand the base models and custom-trained models
 
-### Use natural language
+In Generators, you use a [custom-trained model](#custom-trained-models) that's fine-tuned to achieve a specific style or visual direction in its output. These are based on foundational [base model](#base-models), such as Stable Diffusion XL (SDXL) or Flux 1.
 
-Write prompts as clear descriptive sentences or phrases. Natural language helps Generators understand the context and relationships between elements.
+### Base models
 
-For example:
+Base models provide broad capabilities and can process both short and long prompts. However, to match a specific art style might require multiple iterations. Examples of base models include Flux 1, SDXL, and GPT Image 1.
 
-* Instead of: `Blue dragon, fire, wings, dark sky`
-* Use: `Create a blue dragon with large wings, breathing fire against a dark sky backdrop.`
+### Custom-trained models
+
+Custom-trained models are trained to reproduce specific visual styles or elements. Some examples of custom-made models include **16-bit Pixel**, **3D Cartoon Characters**, or **Buildings of The Vale**.
+
+## Key principles for efficient prompting
+
+In Unity AI, the quality of your generated assets depends on both the model selection and how precisely you describe the subject, attributes, and style in your prompt.
+
+Use the following guidelines to choose the right model and describe your ideas effectively, so Unity AI can generate assets that match your intended style, detail, and purpose.
+
+### Same prompt gives different results across models
+
+Unity AI models are style-bound and each model is trained on a different visual aesthetic. The base model stays the same, but each custom-trained model applies its own style. This means the same prompt can produce dramatically different results depending on the custom model you choose.
+
+#### Example
+
+The following example uses the same prompt across four different models. The outputs differ in art direction and level of detail.
+
+**Prompt**: `A designsheet for a 2d sideview, orthogonal red muscle car or dragracer. It has big backwheels and smaller front wheels. An air intake sticks out of the hood of the car.`
+
+![Same prompt gives different results](../../images/same-prompt.jpg)
+
+| **Model** | **Output description** |
+| --------- | ---------------------- |
+| **16-bit Pixel** | Retro pixel-art sprite sheet with minimal lighting and hard edges. |
+| **3D Blocky Elements** | Cheerful, block-style subjects with a soft 3D appearance. The style provides clean and smooth shapes. |
+| **3D Cartoon Characters** | Bold, saturated colors and exaggerated proportions, more cartoon-like. |
+| **Buildings of The Vale** | Stylized fantasy structure incorporating a red car into an environmental setting. |
+
+Before you write a prompt, consider the model. For example:
+
+* Use a **16-bit Pixel** model if you want pixel art.
+* Use a **3D Blocky Elements** model if you want a toy-like render.
+* Use a **3D Cartoon Characters** model if you need bold, cartoon-like proportions.
+* Use a **Buildings of The Vale** model if you want a stylized fantasy-environment render.
+
+Even if the prompt is perfect, the model’s trained style will determine the final look.
+
+### Write in visual terms, not abstract concepts
+
+Image models struggle with abstract ideas, such as praise or success. These are vague to interpret and lead to unexpected or irrelevant results. Instead, describe exactly what you want in specific, visual terms.
+
+| **Avoid concepts** | **Use visual description** |
+| ------------------ | -------------------------- |
+| National monument | A giant stone obelisk outside Washington D.C., surrounded by green lawns. |
+| Praise icon | Thumbs-up icon in 2D flat style with yellow circular background. |
+| Scary forest | A dense forest at night with twisted trees, glowing red eyes in the shadows, and thick fog. |
+| Futuristic city | A city skyline at night with tall neon-lit skyscrapers, flying cars, and glowing billboards in cyberpunk style. |
+
+#### Example
+
+The following example shows why visual descriptions work better than abstract concepts. The prompt `Well Done` (left) is vague, so the model guessed an unrelated scenic image. In contrast, the prompt `A green ornamental badge, it has the words **Well Done** on it` (right) produces a precise, relevant design that matches the request.
+
+**Prompt**: `A green ornamental badge, it has the words "Well Done" on it.`
+
+![Images generated for an abstract concept](../../images/prompt-concept.jpg)
+
+### Use a simple structure for clarity
+
+Reliable prompts follow a clear, consistent pattern:
+
+`[Subject] + [Attributes] + [Style/context]`
+
+This approach helps you in the following ways:
+
+* Put the main subject first so the model immediately knows what to focus on.
+* Add relevant descriptive details without overloading the request.
+* Specify the style and setting so the result matches your intended art direction.
+
+#### Example
+
+The following example applies the same prompt to two different models. The **3D Cartoon Characters** model produces a stylized 3D render, and the **16-bit Pixel** model delivers a retro sprite. This shows how the model choice changes the art direction, detail, and style.
+
+**Prompt**: `A young female warrior in leather armor, holding a sword, side-facing, pixel art style.`
+
+![Images of female warrior generated with the 3D Cartoon Characters and 16-bit Pixel models](../../images/prompt-order.jpg)
 
 ### Avoid double negatives
 
 Double negatives can confuse Generators and lead to undesired results. Be direct and positive in your phrases. In the **Negative Prompt** field, don't use `no` or `not.
 
-For example:
+For example, instead of `No birds`, use `birds`.
 
-* Instead of: `No birds`
-* Use: `birds`
+You can also use the **Negative Prompt** field to reduce common quality issues. For example, if your output looks blurry or distorted, add terms like blurry, poor quality, or low resolution to the negative prompt.
 
-For more information on how to use a negative prompt, refer to [Remove unwanted elements with negative prompts](xref:negative-prompt).
+Some examples of negative prompts include `blurry`, `poor quality`, `low resolution`, or `distorted anatomy`.
 
-### Be specific
-
-If you add details, it provides the Generators with more control over the generated output. Include information about the subject matter, style, color, lighting, perspective, and atmosphere.
-
-For example:
-
-`A futuristic city skyline at night with glowing neon lights and flying cars in the style of cyberpunk.`
-
-### Specify the frame and composition
-
-Define the layout, perspective, scale, or focus of your scene to ensure the Generators place the objects accurately.
-
-For example:
-
-`Create a close-up view of a medieval knight standing in the center of the frame, with a castle visible in the background.`
-
-### Break down complex requests
-
-When you need complex designs, break the request into smaller descriptive parts to clarify intent.
-
-For example:
-
-`Design a futuristic cityscape at night. Include tall skyscrapers with neon lights, flying vehicles, and a glowing moon in the sky.`
-
-## Generator-specific guidelines
-
-Different Generators support additional prompt details. Use these specific guidelines depending on the asset type you want to generate.
-
-> [!NOTE]
-> For Sound Generator, Animation Generator, Texture Generator, and Material Generator, short prompts of three to four descriptive keywords often produce the best results. Longer sentences might not improve the generation quality for these generators. Sprite Generator and Terrain Layer Generator generally support more detailed natural language prompts.
-
-### Sound Generator
-
-Clarify sound type and intended mood.
-
-   * Indicate type (ambient, sound effect, or music).
-   * Include mood or emotional tone.
-   * Example: `Gentle forest ambiance with birds chirping, distant stream flowing, and soft wind in trees.`
-
-### Animation Generator
-
-Describe the motion and context for the animation.
-
-   * Include subject, movement type, and pace.
-   * Specify action context (attack, idle, walk, or cycle).
-   * Example: `A humanoid robot performing a smooth walk with fast arm swings.`
-
-### Texture Generator
-
-Describe surface appearance and intended usage.
-
-   * Include surface properties (roughness, glossiness, or patterns).
-   * State the surface type (floor, wall, or object surface).
-   * Example: `Create a seamless wooden floor texture with a polished finish, featuring natural wood grain patterns.`
-
-### Material Generator
-
-Explain the physical material properties that define the surface look.
-
-Example: `Polished marble surface with subtle veins in white and grey, glossy finish.`
-
-### Sprite Generator
-
-Provide visual details and style preferences for character sprites or objects.
-
-   * Specify character traits (age, gender, clothing, or pose).
-   * Define the art style (pixel art, hand-drawn, or 3D style).
-   * Example: `Design a sprite of a young female warrior with braided hair, wearing leather armor and holding a glowing sword. Use a pixel-art style.`
-
-### Terrain Layer Generator
-
-Provide terrain types and textures.
-
-Example: `Generate a grass terrain layer on sand dunes.`
-
-## Example of effective prompts
-
-Here are examples that demonstrate how prompt clarity affects the results.
-
-**Good prompt**: `Create a sprite of a medieval archer with a bow drawn, wearing a green cloak. The background should be transparent, and the art style should be pixel art.`
-
-**Bad prompt**: `Medieval archer green bow pixel.`
-
-## Common mistakes to avoid
-
-Before you write your final prompt, avoid these common issues:
-
-   * **Vague language**: Avoid general terms such as `cool` or `nice`. Be specific about what you want.
-   * **Overloading the prompt**: Avoid cramming too many unrelated ideas into a single prompt. Break it into multiple requests if needed.
-   * **Ignoring context**: Failure to provide context leads to misinterpretation. Always explain the purpose of the asset you want to generate.
+These help the model avoid producing low-quality or unwanted elements in the generated asset. For more information on how to use a negative prompt, refer to [Remove unwanted elements with negative prompts](xref:negative-prompt).
 
 ## Additional resources
 

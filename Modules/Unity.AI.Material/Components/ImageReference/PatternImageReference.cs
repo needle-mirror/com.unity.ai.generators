@@ -1,4 +1,6 @@
 ﻿using System;
+using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Utilities;
@@ -40,6 +42,17 @@ namespace Unity.AI.Material.Components
                 if (!evt.newValue)
                     this.Dispatch(GenerationSettingsActions.setPatternImageReference, new Services.Stores.States.PatternImageReference());
             });
+
+            var browsePatterns = this.Q<Button>("image-reference-search-button");
+            browsePatterns.clicked += async () =>
+            {
+                var patternAsset = await PatternsSearchProvider.SelectPatternAsync(this.GetStoreApi().State.SelectPrompt(this));
+                var assetReference = new AssetReference { guid = AssetDatabase.AssetPathToGUID(patternAsset) };
+                if (!assetReference.IsValid())
+                    return;
+                this.Dispatch(GenerationSettingsActions.setPatternImageReference,
+                    new Services.Stores.States.PatternImageReference { asset = assetReference });
+            };
         }
     }
 }

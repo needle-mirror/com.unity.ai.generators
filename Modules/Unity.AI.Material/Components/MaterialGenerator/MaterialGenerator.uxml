@@ -24,6 +24,14 @@
                             <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
                                 <ui:Prompt />
                             </VisualElement>
+                            <!-- Pattern Reference Section -->
+                            <VisualElement class="flex-no-shrink border-color-dark border-bottom-1px">
+                                <ui:PatternImageReference class="p-8-7-8-8 pb-0" />
+                                <VisualElement class="flex-row flex-no-shrink p-8-7-8-8 pt-0">
+                                    <Label class="info-icon color-disclaimer-tint mt-0 mr-8 width-16px height-100pct scale-to-fit" tooltip="Patterns like brick or tile force generations to be structured."/>
+                                    <Label class="flex-shrink color-disclaimer-text text-wrap mt-2" text="Patterns like brick or tile force generations to be structured" tooltip="Select a pattern to guide the generation. The generated material will follow the structure of the pattern, which is ideal for creating textures like brick walls, tiled floors, woven fabrics, or other geometric and repeating designs."/>
+                                </VisualElement>
+                            </VisualElement>
                             <!-- Generate Variations Slider -->
                             <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
                                 <Label class="font-bold p-4 pb-8" text="Options"/>
@@ -31,17 +39,13 @@
                                 <ui:DimensionsDropDown class="hide" />
                                 <ui:GenerationOptions class="pt-8" />
                             </VisualElement>
-                            <!-- Pattern Reference Section -->
-                            <VisualElement class="flex-no-shrink border-color-dark border-bottom-1px">
-                                <ui:PatternImageReference class="p-8-7-8-8" />
-                            </VisualElement>
                             <!-- Material Mapping Section -->
                             <VisualElement class="flex-no-shrink p-8-7-8-8 bg-light">
                                 <VisualElement class="flex-row justify-between ">
                                     <Label class="font-bold p-4" text="Material Map Assignments" tooltip="Assign the generated material preview image to a specific input channel on your custom shader. Use the circular arrow to restore recommended defaults. To generate full PBR maps from this preview image, switch to the PBR tab."/>
                                     <ui:MappingAutoButton />
                                 </VisualElement>
-                                <ui:TexturePropertyField label="base" map-type="Delighted" value="None"/>
+                                <ui:TexturePropertyField label="Base" map-type="Delighted" value="None"/>
                             </VisualElement>
                         </ScrollView>
                         <!-- Generate Button -->
@@ -68,7 +72,7 @@
                                     <Label class="font-bold p-4" text="Material Map Assignments" tooltip="Assign the generated material preview image to a specific input channel on your custom shader. Use the circular arrow to restore recommended defaults. To generate full PBR maps from this preview image, switch to the PBR tab."/>
                                     <ui:MappingAutoButton />
                                 </VisualElement>
-                                <ui:TexturePropertyField label="base" map-type="Delighted" value="None"/>
+                                <ui:TexturePropertyField label="Base" map-type="Delighted" value="None"/>
                             </VisualElement>
                         </ScrollView>
                         <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px border-top-1px">
@@ -94,18 +98,18 @@
                                     <Label class="font-bold p-4" text="Material Map Assignments" tooltip="Assign specific PBR maps, such as normal or metallic, to input channels on your custom shader. Use the circular arrow to restore the recommended defaults."/>
                                     <ui:MappingAutoButton />
                                 </VisualElement>
-                                <ui:TexturePropertyField label="base" map-type="Preview" value="None"/>
-                                <ui:TexturePropertyField label="delighted" map-type="Delighted" value="None"/>
-                                <ui:TexturePropertyField label="normal" map-type="Normal" value="None"/>
-                                <ui:TexturePropertyField label="height" map-type="Height" value="None"/>
-                                <ui:TexturePropertyField label="metallic" map-type="Metallic" value="None"/>
-                                <ui:TexturePropertyField label="roughness" map-type="Roughness" value="None"/>
-                                <ui:TexturePropertyField label="emission" map-type="Emission" value="None"/>
-                                <ui:TexturePropertyField label="occlusion" map-type="Occlusion" value="None"/>
-                                <ui:TexturePropertyField label="smoothness" map-type="Smoothness" value="None"/>
-                                <ui:TexturePropertyField label="metalsmoothness" map-type="MetallicSmoothness" value="None"/>
-                                <ui:TexturePropertyField label="nonmetalsmoothness" map-type="NonMetallicSmoothness" value="None"/>
-                                <ui:TexturePropertyField label="maskmap" map-type="MaskMap" value="None"/>
+                                <ui:TexturePropertyField label="Base" map-type="Preview" value="None"/>
+                                <ui:TexturePropertyField label="Delighted" map-type="Delighted" value="None"/>
+                                <ui:TexturePropertyField label="Normal" map-type="Normal" value="None"/>
+                                <ui:TexturePropertyField label="Height" map-type="Height" value="None"/>
+                                <ui:TexturePropertyField label="Metallic" map-type="Metallic" value="None"/>
+                                <ui:TexturePropertyField label="Roughness" map-type="Roughness" value="None"/>
+                                <ui:TexturePropertyField label="Emission" map-type="Emission" value="None"/>
+                                <ui:TexturePropertyField label="Occlusion" map-type="Occlusion" value="None"/>
+                                <ui:TexturePropertyField label="Smoothness" map-type="Smoothness" value="None"/>
+                                <ui:TexturePropertyField label="Metal Smoothness" map-type="MetallicSmoothness" value="None"/>
+                                <ui:TexturePropertyField label="Non Metallic Smoothness" map-type="NonMetallicSmoothness" value="None"/>
+                                <ui:TexturePropertyField label="Mask Map" map-type="MaskMap" value="None"/>
                             </VisualElement>
                         </ScrollView>
                         <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px border-top-1px">

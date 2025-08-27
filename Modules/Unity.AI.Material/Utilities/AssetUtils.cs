@@ -1,5 +1,8 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Material.Services.Stores.States;
 using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
@@ -13,7 +16,8 @@ namespace Unity.AI.Material.Services.Utilities
         public const string materialExtension = ".mat";
         public const string defaultTerrainLayerName = "New Terrain Layer";
         public const string terrainLayerExtension = ".terrainlayer";
-        public static readonly string[] supportedExtensions = { ".mat", ".terrainlayer" };
+        public static readonly string[] supportedExtensions = { materialExtension, terrainLayerExtension };
+        public static string[] supportedGeneratedExtensions => ImageFileUtilities.knownExtensions.Select(ext => $"_{MapType.Preview}{ext}").Concat(supportedExtensions).ToArray();
 
         public static string CreateBlankMaterial(string path, bool force = true) => CreateBlankMaterial(path, null, force);
 

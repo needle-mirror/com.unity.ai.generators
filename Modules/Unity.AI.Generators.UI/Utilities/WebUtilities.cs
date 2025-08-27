@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services;
 using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using UnityEngine;
@@ -15,6 +17,9 @@ namespace Unity.AI.Generators.UI.Utilities
         public static async Task<bool> WaitForCloudProjectSettings(AssetReference asset)
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Waiting for Cloud Project Settings for asset: " + asset.guid);
+
+            if (Application.isBatchMode)
+                return false;            
 
             if (k_AssetCancellationDict.TryGetValue(asset, out var previousTcs))
                 previousTcs.TrySetResult(true);
@@ -40,13 +45,29 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
+        public static async Task<bool> WaitForCloudProjectSettings(TimeSpan timeoutDuration)
+        {
+            using var editorFocus = new EditorAsyncKeepAliveScope("Waiting for Cloud Project Settings");
+
+            if (Application.isBatchMode)
+                return false;
+            
+            return await EditorTask.WaitForCondition(AreCloudProjectSettingsValid, timeoutDuration);
+        }
+
         public static async Task<bool> WaitForCloudProjectSettings()
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Waiting for Cloud Project Settings");
-            return await Toolkit.Accounts.Services.States.ApiAccessibleState.WaitForCloudProjectSettings();
+
+            if (Application.isBatchMode)
+                return false;
+            
+            return await EditorTask.WaitForCondition(AreCloudProjectSettingsValid, TimeSpan.FromSeconds(30));
         }
 
-        public static bool AreCloudProjectSettingsInvalid() => string.IsNullOrWhiteSpace(UnityConnectProvider.organizationKey) || string.IsNullOrWhiteSpace(UnityConnectProvider.userId);
+        public static bool AreCloudProjectSettingsInvalid() =>
+            string.IsNullOrWhiteSpace(UnityConnectProvider.organizationKey) || string.IsNullOrWhiteSpace(UnityConnectProvider.userId) ||
+            Account.settings.Value == null || !Account.settings.Value.IsAiGeneratorsEnabled;
 
         public static bool AreCloudProjectSettingsValid() => !AreCloudProjectSettingsInvalid();
 

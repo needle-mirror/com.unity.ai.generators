@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
@@ -49,6 +48,12 @@ namespace Unity.AI.ModelSelector.Components
         DetailsModelTitleCard m_ModelDetailsCard;
         GridView m_ModelDetailsGrid;
 
+        // Reusable collections to avoid allocations in hot paths
+        readonly HashSet<string> m_TempStringHashSet = new();
+        readonly HashSet<MiscModelType> m_TempMiscHashSet = new();
+        readonly List<string> m_TempStringList = new();
+        readonly List<MiscModelType> m_TempMiscList = new();
+
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.ModelSelector/Components/ModelSelector/ModelView.uxml";
 
         public List<ModelSettings> models
@@ -93,13 +98,13 @@ namespace Unity.AI.ModelSelector.Components
             OnSearch();
         }
 
-        void OnSelectedModalitiesSelected(IEnumerable<ModalityEnum> selectedModalities)
+        void OnSelectedModalitiesSelected(IEnumerable<string> selectedModalities)
         {
             RefreshModalityElements(selectedModalities);
             OnSearch();
         }
 
-        void OnSelectedOperationsChanged(IEnumerable<OperationSubTypeEnum> selectedOperations)
+        void OnSelectedOperationsChanged(IEnumerable<string> selectedOperations)
         {
             RefreshOperationElements(selectedOperations);
             OnSearch();
@@ -117,13 +122,13 @@ namespace Unity.AI.ModelSelector.Components
             OnSearch();
         }
 
-        void OnSelectedMiscChanged(IEnumerable<MiscModelEnum> selectedMiscModels)
+        void OnSelectedMiscChanged(IEnumerable<MiscModelType> selectedMiscModels)
         {
             RefreshMiscModelElements(selectedMiscModels);
             OnSearch();
         }
 
-        void OnSelectedProvidersChanged(IEnumerable<ProviderEnum> selectedProviders)
+        void OnSelectedProvidersChanged(IEnumerable<string> selectedProviders)
         {
             RefreshProviderElements(selectedProviders);
             OnSearch();
@@ -168,10 +173,11 @@ namespace Unity.AI.ModelSelector.Components
 
         void InitUI()
         {
-            EnableInClassList("light-theme", !EditorGUIUtility.isProSkin);
-
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
+
+            EnableInClassList("light-theme", !EditorGUIUtility.isProSkin);
+            EnableInClassList("dark-theme", EditorGUIUtility.isProSkin);
 
             m_TabView = this.Q<TabView>();
             m_TagsElement = this.Q<VisualElement>(className: "tags");
@@ -243,12 +249,13 @@ namespace Unity.AI.ModelSelector.Components
         {
             m_ModalitiesElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
             m_ModalitiesElement.Clear();
-            foreach (ModalityEnum modality in Enum.GetValues(typeof(ModalityEnum)))
+            var modalities = ModelConstants.Modalities.EnumerateAll();
+            foreach (string modality in modalities)
             {
                 var modalityElement = new Toggle
                 {
                     label = modality.GetModalityName(),
-                    name = modality.ToString(),
+                    name = modality,
                     userData = modality,
                     enabledSelf = false
                 };
@@ -262,13 +269,16 @@ namespace Unity.AI.ModelSelector.Components
             RefreshModalityElements(this.GetState().SelectSelectedModalities());
         }
 
-        void RefreshModalityElements(IEnumerable<ModalityEnum> selectedModalities)
+        void RefreshModalityElements(IEnumerable<string> selectedModalities)
         {
-            var modalityList = selectedModalities.ToList();
+            m_TempStringHashSet.Clear();
+            foreach (var modality in selectedModalities)
+                m_TempStringHashSet.Add(modality);
+
             // Update the visibility of the modality toggles based on the selected modalities
             m_ModalitiesElement.Query<Toggle>().ForEach(toggle =>
             {
-                var selected = modalityList.Contains((ModalityEnum) toggle.userData);
+                var selected = m_TempStringHashSet.Contains((string) toggle.userData);
                 toggle.SetValueWithoutNotify(selected);
                 toggle.SetShown(selected);
             });
@@ -277,8 +287,8 @@ namespace Unity.AI.ModelSelector.Components
         void ShowProviders()
         {
             // Display only sources from selected modalities
-            var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
-                .Where(t => t.value).Select(t => t.name).ToList();
+            var selectedModalities = m_ModalitiesElement.Query<Toggle>()
+                .Where(t => t.value).Build().Select(t => t.name).ToList();
 
             var providers = m_Models.Where(m => selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
                 .Select(model => model.provider).Distinct().OrderBy(s => s).ToList();
@@ -303,13 +313,16 @@ namespace Unity.AI.ModelSelector.Components
             RefreshProviderElements(this.GetState().SelectSelectedProviders());
         }
 
-        void RefreshProviderElements(IEnumerable<ProviderEnum> selectedProviders)
+        void RefreshProviderElements(IEnumerable<string> selectedProviders)
         {
-            var providerList = selectedProviders.ToList();
+            m_TempStringHashSet.Clear();
+            foreach (var provider in selectedProviders)
+                m_TempStringHashSet.Add(provider);
+
             // Update the visibility of the provider toggles based on the selected providers
             m_ProvidersElement.Query<Toggle>().ForEach(toggle =>
             {
-                toggle.SetValueWithoutNotify(providerList.Contains((ProviderEnum)toggle.userData));
+                toggle.SetValueWithoutNotify(m_TempStringHashSet.Contains((string)toggle.userData));
             });
         }
 
@@ -339,11 +352,14 @@ namespace Unity.AI.ModelSelector.Components
 
         void RefreshTagElements(IEnumerable<string> selectedTags)
         {
-            var tagList = selectedTags.ToList();
+            m_TempStringHashSet.Clear();
+            foreach (var tag in selectedTags)
+                m_TempStringHashSet.Add(tag);
+
             // Update the visibility of the tag toggles based on the selected tags
             m_TagsElement.Query<Toggle>().ForEach(toggle =>
             {
-                toggle.SetValueWithoutNotify(tagList.Contains(toggle.name));
+                toggle.SetValueWithoutNotify(m_TempStringHashSet.Contains(toggle.name));
             });
         }
 
@@ -352,7 +368,8 @@ namespace Unity.AI.ModelSelector.Components
             m_ModelsElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
             m_ModelsElement.Clear();
 
-            foreach (var misc in Enum.GetValues(typeof(MiscModelEnum)))
+            var miscModels = MiscModelTypeExtensions.EnumerateAll();
+            foreach (var misc in miscModels)
             {
                 var miscElement = new Toggle
                 {
@@ -367,20 +384,23 @@ namespace Unity.AI.ModelSelector.Components
             RefreshMiscModelElements(this.GetState().SelectSelectedMiscModels());
         }
 
-        void RefreshMiscModelElements(IEnumerable<MiscModelEnum> selectedMiscModels)
+        void RefreshMiscModelElements(IEnumerable<MiscModelType> selectedMiscModels)
         {
-            var miscList = selectedMiscModels.ToList();
+            m_TempMiscHashSet.Clear();
+            foreach (var misc in selectedMiscModels)
+                m_TempMiscHashSet.Add(misc);
+
             // Update the visibility of the misc toggles based on the selected misc models
             m_ModelsElement.Query<Toggle>().ForEach(toggle =>
             {
-                toggle.SetValueWithoutNotify(miscList.Contains((MiscModelEnum)toggle.userData));
+                toggle.SetValueWithoutNotify(m_TempMiscHashSet.Contains((MiscModelType)toggle.userData));
             });
         }
 
         void ShowBaseModels()
         {
-            var selectedModalities = m_ModalitiesElement.Query<Toggle>().ToList()
-                .Where(t => t.value).Select(t => t.name).ToList();
+            var selectedModalities = m_ModalitiesElement.Query<Toggle>()
+                .Where(t => t.value).Build().Select(t => t.name).ToList();
 
             m_BaseModelsElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
             m_BaseModelsElement.Clear();
@@ -388,14 +408,14 @@ namespace Unity.AI.ModelSelector.Components
             var availableBaseModels = new HashSet<string>();
 
             // Base Models work only for Image Modality (StyleTraining Operation)
-            if (selectedModalities.Contains(nameof(ModalityEnum.Image), StringComparer.InvariantCultureIgnoreCase))
+            if (selectedModalities.Contains(ModelConstants.Modalities.Image, StringComparer.InvariantCultureIgnoreCase))
             {
                 foreach (var model in m_Models)
                 {
-                    if (!selectedModalities.Contains(model.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
+                    if (!selectedModalities.Contains(model.modality, StringComparer.InvariantCultureIgnoreCase))
                         continue;
 
-                    if (model.operations.Contains(OperationSubTypeEnum.StyleTraining) && availableBaseModels.Add(model.id))
+                    if (model.operations.Contains(ModelConstants.Operations.StyleTraining) && availableBaseModels.Add(model.id))
                     {
                         var baseModelElement = new Toggle
                         {
@@ -416,11 +436,14 @@ namespace Unity.AI.ModelSelector.Components
 
         void RefreshBaseModelElements(IEnumerable<string> baseModelIds)
         {
-            var baseModelList = baseModelIds.ToList();
+            m_TempStringHashSet.Clear();
+            foreach (var baseModelId in baseModelIds)
+                m_TempStringHashSet.Add(baseModelId);
+
             // Update the visibility of the base model toggles based on the selected base models
             m_BaseModelsElement.Query<Toggle>().ForEach(toggle =>
             {
-                toggle.SetValueWithoutNotify(baseModelList.Contains(toggle.name));
+                toggle.SetValueWithoutNotify(m_TempStringHashSet.Contains(toggle.name));
             });
         }
 
@@ -428,12 +451,13 @@ namespace Unity.AI.ModelSelector.Components
         {
             m_OperationsElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));
             m_OperationsElement.Clear();
-            foreach (OperationSubTypeEnum operation in Enum.GetValues(typeof(OperationSubTypeEnum)))
+            var operations = ModelConstants.Operations.EnumerateAll();
+            foreach (string operation in operations)
             {
                 var operationElement = new Toggle
                 {
-                    name = operation.ToString(),
-                    label = operation.ToString().AddSpaceBeforeCapitalLetters(),
+                    name = operation,
+                    label = operation.AddSpaceBeforeCapitalLetters(),
                     userData = operation,
                     enabledSelf = false
                 };
@@ -447,13 +471,16 @@ namespace Unity.AI.ModelSelector.Components
             RefreshOperationElements(this.GetState().SelectSelectedOperations());
         }
 
-        void RefreshOperationElements(IEnumerable<OperationSubTypeEnum> selectedOperations)
+        void RefreshOperationElements(IEnumerable<string> selectedOperations)
         {
-            var operationList = selectedOperations.ToList();
+            m_TempStringHashSet.Clear();
+            foreach (var operation in selectedOperations)
+                m_TempStringHashSet.Add(operation);
+
             // Update the visibility of the operation toggles based on the selected operations
             m_OperationsElement.Query<Toggle>().ForEach(toggle =>
             {
-                var selected = operationList.Contains((OperationSubTypeEnum)toggle.userData);
+                var selected = m_TempStringHashSet.Contains((string)toggle.userData);
                 toggle.SetValueWithoutNotify(selected);
                 toggle.SetShown(selected);
             });
@@ -471,30 +498,62 @@ namespace Unity.AI.ModelSelector.Components
         {
             // build the ModelSelectorFilters object
             var filters = this.GetState().SelectModelSelectorFilters();
-            var modalities = m_ModalitiesElement.Query<Toggle>().ToList()
-                .Where(t => t.value)
-                .Select(t => (ModalityEnum)t.userData)
-                .ToArray();
-            var operations = m_OperationsElement.Query<Toggle>().ToList()
-                .Where(t => t.value)
-                .Select(t => (OperationSubTypeEnum)t.userData)
-                .ToArray();
-            var providers = m_ProvidersElement.Query<Toggle>().ToList()
-                .Where(t => t.value)
-                .Select(t => (ProviderEnum)t.userData)
-                .ToArray();
-            var tags = m_TagsElement.Query<Toggle>().ToList()
-                .Where(t => t.value)
-                .Select(t => t.name)
-                .ToArray();
-            var baseModelIds = m_BaseModelsElement.Query<Toggle>().ToList()
-                .Where(t => t.value)
-                .Select(t => t.name)
-                .ToArray();
-            var miscModels = m_ModelsElement.Query<Toggle>().ToList()
-                .Where(t => t.value)
-                .Select(t => (MiscModelEnum)t.userData)
-                .ToArray();
+
+            // Reuse temp collections to avoid allocations
+            m_TempStringList.Clear();
+            var modalityToggles = m_ModalitiesElement.Query<Toggle>();
+            modalityToggles.ForEach(t =>
+            {
+                if (t.value)
+                    m_TempStringList.Add((string)t.userData);
+            });
+            var modalities = m_TempStringList.ToArray();
+
+            m_TempStringList.Clear();
+            var operationToggles = m_OperationsElement.Query<Toggle>();
+            operationToggles.ForEach(t =>
+            {
+                if (t.value)
+                    m_TempStringList.Add((string)t.userData);
+            });
+            var operations = m_TempStringList.ToArray();
+
+            m_TempStringList.Clear();
+            var providerToggles = m_ProvidersElement.Query<Toggle>();
+            providerToggles.ForEach(t =>
+            {
+                if (t.value)
+                    m_TempStringList.Add((string)t.userData);
+            });
+            var providers = m_TempStringList.ToArray();
+
+            m_TempStringList.Clear();
+            var tagToggles = m_TagsElement.Query<Toggle>();
+            tagToggles.ForEach(t =>
+            {
+                if (t.value)
+                    m_TempStringList.Add(t.name);
+            });
+            var tags = m_TempStringList.ToArray();
+
+            m_TempStringList.Clear();
+            var baseModelToggles = m_BaseModelsElement.Query<Toggle>();
+            baseModelToggles.ForEach(t =>
+            {
+                if (t.value)
+                    m_TempStringList.Add(t.name);
+            });
+            var baseModelIds = m_TempStringList.ToArray();
+
+            m_TempMiscList.Clear();
+            var miscToggles = m_ModelsElement.Query<Toggle>();
+            miscToggles.ForEach(t =>
+            {
+                if (t.value)
+                    m_TempMiscList.Add((MiscModelType)t.userData);
+            });
+            var miscModels = m_TempMiscList.ToArray();
+
             var searchQuery = m_SearchBar?.value ?? string.Empty;
 
             this.Dispatch(ModelSelectorActions.setFilters, filters with

@@ -1,27 +1,20 @@
 ﻿using System;
-using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.ModelSelector.Services.Stores.States;
 
 namespace Unity.AI.ModelSelector.Services.Utilities
 {
     static class ModalityUtilities
     {
-        public static string GetModalityName(this ModalityEnum modality)
+        public static string GetModalityName(this string modality)
         {
-            switch (modality)
+            return modality switch
             {
-                case ModalityEnum.None:
-                    break;
-                case ModalityEnum.Image:
-                    return "Texture 2D";
-                case ModalityEnum.Texture2d:
-                    return "Material";
-                case ModalityEnum.Sound:
-                    return "Audio";
-                case ModalityEnum.Animate:
-                    return "Animation";
-            }
-
-            return modality.ToString();
+                ModelConstants.Modalities.Image => "Texture 2D",
+                ModelConstants.Modalities.Texture2d => "Material",
+                ModelConstants.Modalities.Sound => "Audio",
+                ModelConstants.Modalities.Animate => "Animation",
+                ModelConstants.Modalities.None or _ => modality
+            };
         }
     }
 }

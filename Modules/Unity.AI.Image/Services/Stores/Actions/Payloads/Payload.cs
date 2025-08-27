@@ -12,7 +12,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Image.Services.Stores.Actions.Payloads
 {
     record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
+    record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId) : AsssetContext(asset);
     record DownloadImagesData(
         AssetReference asset,
         List<Guid> jobIds,

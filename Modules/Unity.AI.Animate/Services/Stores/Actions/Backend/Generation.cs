@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Asset.Responses;
-using AiEditorToolsSdk.Components.Common.Enums;
-using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Animation.Requests.Generate;
 using Unity.AI.Animate.Services.Stores.Actions.Payloads;
@@ -19,7 +16,6 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Video;
 using Debug = UnityEngine.Debug;
@@ -67,9 +63,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
             var progress = new GenerationProgressData(arg.progressTaskId, variations, 0f);
             api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
 
+            await WebUtilities.WaitForCloudProjectSettings(TimeSpan.FromSeconds(15));
+
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
                 api.DispatchInvalidCloudProjectMessage(arg.asset);
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 return;
             }
 
@@ -203,7 +202,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
 
             AIToolbarButton.ShowPointsCostNotification(cost);
 
-            var downloadAnimationData = new DownloadAnimationsData(asset, ids, arg.progressTaskId, Guid.NewGuid(), generationMetadata, customSeeds, false, false);
+            var downloadAnimationData = new DownloadAnimationsData(asset, ids, arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId, generationMetadata, customSeeds, false, false);
             GenerationRecovery.AddInterruptedDownload(downloadAnimationData); // 'potentially' interrupted
 
             if (WebUtilities.simulateClientSideFailures)
@@ -212,6 +211,11 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                 throw new Exception("Some simulated client side failure.");
             }
 
+            await DownloadAnimationClipsAsyncWithRetry(downloadAnimationData, api);
+        }
+
+        static async Task DownloadAnimationClipsAsyncWithRetry(DownloadAnimationsData downloadAnimationData, AsyncThunkApi<bool> api)
+        {
             /* Retry loop. On the last try, retryable is false and we never timeout
                Each download attempt has a reasonable timeout (90 seconds)
                The operation retries up to 6 times on timeout
@@ -219,28 +223,37 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                If all attempts fail, appropriate error handling occurs
             */
             const int maxRetries = Constants.retryCount;
-            var retryCount = 0;
-            while (true)
+            for (var retryCount = 0; retryCount <= maxRetries; retryCount++)
             {
                 try
                 {
                     downloadAnimationData = downloadAnimationData with { retryable = retryCount < maxRetries };
-                    await DownloadAnimationClipsAsync(downloadAnimationData, api);
-                    break;
+                    downloadAnimationData = await DownloadAnimationClipsAsync(downloadAnimationData, api);
+                    // If no jobs are left, the download is complete.
+                    if (downloadAnimationData.jobIds.Count == 0)
+                        break;
+                    // If jobs remain, we must retry. Throw to enter the catch block.
+                    throw new DownloadTimeoutException();
                 }
                 catch (DownloadTimeoutException)
                 {
-                    if (++retryCount > maxRetries)
+                    if (retryCount >= maxRetries)
                     {
                         throw new NotImplementedException(
-                            $"The last download attempt ({retryCount}/{maxRetries}) is never supposed to timeout. This is a bug in the code, please report it.");
+                            $"The last download attempt ({retryCount + 1}/{maxRetries}) is never supposed to timeout. This is a bug in the code, please report it.");
                     }
 
-                    Debug.Log($"Download timed out. Retrying ({retryCount}/{maxRetries})...");
+                    if (UnityEditor.Unsupported.IsDeveloperMode())
+                        Debug.Log($"Download timed out. Retrying ({retryCount + 1}/{maxRetries})...");
+                }
+                catch (HandledFailureException)
+                {
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(downloadAnimationData.asset, downloadAnimationData.progressTaskId));
+                    return;
                 }
                 catch
                 {
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(downloadAnimationData.asset, downloadAnimationData.progressTaskId));
                     throw;
                 }
             }
@@ -312,35 +325,82 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
         class DownloadTimeoutException : Exception { }
 
         public static readonly AsyncThunkCreatorWithArg<DownloadAnimationsData> downloadAnimationClips =
-            new($"{GenerationResultsActions.slice}/downloadAnimationsSuperProxy", DownloadAnimationClipsAsync);
+            new($"{GenerationResultsActions.slice}/downloadAnimationsSuperProxy", DownloadAnimationClipsAsyncWithRetry);
 
-        static async Task DownloadAnimationClipsAsync(DownloadAnimationsData arg, AsyncThunkApi<bool> api)
+        /*
+         * =========================================================================================
+         * ARCHITECTURAL OVERVIEW: ASYNCHRONOUS DOWNLOAD AND RETRY PATTERN
+         * =========================================================================================
+         *
+         * The four functions below (DownloadAnimationClipsAsync, DownloadImagesAsync,
+         * DownloadMaterialsAsync, and DownloadAudioClipsAsync) all implement a shared, two-tiered
+         * resilience pattern for downloading generated assets.
+         *
+         * TIER 1: THE CALLER'S RETRY LOOP
+         * These functions are not self-retrying. They are designed to be called within an external
+         * retry loop (e.g., a `for` loop) that manages the number of attempts. The caller is
+         * responsible for:
+         *   1. Setting the `arg.retryable` flag. This is `true` for initial attempts and `false`
+         *      for the final, last-ditch attempt.
+         *   2. Re-invoking the function using the list of timed-out jobs returned from the
+         *      previous attempt.
+         *
+         * TIER 2: THIS FUNCTION'S SINGLE-ATTEMPT LOGIC
+         * Each function executes a SINGLE download attempt on a batch of `jobIds`. Its core
+         * responsibilities are:
+         *   1. Resilience: To process each `jobId` independently, so the failure of one does not
+         *      stop the entire batch.
+         *   2. Categorization: To sort jobs into three outcomes:
+         *      - SUCCESS: The asset download URL is fetched and the job is processed.
+         *      - TIMEOUT: If `arg.retryable` is true, the `jobId` is collected to be returned to
+         *        the caller for the next attempt.
+         *      - HARD FAILURE: A non-recoverable error occurred (e.g., 404, or a timeout on a
+         *        non-retryable attempt). The job is dropped and an error is logged.
+         *   3. State Management: Upon completion, it must return a new data object containing
+         *      ONLY the `jobIds` that timed out. An empty list of `jobIds` signals to the caller
+         *      that the process is complete (either by success or by dropping all failures).
+         *   4. Recovery Cleanup: It interacts with the `GenerationRecovery` system, which persists
+         *      jobs across editor restarts. This function is responsible for removing successfully
+         *      processed jobs from the recovery log to prevent them from being re-downloaded.
+         *
+         * NOTE ON VARIATIONS:
+         * While the pattern is consistent, there are intentional, asset-specific variations. For
+         * example, `DownloadMaterialsAsync` treats all maps for a single material as an atomic
+         * unit, and auto-apply logic differs by design.
+         */
+        static async Task<DownloadAnimationsData> DownloadAnimationClipsAsync(DownloadAnimationsData arg, AsyncThunkApi<bool> api)
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Downloading animations.");
 
             var variations = arg.jobIds.Count;
-
             var skeletons = Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.progressTaskId, i)).ToList();
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, skeletons));
 
             var progress = new GenerationProgressData(arg.progressTaskId, variations, 0.25f);
-
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
+
+            await WebUtilities.WaitForCloudProjectSettings(TimeSpan.FromSeconds(15));
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
                 api.DispatchInvalidCloudProjectMessage(arg.asset);
-                return;
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                throw new HandledFailureException();
             }
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
-
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
             var retryTimeout = arg.retryable ? Constants.motionDownloadCreateUrlRetryTimeout : Constants.noTimeout;
-            using var retryTokenSource = new CancellationTokenSource(retryTimeout);
+            var shortRetryTimeout = arg.retryable ? Constants.statusCheckCreateUrlRetryTimeout : Constants.noTimeout;
 
-            List<AnimationClipResult> generatedAnimationClips;
+            var generatedAnimationClips = new List<AnimationClipResult>();
+            var generatedJobIds = new List<Guid>();
+            var generatedCustomSeeds = new List<int>();
+            var timedOutJobIds = new List<Guid>();
+            var timedOutCustomSeeds = new List<int>();
+            var failedJobIds = new HashSet<Guid>();
+            OperationResult<BlobAssetResult> url = null;
 
             using var progressTokenSource2 = new CancellationTokenSource();
             try
@@ -354,71 +414,91 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                     defaultOperationTimeout: retryTimeout);
                 var assetComponent = builder.AssetComponent();
 
-                var assetResults = new List<(Guid jobId, OperationResult<BlobAssetResult>)>();
-                foreach (var jobId in arg.jobIds)
+                for (var index = 0; index < arg.jobIds.Count; index++)
                 {
-                    // need to be very careful, we're taking each in turn to guarantee paused play mode support
-                    // there's not much drawback as the generations are started way before
-                    var url = await EditorTask.Run(() =>
-                        assetComponent.CreateAssetDownloadUrl(jobId, retryTimeout, cancellationToken: retryTokenSource.Token), retryTokenSource.Token);
-                    if (retryTokenSource.IsCancellationRequested)
-                        throw new OperationCanceledException();
-                    assetResults.Add((jobId, url));
-                }
+                    var jobId = arg.jobIds[index];
+                    if (failedJobIds.Contains(jobId))
+                        continue;
 
-                generatedAnimationClips = assetResults.Select(pair =>
+                    var customSeed = arg.customSeeds is { Length: > 0 } && arg.jobIds.Count == arg.customSeeds.Length ? arg.customSeeds[index] : -1;
+
+                    // The goal is to maximize resilience by treating each download as an independent
+                    // operation. The failure of one item should not prevent others from being attempted.
+                    try
                     {
-                        var (_, result) = pair;
-                        if (result.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
-                        {
-                            return AnimationClipResult.FromUrl(result.Result.Value.AssetUrl.Url);
-                        }
+                        // First job gets most of the time budget, the subsequent jobs just get long enough for a status check
+                        using var retryTokenSource = new CancellationTokenSource(index == 0 ? retryTimeout : shortRetryTimeout);
 
-                        if (result.Result.IsSuccessful)
+                        url = await EditorTask.Run(() =>
+                            assetComponent.CreateAssetDownloadUrl(jobId, retryTimeout, api.DispatchJobUpdates, retryTokenSource.Token), retryTokenSource.Token);
+
+                        if (url.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
                         {
-                            api.DispatchFailedDownloadMessage(arg.asset,
-                                new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
+                            generatedJobIds.Add(jobId);
+                            generatedCustomSeeds.Add(customSeed);
+                            generatedAnimationClips.Add(AnimationClipResult.FromUrl(url.Result.Value.AssetUrl.Url));
                         }
                         else
                         {
-                            // Add check for cancellation/timeout
+                            // This code should throw OperationCanceledException for timeouts
+                            // and HandledFailureException for other known, non-recoverable errors.
                             if (retryTokenSource.IsCancellationRequested && arg.retryable)
-                            {
-                                throw new DownloadTimeoutException();
-                            }
+                                throw new OperationCanceledException();
 
-                            api.DispatchFailedDownloadMessage(arg.asset, result, arg.generationMetadata.w3CTraceId, arg.retryable);
+                            if (api.DispatchSingleFailedDownloadMessage(arg.asset, url, arg.generationMetadata.w3CTraceId))
+                                failedJobIds.Add(jobId);
+                            else
+                                throw new HandledFailureException();
                         }
-
-                        throw new HandledFailureException();
-                    })
-                    .ToList();
-            }
-            catch (OperationCanceledException)
-            {
-                // don't remove skeletons, we will retry
-                throw new DownloadTimeoutException();
-            }
-            catch (DownloadTimeoutException)
-            {
-                // don't remove skeletons, we will retry
-                throw;
-            }
-            catch (HandledFailureException)
-            {
-                // we can simply return without throwing or additional logging because the error is already logged
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                return;
-            }
-            catch
-            {
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
-                throw;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // CASE 1: A timeout occurred. This is a recoverable error for a retry attempt.
+                        // We add the item to the "timed out" bucket and continue the loop.
+                        if (arg.retryable)
+                        {
+                            // Add to the list of items to retry on the next pass.
+                            timedOutJobIds.Add(jobId);
+                            timedOutCustomSeeds.Add(customSeed);
+                        }
+                        else
+                        {
+                            // The final attempt timed out. Log it as a failure.
+                            Debug.LogError($"Download for job {jobId} timed out and was not retryable.");
+                        }
+                    }
+                    catch (HandledFailureException)
+                    {
+                        // CASE 2: A known, non-recoverable error occurred (e.g., 404 Not Found, invalid data).
+                        // The error message has already been dispatched to the user by the code that threw this.
+                        // We log the error and continue the loop to the next item. The failed item is simply dropped.
+                        Debug.LogWarning($"A handled failure occurred for job {jobId}, it will be skipped.");
+                    }
+                    catch (Exception ex)
+                    {
+                        // CASE 3: An unexpected, unhandled error occurred (e.g., NullReferenceException, network stack error).
+                        // This is a potential bug. We log it verbosely and continue the loop to salvage the rest of the batch.
+                        Debug.LogError($"An unexpected error occurred while processing job {jobId}. The loop will continue, but this may indicate a bug. Details: {ex}");
+                    }
+                }
             }
             finally
             {
                 progressTokenSource2.Cancel();
+            }
+
+            if (generatedAnimationClips.Count == 0)
+            {
+                if (timedOutJobIds.Count == 0)
+                {
+                    // we've already messaged each job individually, so just exit
+                    if (UnityEditor.Unsupported.IsDeveloperMode())
+                        api.DispatchFailedDownloadMessage(arg.asset, url, arg.generationMetadata.w3CTraceId);
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                    throw new HandledFailureException();
+                }
+
+                return arg with { jobIds = timedOutJobIds.ToList(), customSeeds = timedOutCustomSeeds.ToArray() };
             }
 
             // initial 'backup'
@@ -433,36 +513,35 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                 }
             }
 
-            // cache
+            // Proceed with saving successful images
             using var progressTokenSource4 = new CancellationTokenSource();
             try
             {
-                _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."), 1, progressTokenSource4.Token);
+                if (timedOutJobIds.Count == 0)
+                {
+                    _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
+                        value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."), 1, progressTokenSource4.Token);
+                }
+                else
+                {
+                    _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
+                        _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, $"Downloading results {generatedJobIds.Count} of {arg.jobIds.Count} results."), variations, progressTokenSource4.Token);
+                }
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
                 var metadata = arg.generationMetadata;
-                var saveTasks = generatedAnimationClips.Select((t, index) =>
-                    {
-                        var metadataCopy = metadata with { };
-                        if (arg.customSeeds.Length > 0 && generatedAnimationClips.Count == arg.customSeeds.Length)
-                        {
-                            metadataCopy.customSeed = arg.customSeeds[index];
-                        }
+                var saveTasks = generatedAnimationClips.Select(async (result, index) =>
+                {
+                    var metadataCopy = metadata with { };
+                    if (generatedCustomSeeds.Count > 0 && generatedAnimationClips.Count == generatedCustomSeeds.Count)
+                        metadataCopy.customSeed = generatedCustomSeeds[index];
 
-                        return t.DownloadToProject(metadataCopy, generativePath, httpClientLease.client);
-                    })
-                    .ToList();
-                await Task.WhenAll(saveTasks); // saves to project and is picked up by GenerationFileSystemWatcherManipulator
+                    await result.DownloadToProject(metadataCopy, generativePath, httpClientLease.client);
+                    var fullfilled = new FulfilledSkeletons(arg.asset, new List<FulfilledSkeleton> {new(arg.progressTaskId, result.uri.GetAbsolutePath())});
+                    api.Dispatch(GenerationResultsActions.setFulfilledSkeletons, fullfilled);
+                }).ToList();
 
-                // the ui handles results, skeletons, and fulfilled skeletons to determine which tiles are ready for display (see Selectors.SelectGeneratedTexturesAndSkeletons)
-                api.Dispatch(GenerationResultsActions.setFulfilledSkeletons,
-                    new(arg.asset, generatedAnimationClips.Select(res => new FulfilledSkeleton(arg.progressTaskId, res.uri.GetAbsolutePath())).ToList()));
-            }
-            catch
-            {
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
-                throw;
+                await Task.WhenAll(saveTasks);
             }
             finally
             {
@@ -479,10 +558,12 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                 }
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
+            if (timedOutJobIds.Count == 0)
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
-            // if you got here, no need to keep the potentially interrupted download
-            GenerationRecovery.RemoveInterruptedDownload(arg);
+            GenerationRecovery.RemoveInterruptedDownload(arg with { jobIds = generatedJobIds.ToList(), customSeeds = generatedCustomSeeds.ToArray() });
+
+            return arg with { jobIds = timedOutJobIds.ToList(), customSeeds = timedOutCustomSeeds.ToArray() };
         }
     }
 }

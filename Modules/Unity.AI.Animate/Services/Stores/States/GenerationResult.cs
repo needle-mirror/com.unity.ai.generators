@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Animate.Services.Undo;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Redux.Toolkit;
@@ -36,7 +35,7 @@ namespace Unity.AI.Animate.Services.Stores.States
         public AssetUndoManager assetUndoManager;
         public bool replaceWithoutConfirmation = true; // AI.Material and AI.Animate are unable to detect differences between asset and generation so we default to true for easier workflows
         public SerializableDictionary<string, GeneratedResultSelectorSettings> generatedResultSelectorSettings = new();
-        public GenerationValidationResult generationValidation = new(false, AiResultErrorEnum.Unknown, 1, new List<GenerationFeedbackData>());
+        public GenerationValidationResult generationValidation = new(false, BackendServiceConstants.ErrorTypes.Unknown, 1, new List<GenerationFeedbackData>());
     }
 
     [Serializable]

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
+using UnityEngine.Rendering;
 
 namespace Unity.AI.Material.Services.Utilities
 {
@@ -45,6 +46,8 @@ namespace Unity.AI.Material.Services.Utilities
         UnityEngine.Object AsObject { get; }
         bool IsValid { get; }
         string Shader { get; }
+        static readonly IReadOnlyDictionary<string, string> emptyDictionary = new Dictionary<string, string>();
+        IReadOnlyDictionary<string, string> MapShaderNameToDescription();
     }
 
     readonly struct InvalidMaterialAdapter : IMaterialAdapter
@@ -57,6 +60,7 @@ namespace Unity.AI.Material.Services.Utilities
         public string[] GetTexturePropertyNames() => Array.Empty<string>();
         public void SetTexture(string propertyName, Texture texture) { }
         public string Shader => "Invalid";
+        public IReadOnlyDictionary<string, string> MapShaderNameToDescription() => IMaterialAdapter.emptyDictionary;
     }
 
     readonly struct MaterialAdapter : IMaterialAdapter
@@ -84,6 +88,23 @@ namespace Unity.AI.Material.Services.Utilities
         public bool IsValid => m_Material != null;
 
         public string Shader => m_Material?.shader != null ? m_Material.shader.name : "Invalid";
+        public IReadOnlyDictionary<string, string> MapShaderNameToDescription()
+        {
+            if (!m_Material || !m_Material.shader)
+                return IMaterialAdapter.emptyDictionary;
+
+            var shaderTextureProperties = new Dictionary<string, string>();
+            var shader = m_Material.shader;
+            for (int i = 0; i < shader.GetPropertyCount(); i++)
+            {
+                if (shader.GetPropertyType(i) == ShaderPropertyType.Texture)
+                {
+                    shaderTextureProperties.TryAdd(shader.GetPropertyName(i), shader.GetPropertyDescription(i));
+                }
+            }
+
+            return shaderTextureProperties;
+        }
 
         public static implicit operator bool(MaterialAdapter provider) => provider.m_Material != null;
     }
@@ -97,6 +118,13 @@ namespace Unity.AI.Material.Services.Utilities
             { "_Diffuse", 0 },
             { "_NormalMap", 1 },
             { "_MaskMap", 2 }
+        };
+
+        static readonly Dictionary<string, string> k_PropertyShaderNameMap = new()
+        {
+            { "_Diffuse", "Diffuse" },
+            { "_NormalMap", "Normal Map" },
+            { "_MaskMap", "Mask Map" }
         };
 
         public string ProviderName => m_TerrainLayer != null ? m_TerrainLayer.name : "Null TerrainLayer";
@@ -145,6 +173,13 @@ namespace Unity.AI.Material.Services.Utilities
         public bool IsValid => m_TerrainLayer != null;
 
         public string Shader => "Nature/Terrain/Standard";
+        public IReadOnlyDictionary<string, string> MapShaderNameToDescription()
+        {
+            if (!m_TerrainLayer)
+                return IMaterialAdapter.emptyDictionary;
+
+            return k_PropertyShaderNameMap;
+        }
 
         public static implicit operator bool(TerrainLayerAdapter provider) => provider.m_TerrainLayer != null;
     }

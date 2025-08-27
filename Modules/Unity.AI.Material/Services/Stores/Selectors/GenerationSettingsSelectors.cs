@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Actions.Payloads;
 using Unity.AI.Material.Services.Stores.States;
@@ -62,36 +61,36 @@ namespace Unity.AI.Material.Services.Stores.Selectors
             return modelSettings?.name;
         }
 
-        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
+        public static List<string> SelectRefinementOperations(this IState state, AssetReference asset)
         {
             var mode = state.SelectRefinementMode(asset);
             var operations = mode switch
             {
-                RefinementMode.Generation => new[] { OperationSubTypeEnum.TextPrompt },
-                RefinementMode.Upscale => new[] { OperationSubTypeEnum.Upscale },
-                RefinementMode.Pbr => new[] { OperationSubTypeEnum.Pbr },
-                _ => new[] { OperationSubTypeEnum.TextPrompt }
+                RefinementMode.Generation => new[] { ModelConstants.Operations.TextPrompt },
+                RefinementMode.Upscale => new[] { ModelConstants.Operations.Upscale },
+                RefinementMode.Pbr => new[] { ModelConstants.Operations.Pbr },
+                _ => new[] { ModelConstants.Operations.TextPrompt }
             };
             return operations.ToList();
         }
-        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+        public static List<string> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var modalities = GenerationSettingsActions.spriteModelsAsMaterialModelsEnabled
-                ? new [] { ModalityEnum.Texture2d, ModalityEnum.Image }
-                : new [] { ModalityEnum.Texture2d };
+                ? new [] { ModelConstants.Modalities.Texture2d, ModelConstants.Modalities.Image }
+                : new [] { ModelConstants.Modalities.Texture2d };
             var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, modalities, state.SelectRefinementOperations(element).ToArray()),
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: modalities, operations: state.SelectRefinementOperations(element).ToArray()),
                 timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element)
         {
             var modalities = GenerationSettingsActions.spriteModelsAsMaterialModelsEnabled
-                ? new [] { ModalityEnum.Texture2d, ModalityEnum.Image }
-                : new [] { ModalityEnum.Texture2d };
-            return ModelSelectorSelectors.SelectAutoAssignModel(state, modalities, state.SelectRefinementOperations(element).ToArray());
+                ? new [] { ModelConstants.Modalities.Texture2d, ModelConstants.Modalities.Image }
+                : new [] { ModelConstants.Modalities.Texture2d };
+            return ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: modalities, operations: state.SelectRefinementOperations(element).ToArray());
         }
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
@@ -268,14 +267,20 @@ namespace Unity.AI.Material.Services.Stores.Selectors
                 candidateStream = await AssetReferenceExtensions.FromObject(referenceImage).GetCompatibleImageStreamAsync();
             }
 
-            if (!ImageResizeUtilities.NeedsResize(candidateStream))
+            var needsAlphaStrip = ImageFileUtilities.HasPngAlphaChannel(candidateStream);
+            var needsResize = ImageResizeUtilities.NeedsResize(candidateStream);
+
+            if (!needsAlphaStrip && !needsResize)
+            {
                 return candidateStream;
+            }
 
-            var resized = ImageResizeUtilities.ResizeForPbr(candidateStream);
-            if (resized != candidateStream)
-                await candidateStream.DisposeAsync();
+            var imageBytes = await candidateStream.ReadFullyAsync();
+            await candidateStream.DisposeAsync();
 
-            return resized;
+            imageBytes = ImageResizeUtilities.ProcessImageForBackend(imageBytes, needsAlphaStrip, needsResize);
+
+            return new MemoryStream(imageBytes);
         }
 
         public static async Task<Stream> SelectPatternImageReferenceAssetStream(this IState state, AssetReference asset)
@@ -285,14 +290,21 @@ namespace Unity.AI.Material.Services.Stores.Selectors
                 return null;
 
             var candidateStream = await patternImageReferenceAsset.GetCompatibleImageStreamAsync();
-            if (!ImageResizeUtilities.NeedsResize(candidateStream, true))
+
+            var needsAlphaStrip = ImageFileUtilities.HasPngAlphaChannel(candidateStream);
+            var needsResize = ImageResizeUtilities.NeedsResize(candidateStream);
+
+            if (!needsAlphaStrip && !needsResize)
+            {
                 return candidateStream;
+            }
 
-            var resized = ImageResizeUtilities.ResizeForPbr(candidateStream, true);
-            if (resized != candidateStream)
-                await candidateStream.DisposeAsync();
+            var imageBytes = await candidateStream.ReadFullyAsync();
+            await candidateStream.DisposeAsync();
 
-            return resized;
+            imageBytes = ImageResizeUtilities.ProcessImageForBackend(imageBytes, needsAlphaStrip, needsResize);
+
+            return new MemoryStream(imageBytes);
         }
 
         public static async Task<Stream> SelectPromptImageReferenceAssetStream(this IState state, AssetReference asset)
@@ -302,14 +314,21 @@ namespace Unity.AI.Material.Services.Stores.Selectors
                 return null;
 
             var candidateStream = await promptImageReferenceAsset.GetCompatibleImageStreamAsync();
-            if (!ImageResizeUtilities.NeedsResize(candidateStream))
+
+            var needsAlphaStrip = ImageFileUtilities.HasPngAlphaChannel(candidateStream);
+            var needsResize = ImageResizeUtilities.NeedsResize(candidateStream);
+
+            if (!needsAlphaStrip && !needsResize)
+            {
                 return candidateStream;
+            }
 
-            var resized = ImageResizeUtilities.ResizeForPbr(candidateStream);
-            if (resized != candidateStream)
-                await candidateStream.DisposeAsync();
+            var imageBytes = await candidateStream.ReadFullyAsync();
+            await candidateStream.DisposeAsync();
 
-            return resized;
+            imageBytes = ImageResizeUtilities.ProcessImageForBackend(imageBytes, needsAlphaStrip, needsResize);
+
+            return new MemoryStream(imageBytes);
         }
 
         public static async Task<Stream> SelectPromptAssetBytesWithFallback(this IState state, AssetReference asset) =>

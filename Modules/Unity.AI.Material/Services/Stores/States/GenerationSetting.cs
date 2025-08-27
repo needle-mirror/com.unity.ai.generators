@@ -33,7 +33,7 @@ namespace Unity.AI.Material.Services.Stores.States
     record PatternImageReference
     {
         public float strength = 0.5f;
-        public AssetReference asset = new() { guid = "df1d8d51ae8ca65429a68345c1e58832" }; // blank pattern to help the object picker show the correct asset
+        public AssetReference asset = new();
     }
 
     enum RefinementMode : int

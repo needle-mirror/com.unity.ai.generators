@@ -16,7 +16,6 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
 using Unity.AI.Toolkit;
-using AiEditorToolsSdk.Components.Common.Enums;
 
 namespace Unity.AI.Sound.Components
 {

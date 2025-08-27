@@ -79,6 +79,13 @@ namespace Unity.AI.Material.Services.Stores.Actions
             var promotedMaterialResult = MaterialResult.FromPath(originalMaterialResult.uri.GetLocalPath());
             var promotedAsset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(destFileName) };
 
+            try
+            {
+                if (api.State.SelectGeneratedMaterialMappingIsNone(promotedAsset))
+                    await api.Dispatch(GenerationResultsActions.autodetectMaterialMapping, new(promotedAsset));
+            }
+            catch { /* ignored */ }
+
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
             await promotedMaterialResult.CopyToProject(promotedMaterialResult.GetName(), await originalMaterialResult.GetMetadata(), generativePath);
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedMaterialResult, true, false));
@@ -111,6 +118,13 @@ namespace Unity.AI.Material.Services.Stores.Actions
 
             async Task SaveToProjectUnsafe()
             {
+                try
+                {
+                    if (args.api.State.SelectGeneratedMaterialMappingIsNone(promotedAsset))
+                        await args.api.Dispatch(GenerationResultsActions.autodetectMaterialMapping, new(promotedAsset));
+                }
+                catch { /* ignored */ }
+
                 await promotedMaterialResult.CopyToProject(promotedMaterialResult.GetName(), await originalMaterialResult.GetMetadata(), generativePath);
 
                 // forcibly overwrites the asset, only ok when we create a new asset (as here)

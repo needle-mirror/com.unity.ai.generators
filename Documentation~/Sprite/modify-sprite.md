@@ -21,14 +21,18 @@ Use the **Upscale** tab to increase the resolution of the generated sprite witho
 1. Select **Change** to choose a model from the **Select Model** window.
 1. Select **Upscale**.
 
+![Sprite Generator Upscale tab shows two green cartoon dog sprites, with a 2K badge on the upscaled version.](../images/upscale.png)
+
+View the upscaled image in the **Generations** panel. The resolution badge (for example, **2K** or **4K**) appears in the top-left corner of the image.
+
 ## Pixelate
 
 Use the **Pixelate** tab to convert the sprite into a pixel art style.
 
 1. In the **Generate** window, select the **Pixelate** tab.
 1. Adjust the following settings:
-   
-   | Setting | Description | 
+
+   | Setting | Description |
    | ------- | ----------- |
    | **Size** | Defines the pixel size. |
    | **Keep Image Size** | Retains the original sprite size. |
@@ -44,11 +48,11 @@ Use the **Recolor** tab to customize the color palette used in the sprite.
 1. In the **Palette Reference** field, select the **Paint Brush** tool.
 
    The **Doodle** window opens. Use the following tools:
-   
+
    | Tool | Description |
    | ---- | ----------- |
    | **Paint Brush** | Colors directly on the canvas. |
-   | **Eraser** | Erases existing color from the canvas. | 
+   | **Eraser** | Erases existing color from the canvas. |
    | **Paint** | Fills the canvas with the selected color. |
    | **Color Picker** | Selects a color from the canvas. |
    | **Brush Size** | Adjusts the brush size. |
@@ -57,19 +61,19 @@ Use the **Recolor** tab to customize the color palette used in the sprite.
 
 ## Inpaint
 
-Use the **Inpaint** tab to refine specific areas of the sprite with masking. You can adjust the mask with brush settings and an eraser. 
+Use the **Inpaint** tab to refine specific areas of the sprite with masking. You can adjust the mask with brush settings and an eraser.
 
 1. In the **Generate** window, select the **Inpaint** tab.
 1. In the **Prompt** field, specify the object that you want to insert in the area defined by the mask.
-   
-   > [!NOTE]  
+
+   > [!NOTE]
    > Don't leave the **Prompt** field blank.
-   
+
     ![Inpaint tab with fields to mask the sprite](../images/Inpaint.png)
 
 1. In the **Inpaint Mask** field, select the **Paint Brush** tool.
 
-   The **Doodle** window opens. 
+   The **Doodle** window opens.
 1. Paint a mask over the area you want to modify.
 
    For more information on the tools available in the **Doodle** window, refer to the [Recolor](#recolor) section.

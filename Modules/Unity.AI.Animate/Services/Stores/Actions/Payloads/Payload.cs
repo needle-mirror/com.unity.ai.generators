@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
 {
     record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
+    record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId) : AsssetContext(asset);
     record DownloadAnimationsData(
         AssetReference asset,
         List<Guid> jobIds,

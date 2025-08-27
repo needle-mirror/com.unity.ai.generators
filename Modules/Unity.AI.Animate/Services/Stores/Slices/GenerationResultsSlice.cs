@@ -52,31 +52,39 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                 })
                 .Add(GenerationResultsActions.setFulfilledSkeletons, (state, payload) => {
                     var results = state.generationResults.Ensure(payload.asset);
-
-                    // Add new fulfilled skeletons
                     results.fulfilledSkeletons = results.fulfilledSkeletons.Union(payload.skeletons).ToList();
+                })
+                .Add(GenerationResultsActions.pruneFulfilledSkeletons, (state, payload) => {
+                    // This reducer follows the core Redux principle of immutability. State must not be
+                    // mutated directly. Instead, we create new collections (e.g., using `Where().ToList()`)
+                    // and assign them to the new state.
+                    var results = state.generationResults.Ensure(payload.asset);
 
-                    // Create a HashSet of result URIs for O(1) lookups
+                    // 1. Find the taskIDs of all skeletons that have a fulfilled animationClip result.
+                    // This is the "cleanup" logic from your original code, now in the right place.
                     var animationUris = new HashSet<string>(
                         results.generatedAnimations
                             .Where(animation => animation.uri != null)
                             .Select(animation => animation.uri.GetAbsolutePath())
                     );
 
-                    // Identify skeletons that have corresponding results in the state
-                    var skeletonsToRemove = results.fulfilledSkeletons
-                        .Where(skeleton => animationUris.Contains(skeleton.resultUri))
-                        .Select(skeleton => skeleton.progressTaskID)
+                    var fulfilledTaskIds = results.fulfilledSkeletons
+                        .Where(fs => animationUris.Contains(fs.resultUri))
+                        .Select(fs => fs.progressTaskID)
                         .ToHashSet();
 
-                    // Clean up fulfilled skeletons that have results already
-                    results.fulfilledSkeletons = results.fulfilledSkeletons
-                        .Where(skeleton => !skeletonsToRemove.Contains(skeleton.progressTaskID))
+                    if (fulfilledTaskIds.Count == 0)
+                        return; // Nothing to prune
+
+                    // 2. Filter the lists, keeping only the items NOT in the set of completed IDs.
+                    // This is safe to do now, because we are deliberately cleaning up. The UI has
+                    // already correctly displayed the final animationClipResult.
+                    results.generatedSkeletons = results.generatedSkeletons
+                        .Where(skeleton => !fulfilledTaskIds.Contains(skeleton.taskID))
                         .ToList();
 
-                    // Clean up generated skeletons that have results already
-                    results.generatedSkeletons = results.generatedSkeletons
-                        .Where(skeleton => !skeletonsToRemove.Contains(skeleton.taskID))
+                    results.fulfilledSkeletons = results.fulfilledSkeletons
+                        .Where(fs => !fulfilledTaskIds.Contains(fs.progressTaskID))
                         .ToList();
                 })
                 .Add(GenerationResultsActions.setSelectedGeneration, (state, payload) => state.generationResults.Ensure(payload.asset).selectedGeneration = payload.result with { })

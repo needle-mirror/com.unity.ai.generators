@@ -39,6 +39,8 @@ To generate a sprite, follow these steps:
       For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).
 1. Select **Generate**.
 
+The button label displays the Unity Points cost for generating the asset. This number shows how many Unity Points will be deducted when you use the feature.
+
 The generated sprite appears in the **Generations** panel and the **Inspector** window. You can click the **Generate** button in the **Inspector** to open the Sprite Generator window. For more information, refer to [Generate window](xref:generate-window-sprite).
 
 Hover over a sprite the **Generations** panel to view details, such as the model used and prompt settings.

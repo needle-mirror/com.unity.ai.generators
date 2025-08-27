@@ -12,8 +12,13 @@ using UnityEngine;
 
 namespace Unity.AI.Material.Services.Utilities
 {
+    interface IInterruptedMaterialDownloadData : IInterruptedDownloadBase
+    {
+        ImmutableArray<SerializableDictionary<int, string>> jobIds { get; set; }
+    }
+
     [Serializable]
-    record InterruptedDownloadData : IInterruptedDownloadData
+    record InterruptedDownloadData : IInterruptedMaterialDownloadData
     {
         public AssetReference asset = new();
 
@@ -62,6 +67,11 @@ namespace Unity.AI.Material.Services.Utilities
 
         public int progressTaskId => taskId;
         public string uniqueTaskId => uniqueId;
+        public ImmutableArray<SerializableDictionary<int, string>> jobIds
+        {
+            get => ids;
+            set => ids = value;
+        }
     }
 
     static class GenerationRecovery
@@ -175,19 +185,115 @@ namespace Unity.AI.Material.Services.Utilities
         public static void RemoveInterruptedDownload(InterruptedDownloadData data)
         {
             var environment = WebUtils.selectedEnvironment;
+
+            // If a uniqueId is present, we can perform a partial removal of entire materials.
+            if (!string.IsNullOrEmpty(data.uniqueId))
+            {
+                // Call the new, reusable utility.
+                bool modified = s_InterruptedDownloadsByEnv.RemovePartialMaterialDownloads(
+                    environment,
+                    data.uniqueId,
+                    data.jobIds, // This is the list of materials to remove.
+                    // This delegate handles the critical side effect of deleting the cached preview file.
+                    materialEntry => RemoveCachedDownload(materialEntry[(int)MapType.Preview])
+                );
+
+                if (modified)
+                {
+                    SaveInterruptedDownloads();
+                    return; // Exit early, preserving the original behavior.
+                }
+            }
+
+            // Fallback to the original full-removal logic if no uniqueId or if no partial modification occurred.
             if (s_InterruptedDownloadsByEnv.RemoveInterruptedDownload(environment,
-                d => {
-                    if (d != null && d.AreKeyFieldsEqual(data))
-                    {
-                        foreach (var generatedMaterial in d.ids)
-                            RemoveCachedDownload(generatedMaterial[(int)MapType.Preview]);
-                        return true;
-                    }
-                    return false;
-                }) > 0)
+                    d => {
+                        if (d != null && d.AreKeyFieldsEqual(data))
+                        {
+                            // The side effect must also be handled in the full removal case.
+                            foreach (var generatedMaterial in d.ids)
+                                RemoveCachedDownload(generatedMaterial[(int)MapType.Preview]);
+                            return true;
+                        }
+                        return false;
+                    }) > 0)
             {
                 SaveInterruptedDownloads();
             }
+        }
+
+        /// <summary>
+        /// Removes specific material entries (which are dictionaries) from a single interrupted download record.
+        /// The unit of removal is the entire dictionary, representing a full material.
+        /// </summary>
+        /// <param name="materialEntriesToRemove"></param>
+        /// <param name="onRemoveEntry">Action executed for each material entry just before it's removed (e.g., for file cleanup).</param>
+        /// <param name="dictionary"></param>
+        /// <param name="environment"></param>
+        /// <param name="uniqueTaskId"></param>
+        /// <returns>True if the data was modified, otherwise false.</returns>
+        static bool RemovePartialMaterialDownloads<TData>(
+            this IDictionary<string, List<TData>> dictionary,
+            string environment,
+            string uniqueTaskId,
+            ImmutableArray<SerializableDictionary<int, string>> materialEntriesToRemove,
+            Action<SerializableDictionary<int, string>> onRemoveEntry) where TData : IInterruptedMaterialDownloadData
+        {
+            if (string.IsNullOrEmpty(environment) || string.IsNullOrEmpty(uniqueTaskId))
+                return false;
+
+            if (!dictionary.TryGetValue(environment, out var downloads) || downloads == null)
+                return false;
+
+            var download = downloads.FirstOrDefault(d => d != null && d.uniqueTaskId == uniqueTaskId);
+            if (download == null)
+                return false;
+
+            if (materialEntriesToRemove == null || materialEntriesToRemove.Length == 0)
+                return false;
+
+            var remainingEntries = download.jobIds.ToList();
+            var modified = false;
+
+            foreach (var entryToRemove in materialEntriesToRemove)
+            {
+                // Find a matching material dictionary in the list.
+                var entryInList = remainingEntries.FirstOrDefault(e => AreDictionariesEqual(e, entryToRemove));
+                if (entryInList != null)
+                {
+                    // Execute the side effect (like deleting a file) BEFORE removing from the list.
+                    onRemoveEntry?.Invoke(entryInList);
+                    remainingEntries.Remove(entryInList);
+                    modified = true;
+                }
+            }
+
+            if (!modified)
+                return false;
+
+            // If all materials were removed, remove the parent download object entirely.
+            if (remainingEntries.Count == 0)
+            {
+                downloads.Remove(download);
+            }
+            else
+            {
+                // Otherwise, update the parent object with the smaller list of materials.
+                download.jobIds = ImmutableArray<SerializableDictionary<int, string>>.From(remainingEntries.ToArray());
+            }
+
+            return true;
+        }
+
+        static bool AreDictionariesEqual(SerializableDictionary<int, string> dictA, SerializableDictionary<int, string> dictB)
+        {
+            if (dictA.Count != dictB.Count) return false;
+            foreach (var kvp in dictA)
+            {
+                if (!dictB.TryGetValue(kvp.Key, out var value) || value != kvp.Value)
+                    return false;
+            }
+            return true;
         }
 
         public static List<InterruptedDownloadData> GetInterruptedDownloads(AssetReference asset)
@@ -228,8 +334,8 @@ namespace Unity.AI.Material.Services.Utilities
         {
             s_InterruptedDownloadsByEnv.CleanupNullEntries();
             GenerationRecoveryUtils.SaveInterruptedDownloads(s_InterruptedDownloadsByEnv, interruptedDownloadsFilePath);
-        }        
-        
+        }
+
         /// <summary>
         /// Path to the file where interrupted downloads are stored.
         /// Can be overridden for testing purposes.

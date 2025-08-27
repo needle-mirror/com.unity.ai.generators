@@ -31,6 +31,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static readonly string slice = "generationResults";
         public static Creator<GenerationMaterials> setGeneratedMaterials => new($"{slice}/setGeneratedMaterials");
 
+        static readonly HashSet<string> k_ActiveDownloads = new();
         static readonly SemaphoreSlim k_SetGeneratedMaterialsAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationMaterials> setGeneratedMaterialsAsync = new($"{slice}/setGeneratedMaterialsAsync",
             async (payload, api) =>
@@ -139,6 +140,7 @@ namespace Unity.AI.Material.Services.Stores.Actions
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
         public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
+        public static Creator<AsssetContext> pruneFulfilledSkeletons => new($"{slice}/pruneFulfilledSkeletons");
         public static Creator<PromotedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<GenerationMaterialMappingData> setGeneratedMaterialMapping => new($"{slice}/setGeneratedMaterialMapping");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
@@ -279,7 +281,10 @@ namespace Unity.AI.Material.Services.Stores.Actions
         {
             var option = 0;
 
-            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset);
+            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset)
+                .Where(d => string.IsNullOrEmpty(d.uniqueTaskId) || !k_ActiveDownloads.Contains(d.uniqueTaskId))
+                .ToList();
+
             if (!await DialogUtilities.ShowResumeDownloadPopup(interruptedDownloads, op => option = op))
                 return;
 
@@ -294,15 +299,38 @@ namespace Unity.AI.Material.Services.Stores.Actions
                             continue;
                         }
 
-                        _ = api.Dispatch(downloadMaterialsMain,
-                            new DownloadMaterialsData(data.asset,
-                                data.ids.ConvertIds(),
-                                data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
-                                string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
-                                data.generationMetadata,
-                                data.customSeeds.ToArray(),
-                                false, false),
-                            CancellationToken.None);
+                        _ = ResumeDownload();
+                        continue;
+
+                        async Task ResumeDownload()
+                        {
+                            var uniqueTaskId = data.uniqueTaskId;
+                            if (!string.IsNullOrEmpty(uniqueTaskId))
+                            {
+                                if (!k_ActiveDownloads.Add(uniqueTaskId))
+                                    return;
+                            }
+
+                            try
+                            {
+                                await api.Dispatch(downloadMaterialsMain,
+                                    new DownloadMaterialsData(data.asset,
+                                        data.ids.ConvertIds(),
+                                        data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                        string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                        data.generationMetadata,
+                                        data.customSeeds.ToArray(),
+                                        false, false),
+                                    CancellationToken.None);
+                            }
+                            finally
+                            {
+                                if (!string.IsNullOrEmpty(uniqueTaskId))
+                                {
+                                    k_ActiveDownloads.Remove(uniqueTaskId);
+                                }
+                            }
+                        }
                     }
 
                     break;
@@ -344,16 +372,20 @@ namespace Unity.AI.Material.Services.Stores.Actions
                 label = "reference";
             var progressTaskId = Progress.Start($"Generating with {label}.");
             SkeletonExtensions.Acquire(progressTaskId);
+            var uniqueTaskId = Guid.NewGuid();
+            var uniqueTaskIdString = uniqueTaskId.ToString();
+            k_ActiveDownloads.Add(uniqueTaskIdString);
             try
             {
                 api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var generationSetting = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
                 await api.Dispatch(Backend.Generation.generateMaterials,
-                    new(asset, generationSetting, progressTaskId), CancellationToken.None);
+                    new(asset, generationSetting, progressTaskId, uniqueTaskId: uniqueTaskId), CancellationToken.None);
             }
             finally
             {
+                k_ActiveDownloads.Remove(uniqueTaskIdString);
                 Progress.Finish(progressTaskId);
                 SkeletonExtensions.Release(progressTaskId);
             }

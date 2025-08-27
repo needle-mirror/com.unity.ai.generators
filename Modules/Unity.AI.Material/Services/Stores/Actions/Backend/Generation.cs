@@ -6,8 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Asset.Responses;
-using AiEditorToolsSdk.Components.Common.Enums;
-using AiEditorToolsSdk.Components.Common.Responses.OperationResponses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
@@ -22,7 +20,6 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEditor;
 using UnityEngine;
 using MapType = Unity.AI.Material.Services.Stores.States.MapType;
 using Unity.AI.Toolkit.Accounts;
@@ -63,9 +60,12 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
             var progress = new GenerationProgressData(arg.progressTaskId, variations, 0f);
             api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
 
+            await WebUtilities.WaitForCloudProjectSettings(TimeSpan.FromSeconds(15));
+
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
                 api.DispatchInvalidCloudProjectMessage(arg.asset);
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 return;
             }
 
@@ -223,11 +223,21 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                         }
                         case RefinementMode.Generation:
                         {
-                            var request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, seed)
-                                .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
-                                    new CompositionReference(uploadReferences.patternGuid, patternImageReference.strength));
+                            ImageGenerateRequest request;
+                            if (uploadReferences.patternGuid != Guid.Empty)
+                            {
+                                request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, seed)
+                                    .GenerateWithReference(new TextPrompt(prompt, negativePrompt),
+                                        new CompositionReference(uploadReferences.patternGuid, patternImageReference.strength));
+                            }
+                            else
+                            {
+                                request = ImageGenerateRequestBuilder.Initialize(generativeModelID, dimensions.x, dimensions.y, seed)
+                                    .Generate(new TextPrompt(prompt, negativePrompt));
+                            }
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            var generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                            var generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token),
+                                sdkTimeoutTokenSource.Token);
 
                             if (!generateResults.Batch.IsSuccessful)
                             {
@@ -260,7 +270,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                             customSeeds = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(r => r.Value.Request.Seed ?? -1).ToArray();
                             generationMetadata.w3CTraceId = generateResults.W3CTraceId;
                             break;
-                        }
+                    }
                     }
 
                     if (ids.Count == 0)
@@ -312,7 +322,7 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
             AIToolbarButton.ShowPointsCostNotification(cost);
 
             var downloadMaterialsData =
-                new DownloadMaterialsData(asset, materialGenerations, arg.progressTaskId, Guid.NewGuid(), generationMetadata, customSeeds, false, false);
+                new DownloadMaterialsData(asset, materialGenerations, arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId, generationMetadata, customSeeds, false, false);
             GenerationRecovery.AddInterruptedDownload(downloadMaterialsData); // 'potentially' interrupted
 
             if (WebUtilities.simulateClientSideFailures)
@@ -321,6 +331,20 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 throw new Exception("Some simulated client side failure.");
             }
 
+            await DownloadMaterialsAsyncWithRetry(downloadMaterialsData, api);
+
+            return;
+
+            // used in finally statements across this function, but placed after the return statement as per standards
+            void AbortCleanup(List<Dictionary<MapType, Guid>> canceledMaterialGenerations)
+            {
+                foreach (var generatedMaterial in canceledMaterialGenerations)
+                    GenerationRecovery.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
+            }
+        }
+
+        static async Task DownloadMaterialsAsyncWithRetry(DownloadMaterialsData downloadMaterialsData, AsyncThunkApi<bool> api)
+        {
             /* Retry loop. On the last try, retryable is false and we never timeout
                Each download attempt has a reasonable timeout (90 seconds)
                The operation retries up to 6 times on timeout
@@ -328,38 +352,39 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                If all attempts fail, appropriate error handling occurs
             */
             const int maxRetries = Constants.retryCount;
-            var retryCount = 0;
-            while (true)
+            for (var retryCount = 0; retryCount <= maxRetries; retryCount++)
             {
                 try
                 {
                     downloadMaterialsData = downloadMaterialsData with { retryable = retryCount < maxRetries };
-                    await DownloadMaterialsAsync(downloadMaterialsData, api);
-                    break;
+                    downloadMaterialsData = await DownloadMaterialsAsync(downloadMaterialsData, api);
+                    // If no jobs are left, the download is complete.
+                    if (downloadMaterialsData.jobIds.Count == 0)
+                        break;
+                    // If jobs remain, we must retry. Throw to enter the catch block.
+                    throw new DownloadTimeoutException();
                 }
                 catch (DownloadTimeoutException)
                 {
-                    if (++retryCount > maxRetries)
+                    if (retryCount >= maxRetries)
                     {
                         throw new NotImplementedException(
-                            $"The last download attempt ({retryCount}/{maxRetries}) is never supposed to timeout. This is a bug in the code, please report it.");
+                            $"The last download attempt ({retryCount + 1}/{maxRetries}) is never supposed to timeout. This is a bug in the code, please report it.");
                     }
 
-                    Debug.Log($"Download timed out. Retrying ({retryCount}/{maxRetries})...");
+                    if (UnityEditor.Unsupported.IsDeveloperMode())
+                        Debug.Log($"Download timed out. Retrying ({retryCount + 1}/{maxRetries})...");
+                }
+                catch (HandledFailureException)
+                {
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(downloadMaterialsData.asset, downloadMaterialsData.progressTaskId));
+                    return;
                 }
                 catch
                 {
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(downloadMaterialsData.asset, downloadMaterialsData.progressTaskId));
                     throw;
                 }
-            }
-
-            return;
-
-            void AbortCleanup(List<Dictionary<MapType, Guid>> canceledMaterialGenerations)
-            {
-                foreach (var generatedMaterial in canceledMaterialGenerations)
-                    GenerationRecovery.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
             }
         }
 
@@ -463,34 +488,85 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
         public static readonly AsyncThunkCreatorWithArg<DownloadMaterialsData> downloadMaterials =
             new($"{GenerationResultsActions.slice}/downloadMaterialsSuperProxy", DownloadMaterialsAsync);
 
-        static async Task DownloadMaterialsAsync(DownloadMaterialsData arg, AsyncThunkApi<bool> api)
+        /*
+         * =========================================================================================
+         * ARCHITECTURAL OVERVIEW: ASYNCHRONOUS DOWNLOAD AND RETRY PATTERN
+         * =========================================================================================
+         *
+         * The four functions below (DownloadAnimationClipsAsync, DownloadImagesAsync,
+         * DownloadMaterialsAsync, and DownloadAudioClipsAsync) all implement a shared, two-tiered
+         * resilience pattern for downloading generated assets.
+         *
+         * TIER 1: THE CALLER'S RETRY LOOP
+         * These functions are not self-retrying. They are designed to be called within an external
+         * retry loop (e.g., a `for` loop) that manages the number of attempts. The caller is
+         * responsible for:
+         *   1. Setting the `arg.retryable` flag. This is `true` for initial attempts and `false`
+         *      for the final, last-ditch attempt.
+         *   2. Re-invoking the function using the list of timed-out jobs returned from the
+         *      previous attempt.
+         *
+         * TIER 2: THIS FUNCTION'S SINGLE-ATTEMPT LOGIC
+         * Each function executes a SINGLE download attempt on a batch of `jobIds`. Its core
+         * responsibilities are:
+         *   1. Resilience: To process each `jobId` independently, so the failure of one does not
+         *      stop the entire batch.
+         *   2. Categorization: To sort jobs into three outcomes:
+         *      - SUCCESS: The asset download URL is fetched and the job is processed.
+         *      - TIMEOUT: If `arg.retryable` is true, the `jobId` is collected to be returned to
+         *        the caller for the next attempt.
+         *      - HARD FAILURE: A non-recoverable error occurred (e.g., 404, or a timeout on a
+         *        non-retryable attempt). The job is dropped and an error is logged.
+         *   3. State Management: Upon completion, it must return a new data object containing
+         *      ONLY the `jobIds` that timed out. An empty list of `jobIds` signals to the caller
+         *      that the process is complete (either by success or by dropping all failures).
+         *   4. Recovery Cleanup: It interacts with the `GenerationRecovery` system, which persists
+         *      jobs across editor restarts. This function is responsible for removing successfully
+         *      processed jobs from the recovery log to prevent them from being re-downloaded.
+         *
+         * NOTE ON VARIATIONS:
+         * While the pattern is consistent, there are intentional, asset-specific variations. For
+         * example, `DownloadMaterialsAsync` treats all maps for a single material as an atomic
+         * unit, and auto-apply logic differs by design.
+         */
+        static async Task<DownloadMaterialsData> DownloadMaterialsAsync(DownloadMaterialsData arg, AsyncThunkApi<bool> api)
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Downloading materials.");
 
             var variations = arg.jobIds.Count;
-
             var skeletons = Enumerable.Range(0, variations).Select(i => new MaterialSkeleton(arg.progressTaskId, i)).ToList();
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, skeletons));
 
             var progress = new GenerationProgressData(arg.progressTaskId, variations, 0.25f);
-
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Authenticating with UnityConnect.");
+
+            await WebUtilities.WaitForCloudProjectSettings(TimeSpan.FromSeconds(15));
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
                 api.DispatchInvalidCloudProjectMessage(arg.asset);
+                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
                 throw new HandledFailureException();
             }
 
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
-
             api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, "Waiting for server.");
 
             var retryTimeout = arg.retryable ? Constants.imageDownloadCreateUrlRetryTimeout : Constants.noTimeout;
+            var shortRetryTimeout = arg.retryable ? Constants.statusCheckCreateUrlRetryTimeout : Constants.noTimeout;
 
-            using var retryTokenSource = new CancellationTokenSource(retryTimeout);
-
-            Dictionary<Guid, Dictionary<MapType, TextureResult>> generatedTextures;
+            var generatedMaterialNames = new Dictionary<MaterialResult, string>();
+            var generatedMaterials = new List<MaterialResult>();
+            var generatedJobIdDictionaries = new List<Dictionary<MapType, Guid>>();
+            var generatedCustomSeeds = new List<int>();
+            var timedOutJobIdDictionaries = new List<Dictionary<MapType, Guid>>();
+            var timedOutCustomSeeds = new List<int>();
+            // Using a HashSet with a custom comparer for failed jobs. Dictionaries are reference types,
+            // so a standard List.Contains() or HashSet.Contains() would check for reference equality.
+            // We need to check for value equality (i.e., if two dictionaries contain the same key-value pairs)
+            // to correctly identify if a material has already been marked as failed, making the logic more robust.
+            var failedJobIdDictionaries = new HashSet<Dictionary<MapType, Guid>>(new DictionaryEqualityComparer<MapType, Guid>());
+            Task<OperationResult<BlobAssetResult>> url = null;
 
             using var progressTokenSource3 = new CancellationTokenSource();
             try
@@ -504,82 +580,139 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                     defaultOperationTimeout: retryTimeout);
                 var assetComponent = builder.AssetComponent();
 
-                var jobIdList = arg.jobIds.SelectMany(dictionary => dictionary.Values) // Get all JobId values
-                    .Where(jobId => !GenerationRecovery.HasCachedDownload(jobId.ToString())) // Filter out the ones that are already cached
-                    .ToList();
-
-                var assetResults = new Dictionary<Guid, OperationResult<BlobAssetResult>>();
-                foreach (var guid in jobIdList)
+                for (var index = 0; index < arg.jobIds.Count; index++)
                 {
-                    // need to be very careful, we're taking each in turn to guarantee paused play mode support
-                    // there's not much drawback as the generations are started way before
-                    var url = await EditorTask.Run(() =>
-                        assetComponent.CreateAssetDownloadUrl(guid, retryTimeout, cancellationToken: retryTokenSource.Token), retryTokenSource.Token);
-                    if (retryTokenSource.IsCancellationRequested)
-                        throw new OperationCanceledException();
-                    assetResults.Add(guid, url);
-                }
+                    var materialJobDict = arg.jobIds[index];
+                    if (failedJobIdDictionaries.Contains(materialJobDict))
+                        continue;
 
-                var urls = arg.jobIds.ToDictionary(m => m[MapType.Preview], m => m.ToDictionary(kvp => kvp.Key, kvp =>
-                {
-                    var jobId = kvp.Value;
-                    if (GenerationRecovery.HasCachedDownload(jobId.ToString()))
-                    {
-                        return TextureResult.FromUrl(GenerationRecovery.GetCachedDownloadUrl(jobId.ToString()).GetAbsolutePath());
-                    }
+                    var customSeed = arg.customSeeds is { Length: > 0 } && arg.jobIds.Count == arg.customSeeds.Length ? arg.customSeeds[index] : -1;
 
-                    var result = assetResults[jobId];
+                    // The goal is to maximize resilience by treating each material download as an independent
+                    // operation. The failure of one material map should not prevent other materials from being attempted.
+                    try
+                    {
+                        // First job gets most of the time budget, the subsequent jobs just get long enough for a status check
+                        using var retryTokenSource = new CancellationTokenSource(index == 0 ? retryTimeout : shortRetryTimeout);
 
-                    if (result.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
-                    {
-                        return TextureResult.FromUrl(result.Result.Value.AssetUrl.Url);
-                    }
-
-                    if (result.Result.IsSuccessful)
-                    {
-                        api.DispatchFailedDownloadMessage(arg.asset,
-                            new AiOperationFailedResult(AiResultErrorEnum.Unknown, new List<string> { "Simulated server timeout" }));
-                    }
-                    else
-                    {
-                        // Add check for cancellation/timeout
-                        if (retryTokenSource.IsCancellationRequested && arg.retryable)
+                        // Step A: Create download tasks for all maps of THIS material in parallel.
+                        var downloadUrlTasks = new Dictionary<MapType, Task<OperationResult<BlobAssetResult>>>();
+                        foreach (var kvp in materialJobDict)
                         {
-                            throw new DownloadTimeoutException();
+                            if (!GenerationRecovery.HasCachedDownload(kvp.Value.ToString()))
+                            {
+                                url = assetComponent.CreateAssetDownloadUrl(kvp.Value, retryTimeout, cancellationToken: retryTokenSource.Token);
+                                downloadUrlTasks.Add(kvp.Key, url);
+                            }
                         }
 
-                        api.DispatchFailedDownloadMessage(arg.asset, result, arg.generationMetadata.w3CTraceId);
-                    }
+                        // Step B: Wait for all maps of THIS material to finish fetching their URLs.
+                        // If any of them time out, this will throw an OperationCanceledException,
+                        // which we catch below to mark the ENTIRE material as timed-out.
+                        await Task.WhenAll(downloadUrlTasks.Values);
 
-                    throw new HandledFailureException();
-                }));
-                generatedTextures = urls.ToDictionary(m => m.Key, outerPair => outerPair.Value.ToDictionary(kvp => kvp.Key, innerPair => innerPair.Value));
-            }
-            catch (OperationCanceledException)
-            {
-                // don't remove skeletons, we will retry
-                throw new DownloadTimeoutException();
-            }
-            catch (DownloadTimeoutException)
-            {
-                // don't remove skeletons, we will retry
-                throw;
-            }
-            catch (HandledFailureException)
-            {
-                // we can simply return without throwing or additional logging because the error is already logged
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                return;
-            }
-            catch
-            {
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Failed.");
-                throw;
+                        // This code should throw OperationCanceledException for timeouts
+                        if (retryTokenSource.IsCancellationRequested && arg.retryable)
+                            throw new OperationCanceledException();
+
+                        // Step C: If we get here, all URLs are ready. Assemble the MaterialResult.
+                        var textureResultsForThisMaterial = new Dictionary<MapType, TextureResult>();
+                        foreach (var kvp in materialJobDict)
+                        {
+                            var mapType = kvp.Key;
+                            var jobId = kvp.Value;
+
+                            if (GenerationRecovery.HasCachedDownload(jobId.ToString()))
+                            {
+                                textureResultsForThisMaterial[mapType] = TextureResult.FromUrl(GenerationRecovery.GetCachedDownloadUrl(jobId.ToString()).GetAbsolutePath());
+                            }
+                            else
+                            {
+                                var urlResult = await downloadUrlTasks[mapType]; // Awaiting is now instant.
+                                if (urlResult.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
+                                {
+                                    textureResultsForThisMaterial[mapType] = TextureResult.FromUrl(urlResult.Result.Value.AssetUrl.Url);
+                                }
+                                else
+                                {
+                                    // This code should throw OperationCanceledException for timeouts
+                                    // and HandledFailureException for other known, non-recoverable errors.
+                                    if (retryTokenSource.IsCancellationRequested && arg.retryable)
+                                        throw new OperationCanceledException();
+
+                                    if (!failedJobIdDictionaries.Contains(materialJobDict))
+                                    {
+                                        if (api.DispatchSingleFailedDownloadMessage(arg.asset, urlResult, arg.generationMetadata.w3CTraceId))
+                                            failedJobIdDictionaries.Add(materialJobDict);
+                                        else
+                                            throw new HandledFailureException();
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!failedJobIdDictionaries.Contains(materialJobDict))
+                        {
+                            var finalMaterialResult = new MaterialResult { textures = new SerializableDictionary<MapType, TextureResult>(textureResultsForThisMaterial) };
+
+                            // Step D: Success! Add the results to the "generated" buckets.
+                            var materialName = materialJobDict[MapType.Preview].ToString();
+                            generatedMaterialNames[finalMaterialResult] = materialName;
+                            generatedMaterials.Add(finalMaterialResult);
+                            generatedJobIdDictionaries.Add(materialJobDict);
+                            generatedCustomSeeds.Add(customSeed);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // CASE 1: A timeout occurred. This is a recoverable error for a retry attempt.
+                        // We add the item to the "timed out" bucket and continue the loop.
+                        if (arg.retryable)
+                        {
+                            // This entire material timed out. Add it to the "timed out" bucket for retry.
+                            timedOutJobIdDictionaries.Add(materialJobDict);
+                            timedOutCustomSeeds.Add(customSeed);
+                        }
+                        else
+                        {
+                            // The final attempt timed out. Log it as a failure.
+                            Debug.LogError($"Download for job {materialJobDict.GetValueOrDefault(MapType.Preview)} timed out and was not retryable.");
+                        }
+                    }
+                    catch (HandledFailureException)
+                    {
+                        // CASE 2: A known, non-recoverable error occurred (e.g., 404 Not Found, invalid data).
+                        // The error message has already been dispatched to the user by the code that threw this.
+                        // We log the error and continue the loop to the next item. The failed item is simply dropped.
+                        Debug.LogWarning($"A handled failure occurred for job {materialJobDict.GetValueOrDefault(MapType.Preview)}, it will be skipped.");
+                    }
+                    catch (Exception ex)
+                    {
+                        // CASE 3: An unexpected, unhandled error occurred (e.g., NullReferenceException, network stack error).
+                        // This is a potential bug. We log it verbosely and continue the loop to salvage the rest of the batch.
+                        Debug.LogError($"An unexpected error occurred while processing job {materialJobDict.GetValueOrDefault(MapType.Preview)}. The loop will continue, but this may indicate a bug. Details: {ex}");
+                    }
+                }
             }
             finally
             {
                 progressTokenSource3.Cancel();
+            }
+
+            // Tip 3: The logic for handling results is now identical to the Image blueprint.
+            // It checks the buckets to decide the outcome.
+            if (generatedMaterials.Count == 0)
+            {
+                if (timedOutJobIdDictionaries.Count == 0)
+                {
+                    // we've already messaged each job individually, so just exit
+                    if (UnityEditor.Unsupported.IsDeveloperMode())
+                        api.DispatchFailedDownloadMessage(arg.asset, url.IsCompletedSuccessfully ? url.Result : null, arg.generationMetadata.w3CTraceId);
+                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                    throw new HandledFailureException();
+                }
+                // All downloads timed out, return the remaining jobs for the next retry attempt.
+                return arg with { jobIds = timedOutJobIdDictionaries, customSeeds = timedOutCustomSeeds.ToArray() };
             }
 
             // initial 'backup'
@@ -590,24 +723,22 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 backupSuccess = await arg.asset.SaveToGeneratedAssets();
             }
 
-            List<MaterialResult> generatedMaterials;
-
             // cache
             using var progressTokenSource4 = new CancellationTokenSource();
             try
             {
-                _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
-                    value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."), 1, progressTokenSource4.Token);
+                if (timedOutJobIdDictionaries.Count == 0)
+                {
+                    _ = ProgressUtils.RunFuzzyProgress(0.75f, 0.99f,
+                        value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Downloading results."), 1, progressTokenSource4.Token);
+                }
+                else
+                {
+                    _ = ProgressUtils.RunFuzzyProgress(0.25f, 0.75f,
+                        _ => api.DispatchProgress(arg.asset, progress with { progress = 0.25f }, $"Downloading results {generatedJobIdDictionaries.Count} of {arg.jobIds.Count} results."), variations, progressTokenSource4.Token);
+                }
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
-                var generatedMaterialsWithName = generatedTextures.Select(pair => (name: pair.Key,
-                        material: new MaterialResult
-                        {
-                            textures = new SerializableDictionary<MapType, TextureResult>(pair.Value.ToDictionary(kvp => kvp.Key, kvp => kvp.Value))
-                        }))
-                    .ToList();
-
-                generatedMaterials = generatedMaterialsWithName.Select(tuple => tuple.material).ToList();
                 var smoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateSmoothnessFromRoughness);
                 var metallicSmoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateMetallicSmoothnessFromMetallicAndRoughness);
                 var nonMetallicSmoothnessTasks = generatedMaterials.Select(MaterialResultExtensions.GenerateNonMetallicSmoothnessFromRoughness);
@@ -624,15 +755,15 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 var temporaryFiles = generatedMaterials.SelectMany(m => m.textures.Values.Select(r => r.uri)).Where(uri => uri.IsFile).ToList();
 
                 var metadata = arg.generationMetadata;
-                var saveTasks = generatedMaterialsWithName.Select((result, index) =>
+                var saveTasks = generatedMaterials.Select(async (material, index) =>
                     {
                         var metadataCopy = metadata with { };
-                        if (arg.customSeeds.Length > 0 && generatedMaterialsWithName.Count == arg.customSeeds.Length)
-                        {
+                        if (arg.customSeeds.Length > 0 && generatedMaterials.Count == arg.customSeeds.Length)
                             metadataCopy.customSeed = arg.customSeeds[index];
-                        }
 
-                        return result.material.DownloadToProject($"{result.name}", metadataCopy, generativePath, httpClientLease.client);
+                        await material.DownloadToProject($"{generatedMaterialNames[material]}", metadataCopy, generativePath, httpClientLease.client);
+                        var fullfilled = new FulfilledSkeletons(arg.asset, new List<FulfilledSkeleton> {new(arg.progressTaskId, material.uri.GetAbsolutePath())});
+                        api.Dispatch(GenerationResultsActions.setFulfilledSkeletons, fullfilled);
                     })
                     .ToList();
 
@@ -655,10 +786,6 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 {
                     // ignored
                 }
-
-                // the ui handles results, skeletons, and fulfilled skeletons to determine which tiles are ready for display (see Selectors.SelectGeneratedTexturesAndSkeletons)
-                api.Dispatch(GenerationResultsActions.setFulfilledSkeletons,
-                    new(arg.asset, generatedMaterials.Select(res => new FulfilledSkeleton(arg.progressTaskId, res.uri.GetAbsolutePath())).ToList()));
             }
             finally
             {
@@ -675,11 +802,15 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
                 }
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
+            if (timedOutJobIdDictionaries.Count == 0)
+                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
 
             // if you got here, no need to keep the potentially interrupted download
-            foreach (var generatedMaterial in arg.jobIds) GenerationRecovery.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
-            GenerationRecovery.RemoveInterruptedDownload(arg);
+            foreach (var generatedMaterial in generatedJobIdDictionaries)
+                GenerationRecovery.RemoveCachedDownload(generatedMaterial[MapType.Preview].ToString());
+            GenerationRecovery.RemoveInterruptedDownload(arg with { jobIds = generatedJobIdDictionaries, customSeeds = generatedCustomSeeds.ToArray() });
+
+            return arg with { jobIds = timedOutJobIdDictionaries, customSeeds = timedOutCustomSeeds.ToArray() };
         }
 
         public static async Task<Stream> ReferenceAssetStream(IState state, AssetReference asset) =>
@@ -690,5 +821,50 @@ namespace Unity.AI.Material.Services.Stores.Actions.Backend
 
         public static async Task<Stream> PatternAssetStream(IState state, AssetReference asset) =>
             ImageFileUtilities.CheckImageSize(await state.SelectPatternImageReferenceAssetStream(asset));
+
+        class DictionaryEqualityComparer<TKey, TValue> : IEqualityComparer<Dictionary<TKey, TValue>>
+        {
+            public bool Equals(Dictionary<TKey, TValue> x, Dictionary<TKey, TValue> y)
+            {
+                // Check for null or reference equality
+                if (x == null || y == null)
+                {
+                    return false;
+                }
+
+                if (ReferenceEquals(x, y))
+                {
+                    return true;
+                }
+
+                // Check if the dictionaries have the same number of elements
+                if (x.Count != y.Count)
+                {
+                    return false;
+                }
+
+                // Check if all key-value pairs are equal
+                foreach (var kvp in x)
+                    if (!y.TryGetValue(kvp.Key, out var value) || !EqualityComparer<TValue>.Default.Equals(kvp.Value, value))
+                    {
+                        return false;
+                    }
+
+                return true;
+            }
+
+            public int GetHashCode(Dictionary<TKey, TValue> obj)
+            {
+                // Calculate the hash code based on the key-value pairs
+                var hash = 17;
+                foreach (var kvp in obj)
+                {
+                    hash = hash * 31 + EqualityComparer<TKey>.Default.GetHashCode(kvp.Key);
+                    hash = hash * 31 + EqualityComparer<TValue>.Default.GetHashCode(kvp.Value);
+                }
+
+                return hash;
+            }
+        }
     }
 }

@@ -23,7 +23,7 @@ namespace Unity.AI.Generators.UI.Utilities
         static void UnityAIAssetSearchAssetsMenu() => UnityAIAssetSearchMenu();
 
         static readonly string k_GeneratedAssetsPath = Path.GetFullPath(AssetReferenceExtensions.GetGeneratedAssetsRoot());
-        static readonly List<string> k_AcceptedExtensions = new() { ".png", ".jpg", ".fbx", ".wav" };
+        static readonly List<string> k_AcceptedExtensions = new();
 
         const string k_ProviderId = "unity.ai.file.search";
         const string k_FilterPrefix = "unityai:";
@@ -31,6 +31,9 @@ namespace Unity.AI.Generators.UI.Utilities
         [SearchItemProvider]
         static SearchProvider CreateProvider()
         {
+            // Initialize accepted extensions list with image extensions and other supported types
+            InitializeAcceptedExtensions();
+
             var displayName = Regex.Replace(AssetReferenceExtensions.GetGeneratedAssetsRoot(), "(\\B[A-Z])", " $1");
             return new(k_ProviderId, displayName)
             {
@@ -45,21 +48,32 @@ namespace Unity.AI.Generators.UI.Utilities
             };
         }
 
+        // Helper method to initialize accepted extensions list
+        static void InitializeAcceptedExtensions()
+        {
+            k_AcceptedExtensions.Clear();
+            // Add all registered image extensions
+            k_AcceptedExtensions.AddRange(ImageFileUtilities.knownExtensions);
+            // Add other supported non-image formats
+            k_AcceptedExtensions.Add(".fbx");
+            k_AcceptedExtensions.Add(".wav");
+        }
+
+        // Helper method to check if a file is an image based on extension
+        static bool IsImageFile(string fileName) => ImageFileTypeSupport.TryGetFormatForExtension(Path.GetExtension(fileName), out _);
+
         static Texture2D FetchThumbnail(SearchItem item, SearchContext context) => FetchThumbnail(item.data as string);
 
         static Texture2D FetchThumbnail(string fileName)
         {
             try
             {
-                switch (Path.GetExtension(fileName))
+                if (IsImageFile(fileName))
                 {
-                    case ".png":
-                    case ".jpg":
-                        var uri = new Uri(fileName, UriKind.Absolute);
-                        var texture = TextureCache.GetPreviewTexture(uri, (int)TextureSizeHint.Generation, FetchBaseThumbnail(fileName));
-                        if (texture)
-                            return texture;
-                        break;
+                    var uri = new Uri(fileName, UriKind.Absolute);
+                    var texture = TextureCache.GetPreviewTexture(uri, (int)TextureSizeHint.Generation, FetchBaseThumbnail(fileName));
+                    if (texture)
+                        return texture;
                 }
             }
             catch { /* ignored */ }
@@ -69,13 +83,46 @@ namespace Unity.AI.Generators.UI.Utilities
 
         static Texture2D FetchBaseThumbnail(string fileName)
         {
-            return Path.GetExtension(fileName) switch
+            var extension = Path.GetExtension(fileName);
+
+            if (IsImageFile(fileName))
+                return EditorGUIUtility.ObjectContent(null, typeof(Texture2D)).image as Texture2D;
+
+            return extension switch
             {
-                ".png" or ".jpg" => EditorGUIUtility.ObjectContent(null, typeof(Texture2D)).image as Texture2D,
                 ".fbx" => EditorGUIUtility.ObjectContent(null, typeof(GameObject)).image as Texture2D,
                 ".wav" => EditorGUIUtility.ObjectContent(null, typeof(AudioClip)).image as Texture2D,
                 _ => null
             };
+        }
+
+        static readonly Dictionary<string, GeneratedAssetMetadata> k_MetadataCache = new();
+
+        [MenuItem("internal:AI Toolkit/Internals/Clear Generated Asset Metadata Cache")]
+        static void ClearMetadataCache()
+        {
+            k_MetadataCache.Clear();
+            Debug.Log("Generated Asset metadata cache cleared.");
+        }
+
+        static GeneratedAssetMetadata GetAndCacheMetadata(string path)
+        {
+            if (k_MetadataCache.TryGetValue(path, out var metadata))
+            {
+                return metadata;
+            }
+
+            try
+            {
+                var newMetadata = UriExtensions.GetGenerationMetadata(new Uri(path, UriKind.Absolute));
+                k_MetadataCache[path] = newMetadata; // Add to static cache for future use
+                return newMetadata;
+            }
+            catch
+            {
+                k_MetadataCache[path] = null; // Cache the failure so we don't try again for this file
+                return null;
+            }
         }
 
         static IEnumerable<SearchItem> FetchGeneratedAssets(SearchContext context, List<SearchItem> itemsToFill, SearchProvider provider)
@@ -84,76 +131,95 @@ namespace Unity.AI.Generators.UI.Utilities
             {
                 var rootPath = k_GeneratedAssetsPath;
                 if (!Directory.Exists(rootPath))
-                    return null;
+                    return Array.Empty<SearchItem>();
 
-                var foundFiles = new List<string>();
-                try { foundFiles.AddRange(Directory.GetFiles(rootPath, "*.*", SearchOption.TopDirectoryOnly)); } catch { /* ignored */ }
-                try
+                // This is far more efficient than SearchOption.AllDirectories + Path.GetRelativePath.
+                // We explicitly get files from the root, then from each immediate subdirectory.
+
+                // 1. Get files from the root directory itself.
+                var rootFiles = Directory.EnumerateFiles(rootPath, "*.*", SearchOption.TopDirectoryOnly);
+
+                // 2. Get all immediate subdirectories.
+                var subDirectories = Directory.EnumerateDirectories(rootPath, "*", SearchOption.TopDirectoryOnly);
+
+                // 3. For each subdirectory, get its files. SelectMany flattens this into a single sequence.
+                var subDirFiles = subDirectories.SelectMany(dir =>
                 {
-                    var subDirectories = Directory.GetDirectories(rootPath, "*", SearchOption.TopDirectoryOnly);
-                    foreach (var subDir in subDirectories)
+                    try
                     {
-                        try { foundFiles.AddRange(Directory.GetFiles(subDir, "*.*", SearchOption.TopDirectoryOnly)); } catch { /* ignored */ }
+                        return Directory.EnumerateFiles(dir, "*.*", SearchOption.TopDirectoryOnly);
                     }
-                }
-                catch { /* ignored */ }
+                    catch
+                    {
+                        // Ignore directories we can't access, etc.
+                        return Enumerable.Empty<string>();
+                    }
+                });
 
-                var acceptedFullPaths = foundFiles
+                // 4. Combine the two sequences and then apply the final extension filter.
+                var acceptedFullPaths = rootFiles.Concat(subDirFiles)
                     .Where(filePath => k_AcceptedExtensions.Contains(Path.GetExtension(filePath).ToLowerInvariant()))
                     .ToList();
 
-                var metadataByPath = acceptedFullPaths.ToDictionary(path => path, path => UriExtensions.GetGenerationMetadata(new Uri(path, UriKind.Absolute)));
-                List<string> filteredFullPaths = new List<string>();
+                var filteredFullPaths = new List<string>();
                 var specificQuery = context.searchQuery?.Trim();
-                if (!string.IsNullOrEmpty(specificQuery) && specificQuery.Contains(Legal.UnityAIGeneratedLabel, StringComparison.OrdinalIgnoreCase))
+
+                if (string.IsNullOrEmpty(specificQuery) || specificQuery.Equals($"l:{Legal.UnityAIGeneratedLabel}", StringComparison.OrdinalIgnoreCase))
+                {
                     filteredFullPaths = acceptedFullPaths;
-                if (!string.IsNullOrEmpty(specificQuery))
+                }
+                else
                 {
                     specificQuery = specificQuery.Replace($"l:{Legal.UnityAIGeneratedLabel}", "").Trim();
-                    if (!string.IsNullOrEmpty(specificQuery))
+                    Regex regex = null;
+                    if (specificQuery.Contains('*') || specificQuery.Contains('?'))
                     {
-                        Regex regex = null;
-                        if (specificQuery.Contains('*') || specificQuery.Contains('?'))
+                        var regexPattern = Regex.Escape(specificQuery).Replace("\\*", ".*").Replace("\\?", ".");
+                        regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
+                    }
+
+                    // REMOVED: No more local cache dictionary here.
+
+                    foreach (var path in acceptedFullPaths)
+                    {
+                        var filename = Path.GetFileName(path);
+                        var filenameMatches = regex?.IsMatch(filename) ?? filename.IndexOf(specificQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+
+                        if (filenameMatches)
                         {
-                            var regexPattern = Regex.Escape(specificQuery)
-                                .Replace("\\*", ".*")
-                                .Replace("\\?", ".");
-                            regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
+                            filteredFullPaths.Add(path);
+                            continue;
                         }
 
-                        filteredFullPaths = acceptedFullPaths.Where(path => {
-                            var filename = Path.GetFileName(path);
-                            var filenameMatches = regex?.IsMatch(filename) ?? filename.IndexOf(specificQuery, StringComparison.OrdinalIgnoreCase) >= 0;
-                            if (filenameMatches)
-                                return true;
+                        // UPDATED: Call the helper method which now uses the static cache.
+                        var metadata = GetAndCacheMetadata(path);
+                        if (metadata == null)
+                            continue;
 
-                            if (!metadataByPath.TryGetValue(path, out var metadata))
-                                return false;
-
-                            if (!string.IsNullOrEmpty(metadata.prompt))
+                        if (!string.IsNullOrEmpty(metadata.prompt))
+                        {
+                            var promptMatches = regex?.IsMatch(metadata.prompt) ?? metadata.prompt.IndexOf(specificQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+                            if (promptMatches)
                             {
-                                var promptMatches = regex?.IsMatch(metadata.prompt) ??
-                                    metadata.prompt.IndexOf(specificQuery, StringComparison.OrdinalIgnoreCase) >= 0;
-
-                                if (promptMatches)
-                                    return true;
+                                filteredFullPaths.Add(path);
+                                continue;
                             }
+                        }
 
-                            if (!string.IsNullOrEmpty(metadata.negativePrompt))
+                        if (!string.IsNullOrEmpty(metadata.negativePrompt))
+                        {
+                            var negativePromptMatches = regex?.IsMatch(metadata.negativePrompt) ?? metadata.negativePrompt.IndexOf(specificQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+                            if (negativePromptMatches)
                             {
-                                var negativePromptMatches = regex?.IsMatch(metadata.negativePrompt) ??
-                                    metadata.negativePrompt.IndexOf(specificQuery, StringComparison.OrdinalIgnoreCase) >= 0;
-
-                                if (negativePromptMatches)
-                                    return true;
+                                filteredFullPaths.Add(path);
                             }
-
-                            return false;
-                        }).ToList();
+                        }
                     }
                 }
 
                 var searchItems = new List<SearchItem>();
+                // REMOVED: No more final local cache dictionary here.
+
                 foreach (var fullPath in filteredFullPaths)
                 {
                     if (!TryMakeRelative(fullPath, rootPath, out var displayPath))
@@ -161,13 +227,14 @@ namespace Unity.AI.Generators.UI.Utilities
                     displayPath = displayPath.Replace('\\', '/');
 
                     var description = $"{AssetReferenceExtensions.GetGeneratedAssetsRoot()}/{displayPath}";
-                    if (metadataByPath.TryGetValue(fullPath, out var metadata) && !string.IsNullOrEmpty(metadata.prompt))
+                    // UPDATED: Call the helper method again. It will be a fast lookup from the static cache.
+                    var metadata = GetAndCacheMetadata(fullPath);
+                    if (metadata != null && !string.IsNullOrEmpty(metadata.prompt))
                         description = $"{description} \"{metadata.prompt}\"";
 
                     searchItems.Add(provider.CreateItem(context, displayPath, 0, Path.GetFileName(displayPath), description, FetchBaseThumbnail(fullPath), fullPath));
                 }
                 return searchItems;
-
             }
             catch
             {
@@ -207,7 +274,7 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        static void TrackGeneratedAssetSelection(SearchItem item, SearchContext context)
+        static void TrackGeneratedAssetSelection(SearchItem item, SearchContext _)
         {
             if (item?.data is not string fileName || string.IsNullOrEmpty(fileName))
                 return;

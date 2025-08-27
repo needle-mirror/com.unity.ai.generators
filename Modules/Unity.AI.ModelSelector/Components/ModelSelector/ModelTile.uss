@@ -1,11 +1,15 @@
-:root {
-    --favorite-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/d_Favorites.png");
-    --favorite-selected-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/d_FavoritesSelected.png");
+:root, .dark-theme {
+    --favorite-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/Favorites.png");
+    --favorite-selected-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/FavoritesSelected.png");
+    --favorite-icon-tint-color: #FFFFFF;
+    --favorite-selected-icon-tint-color: #FFFFFF;
 }
 
 .light-theme {
     --favorite-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/Favorites.png");
     --favorite-selected-icon: url("project:/Packages/com.unity.ai.generators/modules/Unity.AI.Generators.UI/Icons/FavoritesSelected.png");
+    --favorite-icon-tint-color: #A0A0A0;
+    --favorite-selected-icon-tint-color: #FFFFFF;
 }
 
 .model-tile-icon {
@@ -37,10 +41,12 @@
 
 .model-tile-favorite-button > .unity-image {
     --unity-image: var(--favorite-icon);
+    --unity-image-tint-color: var(--favorite-icon-tint-color);
 }
 
 .is-favorite .model-tile-favorite-button > .unity-image {
     --unity-image: var(--favorite-selected-icon);
+    --unity-image-tint-color: var(--favorite-selected-icon-tint-color);
 }
 
 #favorite-spinner > .spinner {

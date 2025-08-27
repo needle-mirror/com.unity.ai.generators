@@ -29,6 +29,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public const string slice = "generationResults";
         public static Creator<GenerationAudioClips> setGeneratedAudioClips => new($"{slice}/setGeneratedAudioClips");
 
+        static readonly HashSet<string> k_ActiveDownloads = new();
         static readonly SemaphoreSlim k_SetGeneratedAudioClipsAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationAudioClips> setGeneratedAudioClipsAsync = new($"{slice}/setGeneratedAudioClipsAsync",
             async (payload, api) =>
@@ -137,6 +138,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
         public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
+        public static Creator<AsssetContext> pruneFulfilledSkeletons => new($"{slice}/pruneFulfilledSkeletons");
         public static Creator<SelectedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
@@ -188,7 +190,10 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         {
             var option = 0;
 
-            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset);
+            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset)
+                .Where(d => string.IsNullOrEmpty(d.uniqueTaskId) || !k_ActiveDownloads.Contains(d.uniqueTaskId))
+                .ToList();
+
             if (!await DialogUtilities.ShowResumeDownloadPopup(interruptedDownloads, op => option = op))
                 return;
 
@@ -203,15 +208,38 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                             continue;
                         }
 
-                        _ = api.Dispatch(downloadAudioClipsMain,
-                            new DownloadAudioData(data.asset,
-                                data.ids.Select(Guid.Parse).ToList(),
-                                data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
-                                string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
-                                data.generationMetadata,
-                                data.customSeeds.ToArray(),
-                                false, false),
-                            CancellationToken.None);
+                        _ = ResumeDownload();
+                        continue;
+
+                        async Task ResumeDownload()
+                        {
+                            var uniqueTaskId = data.uniqueTaskId;
+                            if (!string.IsNullOrEmpty(uniqueTaskId))
+                            {
+                                if (!k_ActiveDownloads.Add(uniqueTaskId))
+                                    return;
+                            }
+
+                            try
+                            {
+                                await api.Dispatch(downloadAudioClipsMain,
+                                    new DownloadAudioData(data.asset,
+                                        data.ids.Select(Guid.Parse).ToList(),
+                                        data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                        string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                        data.generationMetadata,
+                                        data.customSeeds.ToArray(),
+                                        false, false),
+                                    CancellationToken.None);
+                            }
+                            finally
+                            {
+                                if (!string.IsNullOrEmpty(uniqueTaskId))
+                                {
+                                    k_ActiveDownloads.Remove(uniqueTaskId);
+                                }
+                            }
+                        }
                     }
 
                     break;
@@ -244,15 +272,19 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         {
             var progressTaskId = Progress.Start($"{api.State.SelectProgressLabel(asset)} with {api.State.SelectGenerationSetting(asset).prompt}.");
             SkeletonExtensions.Acquire(progressTaskId);
+            var uniqueTaskId = Guid.NewGuid();
+            var uniqueTaskIdString = uniqueTaskId.ToString();
+            k_ActiveDownloads.Add(uniqueTaskIdString);
             try
             {
                 api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var modelSettings = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, modelSettings.selectedModelID);
-                await api.Dispatch(Backend.Generation.generateAudioClips, new(asset, modelSettings, progressTaskId), CancellationToken.None);
+                await api.Dispatch(Backend.Generation.generateAudioClips, new(asset, modelSettings, progressTaskId, uniqueTaskId: uniqueTaskId), CancellationToken.None);
             }
             finally
             {
+                k_ActiveDownloads.Remove(uniqueTaskIdString);
                 Progress.Finish(progressTaskId);
                 SkeletonExtensions.Release(progressTaskId);
             }

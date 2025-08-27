@@ -1,5 +1,5 @@
 using System;
-using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Animate.Services.Stores.Actions.Creators;
 using Unity.AI.Animate.Services.Stores.Actions.Payloads;
 using Unity.AI.Animate.Services.Stores.Selectors;
@@ -34,7 +34,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             var selectedModelID = api.State.SelectSelectedModelID(element);
             var operations = api.State.SelectRefinementOperations(element);
             // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Animate, operations.ToArray());
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModelConstants.Modalities.Animate, operations.ToArray());
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 

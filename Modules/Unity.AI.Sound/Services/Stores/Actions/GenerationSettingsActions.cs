@@ -1,5 +1,5 @@
 using System;
-using AiEditorToolsSdk.Components.Common.Enums;
+using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.ModelSelector.Windows;
 using Unity.AI.Sound.Services.Stores.Actions.Creators;
 using Unity.AI.Sound.Services.Stores.Actions.Payloads;
@@ -39,7 +39,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         {
             var selectedModelID = api.State.SelectSelectedModelID(element);
             // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModalityEnum.Sound, Array.Empty<OperationSubTypeEnum>());
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModelConstants.Modalities.Sound, Array.Empty<string>());
             element.Dispatch(setSelectedModelID, selectedModelID);
         });
 

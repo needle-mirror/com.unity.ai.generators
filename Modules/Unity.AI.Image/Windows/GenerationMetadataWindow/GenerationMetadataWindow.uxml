@@ -42,7 +42,7 @@
             <Button text="Copy" class="data-button" name="copy-upscale-factor-button" />
             <Button text="Use" class="data-button" name="use-upscale-factor-button" />
         </VisualElement>
-        <VisualElement class="image-references-container container">
+        <VisualElement class="image-references-container">
         </VisualElement>
         <VisualElement class="pixelate-container container">
             <VisualElement class="pixelate-settings-container">

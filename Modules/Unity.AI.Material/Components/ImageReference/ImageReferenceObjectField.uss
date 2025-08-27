@@ -33,6 +33,13 @@
     opacity: 1;
 }
 
+#image-reference-search-button {
+    width: 64px;
+    height: 19px;
+    padding: 0;
+    margin: 0;
+}
+
 .button-spacer {
     width: 20px;
 }

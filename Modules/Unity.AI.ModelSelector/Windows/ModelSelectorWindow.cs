@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Components;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
@@ -32,7 +31,7 @@ namespace Unity.AI.ModelSelector.Windows
             await tcs.Task;
         }
 
-        public static async Task<string> Open(VisualElement parent, string selectedModelID, ModalityEnum[] modality, OperationSubTypeEnum[] operations)
+        public static async Task<string> Open(VisualElement parent, string selectedModelID, string[] modality, string[] operations)
         {
             // model selection is transient and needs to be exchanged with the current modality's slice
             parent.Dispatch(Services.Stores.Actions.ModelSelectorActions.setFilters, parent.GetState().SelectModelSelectorFilters() with
@@ -45,7 +44,7 @@ namespace Unity.AI.ModelSelector.Windows
             return parent.GetState().SelectSelectedModelID();
         }
 
-        public static async Task<string> Open(VisualElement parent, string selectedModelID, ModalityEnum modality, OperationSubTypeEnum[] operations) =>
+        public static async Task<string> Open(VisualElement parent, string selectedModelID, string modality, string[] operations) =>
             await Open(parent, selectedModelID, new[] { modality }, operations);
 
         void CreateGUI()

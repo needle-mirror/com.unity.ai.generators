@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using AiEditorToolsSdk.Components.Common.Enums;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
@@ -38,21 +37,21 @@ namespace Unity.AI.ModelSelector.Services.Utilities
             if (modelProviderIcon != null)
             {
                 modelProviderIcon.image = AssetDatabase.LoadAssetAtPath<Texture2D>(k_UnityLogo);
-                modelProviderIcon.EnableInClassList("hide", model.provider != ProviderEnum.Unity);
+                modelProviderIcon.EnableInClassList("hide", model.provider != ModelConstants.Providers.Unity);
 
                 card.AddStyleSheetBasedOnEditorSkin();
-                modelProviderIcon.EnableInClassList("icon-tint-primary-color", model.provider == ProviderEnum.Unity);
+                modelProviderIcon.EnableInClassList("icon-tint-primary-color", model.provider == ModelConstants.Providers.Unity);
             }
 
             switch (model.provider)
             {
-                case ProviderEnum.Unity:
-                case ProviderEnum.None:
+                case ModelConstants.Providers.Unity:
+                case ModelConstants.Providers.None:
                     cardParent.tooltip = string.Empty;
                     break;
-                case ProviderEnum.Scenario:
-                case ProviderEnum.Layer:
-                case ProviderEnum.Kinetix:
+                case ModelConstants.Providers.Scenario:
+                case ModelConstants.Providers.Layer:
+                case ModelConstants.Providers.Kinetix:
                 default:
                     cardParent.tooltip = $"Model provided by {model.provider}. Check the Unity AI Models and Partners page for terms and conditions.";
                     break;

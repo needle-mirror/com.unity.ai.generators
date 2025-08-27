@@ -117,18 +117,9 @@ namespace Unity.AI.Generators.UI.Utilities
                 var headerBytes = new byte[bytesRead];
                 Array.Copy(buffer, headerBytes, bytesRead);
 
-                if (ImageFileUtilities.TryGetImageExtension(headerBytes, out var imageExt))
+                // Use the centralized image format detection system
+                if (ImageFileTypeSupport.TryGetImageExtension(headerBytes, out var imageExt))
                     return imageExt;
-
-                // Check for image types
-                if (IsPng(headerBytes))
-                    return ".png";
-
-                if (IsJpg(headerBytes))
-                    return ".jpg";
-
-                if (IsExr(headerBytes))
-                    return ".exr";
 
                 // Check for audio types
                 if (IsWav(headerBytes))
@@ -238,6 +229,43 @@ namespace Unity.AI.Generators.UI.Utilities
             imageBytes[7] == 0x0A;
 
         public static bool IsJpg(IReadOnlyList<byte> imageBytes) => imageBytes[0] == 0xFF && imageBytes[1] == 0xD8;
+
+        /// <summary>
+        /// Checks if the byte sequence represents a GIF file by checking its 6-byte header.
+        /// A GIF file must start with the ASCII characters "GIF87a" or "GIF89a".
+        /// </summary>
+        /// <param name="imageBytes">The first few bytes of the file (at least 6 bytes are required).</param>
+        public static bool IsGif(IReadOnlyList<byte> imageBytes)
+        {
+            // 1. Basic validation: ensure we have enough bytes to check the header.
+            if (imageBytes == null || imageBytes.Count < 6)
+            {
+                return false;
+            }
+
+            // 2. Check for the "GIF" signature (ASCII: G=0x47, I=0x49, F=0x46)
+            var hasGifSignature = imageBytes[0] == 0x47 &&
+                                   imageBytes[1] == 0x49 &&
+                                   imageBytes[2] == 0x46;
+
+            if (!hasGifSignature)
+            {
+                return false;
+            }
+
+            // 3. Check for a valid version string: "87a" or "89a"
+            // ASCII: 8=0x38, 7=0x37, 9=0x39, a=0x61
+            var isVersion87A = imageBytes[3] == 0x38 &&
+                                imageBytes[4] == 0x37 &&
+                                imageBytes[5] == 0x61;
+
+            var isVersion89A = imageBytes[3] == 0x38 &&
+                                imageBytes[4] == 0x39 &&
+                                imageBytes[5] == 0x61;
+
+            // The file is a GIF if the signature is correct AND the version is one of the valid ones.
+            return isVersion87A || isVersion89A;
+        }
 
         public static bool IsExr(IReadOnlyList<byte> imageBytes) => imageBytes.Count >= 4 && imageBytes[0] == 0x76 && imageBytes[1] == 0x2F &&
             imageBytes[2] == 0x31 && imageBytes[3] == 0x01;

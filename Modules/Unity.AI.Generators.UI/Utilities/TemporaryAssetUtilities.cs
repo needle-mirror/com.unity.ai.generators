@@ -13,7 +13,8 @@ namespace Unity.AI.Generators.UI.Utilities
 {
     static class TemporaryAssetUtilities
     {
-        const string k_ToolkitTemp = "Assets/AI Toolkit/Temp";
+        internal const string k_Toolkit = "Assets/AI Toolkit";
+        internal static readonly string k_ToolkitTemp = $"{k_Toolkit}/Temp";
 
         static readonly Dictionary<string, Task<TemporaryAsset>> k_ImportTasks = new();
 

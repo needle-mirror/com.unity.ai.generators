@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Sound.Services.Stores.Actions.Payloads
 {
     record QuoteAudioData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateAudioData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
+    record GenerateAudioData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId) : AsssetContext(asset);
     record DownloadAudioData(
         AssetReference asset,
         List<Guid> jobIds,

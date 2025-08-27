@@ -31,3 +31,7 @@
 .image-references-container {
     flex-direction: column;
 }
+
+.image-references-container ObjectField {
+    margin-left: 0;
+}

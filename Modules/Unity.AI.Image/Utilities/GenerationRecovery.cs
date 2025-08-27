@@ -38,6 +38,11 @@ namespace Unity.AI.Image.Services.Utilities
 
         public int progressTaskId => taskId;
         public string uniqueTaskId => uniqueId;
+        public ImmutableStringList jobIds
+        {
+            get => ids;
+            set => ids = value;
+        }
     }
 
     static class GenerationRecovery
@@ -74,8 +79,8 @@ namespace Unity.AI.Image.Services.Utilities
         public static void AddInterruptedDownload(InterruptedDownloadData data)
         {
             var environment = WebUtils.selectedEnvironment;
-            if (s_InterruptedDownloadsByEnv.AddInterruptedDownload(environment, data, 
-                (existing, newData) => existing != null && existing.AreKeyFieldsEqual(newData)))
+            if (s_InterruptedDownloadsByEnv.AddInterruptedDownload(environment, data,
+                    (existing, newData) => existing != null && existing.AreKeyFieldsEqual(newData)))
             {
                 SaveInterruptedDownloads();
             }
@@ -84,8 +89,26 @@ namespace Unity.AI.Image.Services.Utilities
         public static void RemoveInterruptedDownload(InterruptedDownloadData data)
         {
             var environment = WebUtils.selectedEnvironment;
+
+            // If a uniqueId is present, use the new, reusable partial removal logic.
+            if (!string.IsNullOrEmpty(data.uniqueId))
+            {
+                var modified = s_InterruptedDownloadsByEnv.RemovePartialInterruptedDownload(
+                    environment,
+                    data.uniqueId,
+                    data.ids
+                );
+
+                if (modified)
+                {
+                    SaveInterruptedDownloads();
+                    return;
+                }
+            }
+
+            // Fall back to the original full-removal logic if no uniqueId or if no partial modification occurred.
             if (s_InterruptedDownloadsByEnv.RemoveInterruptedDownload(environment,
-                d => d != null && d.AreKeyFieldsEqual(data)) > 0)
+                    d => d != null && d.AreKeyFieldsEqual(data)) > 0)
             {
                 SaveInterruptedDownloads();
             }
@@ -102,7 +125,7 @@ namespace Unity.AI.Image.Services.Utilities
         {
             s_InterruptedDownloadsByEnv = GenerationRecoveryUtils.LoadInterruptedDownloads<SerializableDictionary<string, List<InterruptedDownloadData>>>(
                 interruptedDownloadsFilePath);
-            
+
             // Clean up null entries and log warnings
             if (s_InterruptedDownloadsByEnv.CleanupNullEntries())
             {
@@ -173,7 +196,7 @@ namespace Unity.AI.Image.Services.Utilities
         public static int GetInterruptedDownloadCount(AssetReference asset, string environment = null)
         {
             environment ??= WebUtils.selectedEnvironment;
-            return s_InterruptedDownloadsByEnv.GetInterruptedDownloadCount(environment, 
+            return s_InterruptedDownloadsByEnv.GetInterruptedDownloadCount(environment,
                 data => data.asset == asset);
         }
     }

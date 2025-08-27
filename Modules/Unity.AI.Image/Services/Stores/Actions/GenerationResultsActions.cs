@@ -30,6 +30,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static readonly string slice = "generationResults";
         public static Creator<GenerationTextures> setGeneratedTextures => new($"{slice}/setGeneratedTextures");
 
+        static readonly HashSet<string> k_ActiveDownloads = new();
         static readonly SemaphoreSlim k_SetGeneratedTexturesAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationTextures> setGeneratedTexturesAsync = new($"{slice}/setGeneratedTexturesAsync",
             async (payload, api) =>
@@ -138,6 +139,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
         public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
+        public static Creator<AsssetContext> pruneFulfilledSkeletons => new($"{slice}/pruneFulfilledSkeletons");
         public static Creator<SelectedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static readonly Creator<AssetReference> incrementGenerationCount = new($"{slice}/incrementGenerationCount");
@@ -207,7 +209,10 @@ namespace Unity.AI.Image.Services.Stores.Actions
         {
             var option = 0;
 
-            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset);
+            var interruptedDownloads = GenerationRecovery.GetInterruptedDownloads(asset)
+                .Where(d => string.IsNullOrEmpty(d.uniqueTaskId) || !k_ActiveDownloads.Contains(d.uniqueTaskId))
+                .ToList();
+
             if (!await DialogUtilities.ShowResumeDownloadPopup(interruptedDownloads, op => option = op))
                 return;
 
@@ -222,18 +227,41 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             continue;
                         }
 
-                        _ = api.Dispatch(downloadImagesMain,
-                            new DownloadImagesData(
-                                data.asset,
-                                data.ids.Select(Guid.Parse).ToList(),
-                                data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
-                                string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
-                                data.generationMetadata,
-                                data.customSeeds.ToArray(),
-                                false,
-                                false,
-                                false, false),
-                            CancellationToken.None);
+                        _ = ResumeDownload();
+                        continue;
+
+                        async Task ResumeDownload()
+                        {
+                            var uniqueTaskId = data.uniqueTaskId;
+                            if (!string.IsNullOrEmpty(uniqueTaskId))
+                            {
+                                if (!k_ActiveDownloads.Add(uniqueTaskId))
+                                    return;
+                            }
+
+                            try
+                            {
+                                await api.Dispatch(downloadImagesMain,
+                                    new DownloadImagesData(
+                                        data.asset,
+                                        data.ids.Select(Guid.Parse).ToList(),
+                                        data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                        string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                        data.generationMetadata,
+                                        data.customSeeds.ToArray(),
+                                        false,
+                                        false,
+                                        false, false),
+                                    CancellationToken.None);
+                            }
+                            finally
+                            {
+                                if (!string.IsNullOrEmpty(uniqueTaskId))
+                                {
+                                    k_ActiveDownloads.Remove(uniqueTaskId);
+                                }
+                            }
+                        }
                     }
                     break;
                 case 1: // "Delete" selected
@@ -265,15 +293,19 @@ namespace Unity.AI.Image.Services.Stores.Actions
         {
             var progressTaskId = Progress.Start($"{api.State.SelectProgressLabel(asset)}.");
             SkeletonExtensions.Acquire(progressTaskId);
+            var uniqueTaskId = Guid.NewGuid();
+            var uniqueTaskIdString = uniqueTaskId.ToString();
+            k_ActiveDownloads.Add(uniqueTaskIdString);
             try
             {
                 api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
                 var generationSetting = api.State.SelectGenerationSetting(asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
-                await api.Dispatch(Backend.Generation.generateImages, new(asset, generationSetting, progressTaskId), CancellationToken.None);
+                await api.Dispatch(Backend.Generation.generateImages, new(asset, generationSetting, progressTaskId, uniqueTaskId: uniqueTaskId), CancellationToken.None);
             }
             finally
             {
+                k_ActiveDownloads.Remove(uniqueTaskIdString);
                 Progress.Finish(progressTaskId);
                 SkeletonExtensions.Release(progressTaskId);
             }

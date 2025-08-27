@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
@@ -72,26 +71,26 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return model;
         }
 
-        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, AssetReference asset)
+        public static List<string> SelectRefinementOperations(this IState state, AssetReference asset)
         {
             var mode = state.SelectRefinementMode(asset);
             var operations = mode switch
             {
-                RefinementMode.Generation => new [] { OperationSubTypeEnum.TextPrompt },
-                RefinementMode.Upscale => new [] { OperationSubTypeEnum.Upscale },
-                RefinementMode.Pixelate => new [] { OperationSubTypeEnum.Pixelate },
-                RefinementMode.Recolor => new [] { OperationSubTypeEnum.RecolorReference },
-                RefinementMode.Inpaint => new [] { OperationSubTypeEnum.MaskReference },
-                _ => new [] { OperationSubTypeEnum.TextPrompt }
+                RefinementMode.Generation => new [] { ModelConstants.Operations.TextPrompt },
+                RefinementMode.Upscale => new [] { ModelConstants.Operations.Upscale },
+                RefinementMode.Pixelate => new [] { ModelConstants.Operations.Pixelate },
+                RefinementMode.Recolor => new [] { ModelConstants.Operations.RecolorReference },
+                RefinementMode.Inpaint => new [] { ModelConstants.Operations.MaskReference },
+                _ => new [] { ModelConstants.Operations.TextPrompt }
             };
             return operations.ToList();
         }
-        public static List<OperationSubTypeEnum> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+        public static List<string> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
-        public static bool SelectSelectedModelOperationIsValid(this IState state, VisualElement element, OperationSubTypeEnum op) =>
+        public static bool SelectSelectedModelOperationIsValid(this IState state, VisualElement element, string op) =>
             state.SelectSelectedModelOperationIsValid(element.GetAsset(), op);
 
-        public static bool SelectSelectedModelOperationIsValid(this IState state, AssetReference asset, OperationSubTypeEnum op)
+        public static bool SelectSelectedModelOperationIsValid(this IState state, AssetReference asset, string op)
         {
             var mode = state.SelectRefinementMode(asset);
             var modelID = state.SelectGenerationSetting(asset).selectedModels.Ensure(mode).modelID;
@@ -102,13 +101,13 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, new[] { ModalityEnum.Image, ModalityEnum.Texture2d },
-                state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Image, ModelConstants.Modalities.Texture2d },
+                operations: state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
         public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, new[] { ModalityEnum.Image, ModalityEnum.Texture2d },
-                state.SelectRefinementOperations(element).ToArray());
+            ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Image, ModelConstants.Modalities.Texture2d },
+                operations: state.SelectRefinementOperations(element).ToArray());
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
@@ -267,10 +266,27 @@ namespace Unity.AI.Image.Services.Stores.Selectors
 
             // use unsaved asset bytes if available
             if (unsavedAssetBytes is { Length: > 0 })
+            {
+                if (ImageFileUtilities.HasAlphaChannel(unsavedAssetBytes))
+                {
+                    var strippedBytes = ImageFileUtilities.StripPngAlphaToGray(unsavedAssetBytes);
+                    return new MemoryStream(strippedBytes);
+                }
+
                 return new MemoryStream(unsavedAssetBytes);
+            }
 
             // fallback to selection, or asset
-            return currentSelection.IsValid() ? await currentSelection.GetCompatibleImageStreamAsync() : await asset.GetCompatibleImageStreamAsync();
+            var candidateStream = currentSelection.IsValid() ? await currentSelection.GetCompatibleImageStreamAsync() : await asset.GetCompatibleImageStreamAsync();
+
+            if (candidateStream != null && ImageFileUtilities.HasAlphaChannel(candidateStream))
+            {
+                var strippedBytes = ImageFileUtilities.StripPngAlphaToGray(candidateStream);
+                await candidateStream.DisposeAsync();
+                return new MemoryStream(strippedBytes);
+            }
+
+            return candidateStream;
         }
 
         public static Stream SelectUnsavedAssetBytesStream(this IState state, AssetReference asset)
@@ -582,7 +598,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 return false;
 
             // Special case for PromptImage with Unity Texture2D provider - never allowed
-            if (model is { modality: ModalityEnum.Texture2d, provider: ProviderEnum.Unity } &&
+            if (model is { modality: ModelConstants.Modalities.Texture2d, provider: ModelConstants.Providers.Unity } &&
                 typeToAdd == ImageReferenceType.PromptImage)
                 return false;
 

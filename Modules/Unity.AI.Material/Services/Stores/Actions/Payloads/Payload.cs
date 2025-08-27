@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace Unity.AI.Material.Services.Stores.Actions.Payloads
 {
     record QuoteMaterialsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId) : AsssetContext(asset);
+    record GenerateMaterialsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId) : AsssetContext(asset);
     record DownloadMaterialsData(
         AssetReference asset,
         List<Dictionary<MapType, Guid>> jobIds,

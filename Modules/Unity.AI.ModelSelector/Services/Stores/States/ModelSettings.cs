@@ -21,13 +21,15 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public string description;
         public List<string> thumbnails = new();
         public string icon;
-        public ProviderEnum provider = ProviderEnum.None;
-        public ModalityEnum modality = ModalityEnum.None;
-        public List<OperationSubTypeEnum> operations = new();
+        public string provider = ModelConstants.Providers.None;
+        public string modality = ModelConstants.Modalities.None;
+        public List<string> operations = new();
         public ImageDimensions nativeResolution = new() { width = 1024, height = 1024 };
         public List<ImageDimensions> imageSizes = new[]{ new ImageDimensions { width = 1024, height = 1024 } }.ToList();
         public string baseModelId;
         public bool isFavorite;
         public bool favoriteProcessing;
+        public bool isCustom;
+        public ModelTypeEnum modelType;
     }
 }

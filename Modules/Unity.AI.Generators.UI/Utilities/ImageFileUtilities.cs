@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
@@ -9,13 +10,40 @@ using Unity.AI.Generators.Sdk;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
-using Object = UnityEngine.Object;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
     static class ImageFileUtilities
     {
         public const string failedDownloadIcon = "Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Warning.png";
+
+        static Material s_AlphaToGrayMaterial;
+
+        public static Material AlphaToGrayMaterial
+        {
+            get
+            {
+                if (s_AlphaToGrayMaterial == null)
+                {
+                    var shader = Shader.Find("Hidden/AIToolkit/AlphaToGray");
+                    if (shader != null)
+                    {
+                        s_AlphaToGrayMaterial = new Material(shader);
+                        s_AlphaToGrayMaterial.SetFloat("_GrayValue", 0.5f); // Mid-gray
+                    }
+                }
+                return s_AlphaToGrayMaterial;
+            }
+        }
+
+        public static IReadOnlyList<string> knownExtensions
+        {
+            get
+            {
+                ImageFileTypeSupport.EnsureInitialized();
+                return ImageFileTypeSupport.supportedExtensions;
+            }
+        }
 
         /// <summary>
         /// Gets the last modified UTC time for a URI as ticks.
@@ -25,91 +53,45 @@ namespace Unity.AI.Generators.UI.Utilities
         public static long GetLastModifiedUtcTime(Uri uri)
         {
             if (uri == null)
+            {
                 return 0;
+            }
 
             if (!uri.IsFile)
+            {
                 return 0;
+            }
 
             var path = uri.GetLocalPath();
             if (string.IsNullOrEmpty(path))
+            {
                 return 0;
+            }
 
             if (!File.Exists(path))
+            {
                 return 0;
+            }
 
             return new FileInfo(path).LastWriteTimeUtc.Ticks;
         }
 
         public static bool TryGetImageExtension(IReadOnlyList<byte> imageBytes, out string extension)
         {
-            extension = null;
-
-            if (imageBytes == null || imageBytes.Count < 4)
-                return false;
-
-            if (FileIO.IsPng(imageBytes))
-            {
-                extension = ".png";
-                return true;
-            }
-
-            if (FileIO.IsJpg(imageBytes))
-            {
-                extension = ".jpg";
-                return true;
-            }
-
-            if (FileIO.IsExr(imageBytes))
-            {
-                extension = ".exr";
-                return true;
-            }
-
-            return false; // Unsupported image type
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.TryGetImageExtension(imageBytes, out extension);
         }
 
         public static bool TryGetImageExtension(Stream imageStream, out string extension)
         {
-            extension = null;
-
-            if (imageStream == null || imageStream.Length < 4)
-                return false;
-
-            if (IsPng(imageStream))
-            {
-                extension = ".png";
-                return true;
-            }
-
-            if (IsJpg(imageStream))
-            {
-                extension = ".jpg";
-                return true;
-            }
-
-            if (IsExr(imageStream))
-            {
-                extension = ".exr";
-                return true;
-            }
-
-            return false; // Unsupported image type
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.TryGetImageExtension(imageStream, out extension);
         }
 
         public static bool TryGetImageDimensions(IReadOnlyList<byte> imageBytes, out int width, out int height)
         {
-            width = 0;
-            height = 0;
-
-            if (!TryGetImageExtension(imageBytes, out var extension))
-                return false;
-
-            return extension switch
-            {
-                ".png" => TryGetPngDimensions(imageBytes, out width, out height),
-                ".jpg" => TryGetJpegDimensions(imageBytes, out width, out height),
-                _ => false
-            };
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.TryGetImageDimensions(imageBytes, out width, out height);
         }
 
         public static bool TryGetImageDimensions(Stream imageStream, out int width, out int height)
@@ -118,7 +100,9 @@ namespace Unity.AI.Generators.UI.Utilities
             height = 0;
 
             if (imageStream is not { CanSeek: true })
+            {
                 return false;
+            }
 
             var originalPosition = imageStream.Position;
             try
@@ -130,7 +114,9 @@ namespace Unity.AI.Generators.UI.Utilities
                 var bytesRead = imageStream.Read(headerBuffer, 0, headerBuffer.Length);
 
                 if (bytesRead < 24)
+                {
                     return false;
+                }
 
                 var headerBytes = headerBuffer.Take(bytesRead).ToArray();
                 return TryGetImageDimensions(headerBytes, out width, out height);
@@ -142,6 +128,7 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
+        // Keep this public since it's referenced by the registry
         public static bool TryGetPngDimensions(IReadOnlyList<byte> imageBytes, out int width, out int height)
         {
             width = 0;
@@ -149,11 +136,15 @@ namespace Unity.AI.Generators.UI.Utilities
 
             // Check if it's a valid PNG file
             if (imageBytes == null || imageBytes.Count < 24)
+            {
                 return false;
+            }
 
             // Check PNG signature
             if (!FileIO.IsPng(imageBytes))
+            {
                 return false;
+            }
 
             // Width: bytes 16-19, Height: bytes 20-23
             width = ReadInt32(imageBytes, 16, false);
@@ -164,7 +155,9 @@ namespace Unity.AI.Generators.UI.Utilities
         public static bool IsPngIndexedColor(IReadOnlyList<byte> imageBytes)
         {
             if (imageBytes.Count < 29)
+            {
                 return false;
+            }
 
             // The color type is stored in the IHDR chunk's data at byte index 9.
             // Since the IHDR data starts at index 16 (8 for signature + 4 for length + 4 for type),
@@ -178,10 +171,14 @@ namespace Unity.AI.Generators.UI.Utilities
         public static bool IsPngIndexedColor(Stream imageStream)
         {
             if (imageStream == null)
+            {
                 throw new ArgumentNullException(nameof(imageStream));
+            }
 
             if (!imageStream.CanSeek)
+            {
                 throw new NotSupportedException("The provided stream must be seekable.");
+            }
 
             var originalPosition = imageStream.Position;
             try
@@ -199,17 +196,22 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        static bool TryGetJpegDimensions(IReadOnlyList<byte> imageBytes, out int width, out int height)
+        // Make public to be accessible from registry
+        public static bool TryGetJpegDimensions(IReadOnlyList<byte> imageBytes, out int width, out int height)
         {
             width = 0;
             height = 0;
 
             if (imageBytes == null || imageBytes.Count < 2)
+            {
                 return false;
+            }
 
             // Check JPEG signature
             if (!FileIO.IsJpg(imageBytes))
+            {
                 return false;
+            }
 
             var offset = 2;
 
@@ -223,51 +225,66 @@ namespace Unity.AI.Generators.UI.Utilities
                 }
 
                 // Skip any padding FF bytes
-                while (offset < imageBytes.Count && imageBytes[offset] == 0xFF)
-                {
-                    offset++;
-                }
+                while (offset < imageBytes.Count && imageBytes[offset] == 0xFF) offset++;
 
                 if (offset >= imageBytes.Count)
+                {
                     break;
+                }
 
                 var marker = imageBytes[offset++];
 
                 // Read segment length
                 if (offset + 1 >= imageBytes.Count)
+                {
                     break;
+                }
 
                 var length = ReadInt16(imageBytes, offset, false); // Use the shared method, always big-endian
                 offset += 2;
 
                 if (length < 2)
+                {
                     break;
+                }
 
                 // Check for SOF markers (Start Of Frame)
                 if (marker is 0xC0 or 0xC1 or 0xC2 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or 0xCD or 0xCE or 0xCF)
                 {
                     // Ensure there are enough bytes to read
                     if (offset + length - 2 > imageBytes.Count)
+                    {
                         break;
+                    }
 
                     // The length includes the 2 bytes of the length field, so we subtract 2
                     var segmentEnd = offset + length - 2;
 
                     // Sample Precision (1 byte)
                     if (offset >= segmentEnd)
+                    {
                         break;
+                    }
+
                     offset++;
 
                     // Image Height (2 bytes)
                     if (offset + 1 >= segmentEnd)
+                    {
                         break;
+                    }
+
                     height = ReadInt16(imageBytes, offset, false); // Use the shared method, always big-endian
                     offset += 2;
 
                     // Image Width (2 bytes)
                     if (offset + 1 >= segmentEnd)
+                    {
                         break;
+                    }
+
                     width = ReadInt16(imageBytes, offset, false); // Use the shared method, always big-endian
+
                     //offset += 2;
 
                     return true;
@@ -280,79 +297,227 @@ namespace Unity.AI.Generators.UI.Utilities
             return false;
         }
 
+        // Make public to be accessible from registry
+        public static bool TryGetGifDimensions(IReadOnlyList<byte> imageBytes, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+
+            // Check if it's a valid PNG file
+            if (imageBytes == null || imageBytes.Count < 10)
+            {
+                return false;
+            }
+
+            // Check PNG signature
+            if (!FileIO.IsGif(imageBytes))
+            {
+                return false;
+            }
+
+            // 3. Validate the GIF version ("87a" or "89a")
+            // ASCII: 8=0x38, 7=0x37, 9=0x39, a=0x61
+            var isVersionValid = (imageBytes[3] == 0x38 && imageBytes[4] == 0x37 && imageBytes[5] == 0x61) ||
+                (imageBytes[3] == 0x38 && imageBytes[4] == 0x39 && imageBytes[5] == 0x61);
+
+            if (!isVersionValid)
+            {
+                return false;
+            }
+
+            // 4. Read the dimensions. They are stored as 16-bit little-endian integers.
+            // Width is at offset 6 (bytes 6 and 7).
+            width = imageBytes[6] | (imageBytes[7] << 8);
+
+            // Height is at offset 8 (bytes 8 and 9).
+            height = imageBytes[8] | (imageBytes[9] << 8);
+
+            return true;
+        }
+
         public static bool IsPng(Stream imageStream)
         {
-            if (imageStream == null)
-                throw new ArgumentNullException(nameof(imageStream));
-
-            if (!imageStream.CanSeek)
-                throw new NotSupportedException("The specified stream must be seekable.");
-
-            var originalPosition = imageStream.Position;
-            try
-            {
-                imageStream.Position = 0;
-                var headerBytes = new byte[8];
-                var bytesRead = imageStream.Read(headerBytes, 0, headerBytes.Length);
-                return bytesRead >= 8 && FileIO.IsPng(headerBytes);
-            }
-            finally
-            {
-                imageStream.Position = originalPosition;
-            }
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.IsFormat(imageStream, ".png");
         }
 
         public static bool IsJpg(Stream imageStream)
         {
-            if (imageStream == null)
-                throw new ArgumentNullException(nameof(imageStream));
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.IsFormat(imageStream, ".jpg");
+        }
 
-            if (!imageStream.CanSeek)
-                throw new NotSupportedException("The specified stream must be seekable.");
-
-            var originalPosition = imageStream.Position;
-            try
-            {
-                imageStream.Position = 0;
-                var headerBytes = new byte[8];
-                var bytesRead = imageStream.Read(headerBytes, 0, headerBytes.Length);
-                return bytesRead >= 8 && FileIO.IsJpg(headerBytes);
-            }
-            finally
-            {
-                imageStream.Position = originalPosition;
-            }
+        public static bool IsGif(Stream imageStream)
+        {
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.IsFormat(imageStream, ".gif");
         }
 
         public static bool IsExr(Stream imageStream)
         {
-            if (imageStream == null)
-                throw new ArgumentNullException(nameof(imageStream));
-
-            if (!imageStream.CanSeek)
-                throw new NotSupportedException("The specified stream must be seekable.");
-
-            var originalPosition = imageStream.Position;
-            try
-            {
-                imageStream.Position = 0;
-                var headerBytes = new byte[8];
-                var bytesRead = imageStream.Read(headerBytes, 0, headerBytes.Length);
-                return bytesRead >= 8 && FileIO.IsExr(headerBytes);
-            }
-            finally
-            {
-                imageStream.Position = originalPosition;
-            }
+            ImageFileTypeSupport.EnsureInitialized();
+            return ImageFileTypeSupport.IsFormat(imageStream, ".exr");
         }
 
         public static bool HasPngAlphaChannel(byte[] headerBytes)
         {
             if (headerBytes == null || headerBytes.Length < 26)
+            {
                 return true;
+            }
 
             var colorType = headerBytes[25];
             return colorType is 4 or 6;
+        }
+
+        public static bool HasPngAlphaChannel(Stream imageStream)
+        {
+            if (imageStream == null)
+                throw new ArgumentNullException(nameof(imageStream));
+
+            if (!imageStream.CanSeek)
+                throw new NotSupportedException("The provided stream must be seekable.");
+
+            var originalPosition = imageStream.Position;
+            try
+            {
+                imageStream.Position = 0;
+
+                // We need at least 26 bytes to read the color type from the IHDR chunk.
+                const int requiredBytes = 26;
+                var headerBuffer = new byte[requiredBytes];
+                var bytesRead = imageStream.Read(headerBuffer, 0, requiredBytes);
+
+                // If we can't read enough bytes, we can't be certain.
+                // The byte[] version defaults to true in this case.
+                if (bytesRead < requiredBytes)
+                    return true;
+
+                // Check if it's a PNG before checking for alpha
+                if (!FileIO.IsPng(headerBuffer))
+                    return false;
+
+                return HasPngAlphaChannel(headerBuffer);
+            }
+            finally
+            {
+                try { imageStream.Position = originalPosition; }
+                catch { /* ignored */ }
+            }
+        }
+
+        public static byte[] StripPngAlphaToGray(byte[] imageBytes)
+        {
+            if (imageBytes == null || imageBytes.Length == 0)
+                return imageBytes;
+
+            var previousActive = RenderTexture.active;
+            Texture2D sourceTexture = null;
+            Texture2D resultTexture = null;
+            RenderTexture rt = null;
+
+            try
+            {
+                sourceTexture = new Texture2D(2, 2);
+                sourceTexture.LoadImage(imageBytes);
+
+                if (!HasAlphaChannel(sourceTexture))
+                    return imageBytes;
+
+                rt = RenderTexture.GetTemporary(sourceTexture.width, sourceTexture.height);
+
+                Graphics.Blit(sourceTexture, rt, AlphaToGrayMaterial);
+
+                resultTexture = new Texture2D(sourceTexture.width, sourceTexture.height, TextureFormat.RGB24, false);
+                RenderTexture.active = rt;
+                resultTexture.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+                resultTexture.Apply();
+
+                return resultTexture.EncodeToPNG();
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                if (rt)
+                    RenderTexture.ReleaseTemporary(rt);
+                sourceTexture?.SafeDestroy();
+                resultTexture?.SafeDestroy();
+            }
+        }
+
+        public static byte[] StripPngAlphaToGray(Stream imageStream)
+        {
+            if (imageStream == null || imageStream.Length == 0)
+                return null;
+
+            var imageBytes = imageStream.ReadFully();
+            return StripPngAlphaToGray(imageBytes);
+        }
+
+        public static bool HasAlphaChannel(byte[] imageBytes)
+        {
+            if (!ImageFileTypeSupport.TryGetImageFormat(imageBytes, out var format))
+            {
+                // Unknown format, assume alpha channel to be safe.
+                return true;
+            }
+
+            switch (format.primaryExtension)
+            {
+                case ".png":
+                    return HasPngAlphaChannel(imageBytes);
+                case ".jpg":
+                case ".bmp":
+                    return false;
+                // For other formats like TIFF, GIF, PSD, EXR, HDR it's safer to assume they might have an alpha channel,
+                // as parsing them fully is complex.
+                default:
+                    return true;
+            }
+        }
+
+        public static bool HasAlphaChannel(Stream imageStream)
+        {
+            if (imageStream == null)
+                throw new ArgumentNullException(nameof(imageStream));
+
+            if (!imageStream.CanSeek)
+                throw new NotSupportedException("The provided stream must be seekable.");
+
+            var originalPosition = imageStream.Position;
+            try
+            {
+                imageStream.Position = 0;
+
+                const int headerSize = 1024;
+                var headerBuffer = new byte[headerSize];
+                var bytesRead = imageStream.Read(headerBuffer, 0, headerBuffer.Length);
+
+                if (bytesRead == 0)
+                {
+                    // Empty stream, no alpha.
+                    return false;
+                }
+
+                // The methods using this buffer are safe to use with a buffer that might be
+                // larger than the actual content, as they only check the first few bytes for signatures.
+                return HasAlphaChannel(headerBuffer);
+            }
+            finally
+            {
+                try { imageStream.Position = originalPosition; }
+                catch { /* ignored */ }
+            }
+        }
+
+        static bool HasAlphaChannel(Texture2D texture)
+        {
+            var format = texture.format;
+            return format == TextureFormat.RGBA32 ||
+                   format == TextureFormat.ARGB32 ||
+                   format == TextureFormat.RGBA4444 ||
+                   format == TextureFormat.ARGB4444 ||
+                   format == TextureFormat.Alpha8;
         }
 
         // Explanation for the different endianness handling:
@@ -383,7 +548,9 @@ namespace Unity.AI.Generators.UI.Utilities
 
                 _ = jpegStream.Read(buffer, 0, 2);
                 if (buffer[0] != 0xFF || buffer[1] != 0xD8)
+                {
                     return false;
+                }
 
                 long bytesRead = 2;
                 while (bytesRead < headerSize && jpegStream.Position < jpegStream.Length)
@@ -393,7 +560,9 @@ namespace Unity.AI.Generators.UI.Utilities
                     bytesRead += 2;
 
                     if (markerStart != 0xFF)
+                    {
                         break;
+                    }
 
                     if (markerType == 0xE1)
                     {
@@ -410,11 +579,11 @@ namespace Unity.AI.Generators.UI.Utilities
                             _ = jpegStream.Read(buffer, 0, 8);
                             bytesRead += 8;
 
-                            var isLittleEndian = (buffer[0] == 'I' && buffer[1] == 'I');
+                            var isLittleEndian = buffer[0] == 'I' && buffer[1] == 'I';
                             var ifdOffset = ReadInt32(buffer, 4, isLittleEndian);
 
                             jpegStream.Seek(ifdOffset - 8, SeekOrigin.Current);
-                            bytesRead += (ifdOffset - 8);
+                            bytesRead += ifdOffset - 8;
 
                             _ = jpegStream.Read(buffer, 0, 2);
                             bytesRead += 2;
@@ -427,7 +596,9 @@ namespace Unity.AI.Generators.UI.Utilities
 
                                 var tagId = ReadInt16(buffer, 0, isLittleEndian);
                                 if (tagId != 0x0112)
+                                {
                                     continue;
+                                }
 
                                 var orientationValue = ReadInt16(buffer, 8, isLittleEndian);
                                 return orientationValue != 1;
@@ -438,17 +609,21 @@ namespace Unity.AI.Generators.UI.Utilities
                     }
 
                     if (markerType == 0xDA)
+                    {
                         break;
+                    }
 
                     if (markerType is 0xD9 or < 0xE0)
+                    {
                         continue;
+                    }
 
                     _ = jpegStream.Read(buffer, 0, 2);
                     var segmentLength = ReadInt16(buffer, 0, false); // Use helper method consistently, always big-endian
                     bytesRead += 2;
 
                     jpegStream.Seek(segmentLength - 2, SeekOrigin.Current);
-                    bytesRead += (segmentLength - 2);
+                    bytesRead += segmentLength - 2;
                 }
 
                 return false;
@@ -463,85 +638,131 @@ namespace Unity.AI.Generators.UI.Utilities
             }
         }
 
-        static int ReadInt16<T>(T bytes, int offset, bool isLittleEndian) where T : IReadOnlyList<byte> =>
-            isLittleEndian
+        static int ReadInt16<T>(T bytes, int offset, bool isLittleEndian) where T : IReadOnlyList<byte>
+        {
+            return isLittleEndian
                 ? bytes[offset] | (bytes[offset + 1] << 8)
                 : (bytes[offset] << 8) | bytes[offset + 1];
+        }
 
-        static int ReadInt32<T>(T bytes, int offset, bool isLittleEndian) where T : IReadOnlyList<byte> =>
-            isLittleEndian
+        static int ReadInt32<T>(T bytes, int offset, bool isLittleEndian) where T : IReadOnlyList<byte>
+        {
+            return isLittleEndian
                 ? bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)
                 : (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+        }
 
         public static bool TryConvert(byte[] imageBytes, out byte[] destData, string toType = ".png")
         {
+            destData = null;
+            if (imageBytes == null || imageBytes.Length == 0)
+            {
+                return false;
+            }
+
             Texture2D texture = null;
             Texture2D destTexture = null;
             RenderTexture renderTexture = null;
-            destData = null;
 
             try
             {
-                // Check if the source is a JPEG with EXIF orientation data
-                using var imageStream = new MemoryStream(imageBytes);
-                if (IsJpg(imageStream) && HasJpgOrientation(imageStream))
+                // Ensure extension starts with a period
+                var normalizedToType = toType.ToLowerInvariant();
+                if (!normalizedToType.StartsWith("."))
                 {
-                    // For JPEGs with orientation data, use an approach that handles rotation
-                    texture = LoadJpegWithExifRotation(imageBytes);
+                    normalizedToType = "." + normalizedToType;
+                }
+
+                ImageFileTypeSupport.TryGetFormatForExtension(normalizedToType, out var format);
+
+                // Detect source format
+                TryGetImageExtension(imageBytes, out var sourceExtension);
+
+                using var imageStream = new MemoryStream(imageBytes);
+                var useAssetImporter = false;
+
+                if (!string.IsNullOrEmpty(sourceExtension))
+                {
+                    // Check if we need to use asset importer based on content
+                    useAssetImporter = ImageFileTypeSupport.RequiresTemporaryAsset(imageStream, sourceExtension);
+                }
+
+                if (useAssetImporter)
+                {
+                    // Use asset importer for special cases
+                    texture = LoadWithAssetImporter(imageBytes);
                 }
                 else
                 {
+                    // For formats that support runtime loading
                     texture = new Texture2D(1, 1);
-                    texture.LoadImage(imageBytes);
-                }
-
-                switch (toType.ToLower())
-                {
-                    // For non-HDR formats, use the source texture directly
-                    case ".png":
-                        destData = texture.EncodeToPNG();
-                        break;
-                    case ".jpg":
-                    case ".jpeg":
-                        destData = texture.EncodeToJPG(100);
-                        break;
-                    // For EXR, perform GPU-accelerated sRGB to linear conversion
-                    case ".exr":
+                    try
                     {
-                        renderTexture = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                        Graphics.Blit(texture, renderTexture);
-                        destTexture = new Texture2D(texture.width, texture.height, TextureFormat.RGBAHalf, false, true);
-
-                        var prevRT = RenderTexture.active;
-                        RenderTexture.active = renderTexture;
-                        destTexture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
-                        RenderTexture.active = prevRT;
-
-                        destData = destTexture.EncodeToEXR(Texture2D.EXRFlags.CompressRLE); // RLE is fastest
-                        break;
+                        if (!texture.LoadImage(imageBytes))
+                        {
+                            texture.SafeDestroy();
+                            texture = LoadWithAssetImporter(imageBytes);
+                        }
                     }
-                    default:
-                        return false;
+                    catch
+                    {
+                        texture?.SafeDestroy();
+                        texture = LoadWithAssetImporter(imageBytes);
+                    }
                 }
 
-                return destData != null;
+                var requiresLinearColorSpace = format?.requiresLinearColorSpace ?? false;
+                if (requiresLinearColorSpace)
+                {
+                    renderTexture = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+                    Graphics.Blit(texture, renderTexture);
+                    destTexture = new Texture2D(texture.width, texture.height, TextureFormat.RGBAHalf, false, true);
+
+                    var prevRT = RenderTexture.active;
+                    RenderTexture.active = renderTexture;
+                    destTexture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+                    RenderTexture.active = prevRT;
+
+                    if (ImageFileTypeSupport.TryEncodeTexture(destTexture, normalizedToType, out destData))
+                    {
+                        return true;
+                    }
+                }
+                else
+                {
+                    if (ImageFileTypeSupport.TryEncodeTexture(texture, normalizedToType, out destData))
+                    {
+                        return true;
+                    }
+                }
             }
             finally
             {
                 if (renderTexture != null)
+                {
                     RenderTexture.ReleaseTemporary(renderTexture);
+                }
 
                 texture?.SafeDestroy();
                 destTexture?.SafeDestroy();
             }
+
+            return false;
         }
 
         const string k_ToolkitTemp = "Assets/AI Toolkit/Temp";
 
-        static Texture2D LoadJpegWithExifRotation(byte[] imageBytes)
+        static Texture2D LoadWithAssetImporter(byte[] imageBytes)
         {
-            // Use Unity's asset import system to properly handle EXIF rotation
-            using var tempAsset = TemporaryAssetUtilities.ImportAssets(new[] { ($"{k_ToolkitTemp}/{Guid.NewGuid():N}.jpg", imageBytes) });
+            // Detect the file extension from the image bytes
+            TryGetImageExtension(imageBytes, out var extension);
+            if (string.IsNullOrEmpty(extension))
+            {
+                throw new NotSupportedException();
+            }
+
+            // Use Unity's asset import system to properly handle the image
+            using var tempAsset = TemporaryAssetUtilities.ImportAssets(new[] { ($"{k_ToolkitTemp}/{Guid.NewGuid():N}{extension}", imageBytes) });
             var asset = tempAsset.assets[0].asset;
             var importedTexture = asset.GetObject<Texture2D>();
 
@@ -554,12 +775,21 @@ namespace Unity.AI.Generators.UI.Utilities
         public static bool TryConvert(Stream imageStream, out Stream destStream, string toType = ".png")
         {
             if (imageStream == null)
+            {
                 throw new ArgumentNullException(nameof(imageStream));
+            }
 
             if (!imageStream.CanSeek)
+            {
                 throw new NotSupportedException("The provided stream must be seekable.");
+            }
 
             var normalizedToType = toType.ToLowerInvariant();
+            if (!normalizedToType.StartsWith("."))
+            {
+                normalizedToType = "." + normalizedToType;
+            }
+
             var originalPosition = imageStream.Position;
             try
             {
@@ -575,21 +805,25 @@ namespace Unity.AI.Generators.UI.Utilities
 
                 imageStream.Position = 0;
                 var imageBytes = imageStream.ReadFully();
-                var success = TryConvert(imageBytes, out var destData, toType);
+                var success = TryConvert(imageBytes, out var destData, normalizedToType);
                 destStream = success ? new MemoryStream(destData) : null;
                 return success;
             }
             finally
             {
                 if (imageStream.CanSeek)
+                {
                     imageStream.Position = originalPosition;
+                }
             }
         }
 
         public static byte[] CheckImageSize(byte[] imageBytes, int minimumSize = 32, int maximumSize = 8192)
         {
             if (!TryGetImageDimensions(imageBytes, out var width, out var height))
+            {
                 return imageBytes;
+            }
 
             if (width < minimumSize || height < minimumSize)
             {
@@ -604,7 +838,10 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             if (width > maximumSize || height > maximumSize)
-                throw new ArgumentOutOfRangeException(nameof(maximumSize), $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
+            {
+                throw new ArgumentOutOfRangeException(nameof(maximumSize),
+                    $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
+            }
 
             return imageBytes;
         }
@@ -612,13 +849,19 @@ namespace Unity.AI.Generators.UI.Utilities
         public static Stream CheckImageSize(Stream imageStream, int minimumSize = 32, int maximumSize = 8192)
         {
             if (imageStream == null)
-                throw new ArgumentOutOfRangeException(nameof(minimumSize), $"Image size must be at least 2x2.");
+            {
+                throw new ArgumentOutOfRangeException(nameof(minimumSize), "Image size must be at least 2x2.");
+            }
 
             if (!imageStream.CanSeek)
+            {
                 throw new NotSupportedException("The provided stream must be seekable.");
+            }
 
             if (!TryGetImageDimensions(imageStream, out var width, out var height))
+            {
                 return imageStream;
+            }
 
             if (width < minimumSize || height < minimumSize)
             {
@@ -636,64 +879,12 @@ namespace Unity.AI.Generators.UI.Utilities
             }
 
             if (width > maximumSize || height > maximumSize)
-                throw new ArgumentOutOfRangeException(nameof(maximumSize), $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
+            {
+                throw new ArgumentOutOfRangeException(nameof(maximumSize),
+                    $"Image size must be less than or equal to {maximumSize}x{maximumSize}. Actual: {width}x{height}.");
+            }
 
             return imageStream;
-        }
-
-        /// <summary>
-        /// Determines if a stream contains an image format that can be loaded at runtime (PNG, JPG, or EXR).
-        /// </summary>
-        /// <param name="stream">The stream to check.</param>
-        /// <returns>True if the stream contains a PNG, JPG, or EXR image; otherwise, false.</returns>
-        public static bool IsRuntimeLoadSupported(Stream stream)
-        {
-            if (stream == null || stream.Length == 0 || !stream.CanRead)
-                return false;
-
-            long originalPosition = 0;
-            if (stream.CanSeek)
-                originalPosition = stream.Position;
-
-            try
-            {
-                stream.Position = 0;
-
-                // Read enough bytes to determine the file format (16 bytes should be sufficient)
-                var headerBytes = new byte[16];
-                var bytesRead = stream.Read(headerBytes, 0, headerBytes.Length);
-
-                if (bytesRead < 4) // Need at least 4 bytes to identify any format
-                    return false;
-
-                // Check for PNG signature
-                if (FileIO.IsPng(headerBytes))
-                    return true;
-
-                // Check for JPG signature
-                if (FileIO.IsJpg(headerBytes))
-                    return true;
-
-                // Check for EXR signature
-                if (FileIO.IsExr(headerBytes))
-                    return true;
-
-                // Not a supported format
-                return false;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-            finally
-            {
-                // Restore the original position if possible
-                if (stream.CanSeek)
-                {
-                    try { stream.Position = originalPosition; }
-                    catch { /* Ignore positioning errors */ }
-                }
-            }
         }
 
         /// <summary>
@@ -705,14 +896,18 @@ namespace Unity.AI.Generators.UI.Utilities
             const float aspectTolerance = 0.001f;
 
             if (!sourceTexture)
+            {
                 return null;
+            }
 
             // Early return if texture is already readable AND (no aspect correction needed OR aspect already matches)
             if (sourceTexture is Texture2D { isReadable: true } texture2D)
             {
                 var currentAspect = (float)texture2D.width / texture2D.height;
                 if (aspect <= 0 || Mathf.Abs(currentAspect - aspect) < aspectTolerance)
+                {
                     return texture2D;
+                }
             }
 
             var previousActive = RenderTexture.active;
@@ -724,6 +919,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 var outputHeight = sourceTexture.height;
 
                 var currentAspect = (float)sourceTexture.width / sourceTexture.height;
+
                 // Calculate new dimensions if aspect ratio correction is needed
                 if (aspect > 0 && Mathf.Abs(currentAspect - aspect) >= aspectTolerance)
                 {
@@ -748,14 +944,18 @@ namespace Unity.AI.Generators.UI.Utilities
             {
                 RenderTexture.active = previousActive;
                 if (rt)
+                {
                     RenderTexture.ReleaseTemporary(rt);
+                }
             }
         }
 
         public static byte[] Resize(byte[] imageBytes, int width, int height)
         {
             if (imageBytes == null || imageBytes.Length == 0)
+            {
                 return imageBytes;
+            }
 
             var previousActive = RenderTexture.active;
             Texture2D sourceTexture = null;
@@ -781,12 +981,13 @@ namespace Unity.AI.Generators.UI.Utilities
             {
                 RenderTexture.active = previousActive;
                 if (rt)
+                {
                     RenderTexture.ReleaseTemporary(rt);
+                }
+
                 sourceTexture?.SafeDestroy();
             }
         }
-
-        public static readonly string[] knownExtensions = { ".png", ".jpg", "jpeg", ".exr" };
 
         public static async Task<(Texture2D texture, long timestamp)> GetCompatibleImageTextureAsync(Uri uri, bool linear = false)
         {
@@ -798,25 +999,27 @@ namespace Unity.AI.Generators.UI.Utilities
 
                 var data = await DownloadImageWithFallback(uri, httpClientLease.client);
                 await using var candidateStream = new MemoryStream(data);
-                return (await CompatibleImageTexture(candidateStream), timestamp);
+                return (await LoadImageTextureAsync(candidateStream, linear), timestamp);
             }
 
             if (File.Exists(uri.GetLocalPath()))
             {
                 await using Stream candidateStream = await FileIO.OpenReadWithRetryAsync(uri.GetLocalPath(), CancellationToken.None);
-                return (await CompatibleImageTexture(candidateStream), timestamp);
+                return (await LoadImageTextureAsync(candidateStream, linear), timestamp);
             }
 
             return (null, timestamp);
 
-            async Task<Texture2D> CompatibleImageTexture(Stream stream)
+            async Task<Texture2D> LoadImageTextureAsync(Stream stream, bool useLinear)
             {
-                // check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
-                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
-                // exr also doesn't seem to be supported by the backend
-                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                // Check if the image requires special import handling based on registered format handlers
+                TryGetImageExtension(stream, out var extension);
+                var requiresSpecialImport = string.IsNullOrEmpty(extension) ||
+                    ImageFileTypeSupport.RequiresTemporaryAsset(stream, extension);
+
+                if (!requiresSpecialImport)
                 {
-                    var loaded = new Texture2D(1, 1, TextureFormat.RGBA32, false, linear) { hideFlags = HideFlags.HideAndDontSave };
+                    var loaded = new Texture2D(1, 1, TextureFormat.RGBA32, false, useLinear) { hideFlags = HideFlags.HideAndDontSave };
                     loaded.LoadImage(await stream.ReadFullyAsync());
                     return loaded;
                 }
@@ -838,24 +1041,28 @@ namespace Unity.AI.Generators.UI.Utilities
             var timestamp = GetLastModifiedUtcTime(uri);
 
             if (!uri.IsFile)
+            {
                 return (null, timestamp);
+            }
 
             if (File.Exists(uri.GetLocalPath()))
             {
                 using Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
-                return (CompatibleImageTexture(candidateStream), timestamp);
+                return (LoadImageTexture(candidateStream, linear), timestamp);
             }
 
             return (null, timestamp);
 
-            Texture2D CompatibleImageTexture(Stream stream)
+            Texture2D LoadImageTexture(Stream stream, bool useLinear)
             {
-                // check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
-                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
-                // exr also doesn't seem to be supported by the backend
-                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                // Check if the image requires special import handling based on registered format handlers
+                TryGetImageExtension(stream, out var extension);
+                var requiresSpecialImport = string.IsNullOrEmpty(extension) ||
+                    ImageFileTypeSupport.RequiresTemporaryAsset(stream, extension);
+
+                if (!requiresSpecialImport)
                 {
-                    var loaded = new Texture2D(1, 1, TextureFormat.RGBA32, false, linear) { hideFlags = HideFlags.HideAndDontSave };
+                    var loaded = new Texture2D(1, 1, TextureFormat.RGBA32, false, useLinear) { hideFlags = HideFlags.HideAndDontSave };
                     loaded.LoadImage(stream.ReadFully());
                     return loaded;
                 }
@@ -875,18 +1082,24 @@ namespace Unity.AI.Generators.UI.Utilities
         public static Stream GetCompatibleImageStream(Uri uri)
         {
             if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
+            {
                 return null;
+            }
 
             Stream candidateStream = FileIO.OpenReadAsync(uri.GetLocalPath());
-            return CompatibleImageStream(candidateStream, uri.GetLocalPath());
+            return LoadCompatibleStream(candidateStream, uri.GetLocalPath());
 
-            Stream CompatibleImageStream(Stream stream, string filePath)
+            Stream LoadCompatibleStream(Stream stream, string filePath)
             {
-                // Check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
-                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
-                // exr also doesn't seem to be supported by the backend
-                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                // Check if the image requires special import handling based on registered format handlers
+                TryGetImageExtension(stream, out var extension);
+                var requiresSpecialImport = string.IsNullOrEmpty(extension) ||
+                    ImageFileTypeSupport.RequiresTemporaryAsset(stream, extension);
+
+                if (!requiresSpecialImport)
+                {
                     return stream;
+                }
 
                 using var temporaryAsset = TemporaryAssetUtilities.ImportAssets(new[] { filePath });
 
@@ -901,7 +1114,9 @@ namespace Unity.AI.Generators.UI.Utilities
                 stream = new MemoryStream(bytes);
 
                 if (readableTexture != referenceTexture)
+                {
                     readableTexture.SafeDestroy();
+                }
 
                 return stream;
             }
@@ -910,18 +1125,24 @@ namespace Unity.AI.Generators.UI.Utilities
         public static async Task<Stream> GetCompatibleImageStreamAsync(Uri uri)
         {
             if (!uri.IsFile || !File.Exists(uri.GetLocalPath()))
+            {
                 return null;
+            }
 
             Stream candidateStream = await FileIO.OpenReadWithRetryAsync(uri.GetLocalPath(), CancellationToken.None);
-            return await CompatibleImageStream(candidateStream, uri.GetLocalPath());
+            return await LoadCompatibleStreamAsync(candidateStream, uri.GetLocalPath());
 
-            async Task<Stream> CompatibleImageStream(Stream stream, string filePath)
+            async Task<Stream> LoadCompatibleStreamAsync(Stream stream, string filePath)
             {
-                // Check if the reference image is a jpg and has exif data, if so, it may be rotated and we should go
-                // through the Unity asset importer (at the cost of performance and sending a potentially downsized image)
-                // exr also doesn't seem to be supported by the backend
-                if (IsPng(stream) || (IsJpg(stream) && !HasJpgOrientation(stream)))
+                // Check if the image requires special import handling based on registered format handlers
+                TryGetImageExtension(stream, out var extension);
+                var requiresSpecialImport = string.IsNullOrEmpty(extension) ||
+                    ImageFileTypeSupport.RequiresTemporaryAsset(stream, extension);
+
+                if (!requiresSpecialImport)
+                {
                     return stream;
+                }
 
                 using var temporaryAsset = await TemporaryAssetUtilities.ImportAssetsAsync(new[] { filePath });
 
@@ -936,49 +1157,23 @@ namespace Unity.AI.Generators.UI.Utilities
                 stream = new MemoryStream(bytes);
 
                 if (readableTexture != referenceTexture)
+                {
                     readableTexture.SafeDestroy();
+                }
 
                 return stream;
             }
         }
 
-        static T GetObject<T>(this AssetReference asset) where T : Object
+        static T GetObject<T>(this AssetReference asset) where T : UnityEngine.Object
         {
             var path = asset.GetPath();
             return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
         }
 
-        static byte[] s_FailImageBytes = null;
-#if NEW_CODE
-        static async Task<byte[]> DownloadImageWithFallback(Uri uri, System.Net.Http.HttpClient httpClient)
-        {
-            try
-            {
-                var tempDir = FileUtil.GetUniqueTempPathInProject();
-                var downloadedUri = await UriExtensions.DownloadFile(uri, tempDir, httpClient);
-                var data = await FileIO.ReadAllBytesAsync(downloadedUri.GetLocalPath());
+        static byte[] s_FailImageBytes;
 
-                // Clean up temp file
-                try
-                {
-                    File.Delete(downloadedUri.GetLocalPath());
-                    Directory.Delete(tempDir, true);
-                }
-                catch
-                {
-                    // Ignore cleanup errors
-                }
-
-                return data;
-            }
-            catch
-            {
-                s_FailImageBytes ??= await FileIO.ReadAllBytesAsync("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Fail.png");
-                return s_FailImageBytes;
-            }
-        }
-#else
-        static async Task<byte[]> DownloadImageWithFallback(Uri uri, System.Net.Http.HttpClient _)
+        static async Task<byte[]> DownloadImageWithFallback(Uri uri, HttpClient _)
         {
             using var uwr = UnityWebRequest.Get(uri.AbsoluteUri);
             await uwr.SendWebRequest();
@@ -991,28 +1186,39 @@ namespace Unity.AI.Generators.UI.Utilities
 
             return uwr.downloadHandler.data;
         }
-#endif
 
         static bool TryGetAspectRatio(string assetPath, out float aspect)
         {
             aspect = 1.0f;
             if (string.IsNullOrEmpty(assetPath))
+            {
                 return false;
+            }
 
             var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
             if (!importer)
+            {
                 return false;
+            }
 
             importer.GetSourceTextureWidthAndHeight(out var width, out var height);
             if (width <= 0 || height <= 0)
+            {
                 return false;
+            }
 
             aspect = (float)width / height;
             return true;
         }
 
-        public static bool TryGetAspectRatio(AssetReference asset, out float aspect) => TryGetAspectRatio(asset.GetPath(), out aspect);
+        public static bool TryGetAspectRatio(AssetReference asset, out float aspect)
+        {
+            return TryGetAspectRatio(asset.GetPath(), out aspect);
+        }
 
-        public static bool TryGetAspectRatio(Texture asset, out float aspect) => TryGetAspectRatio(AssetDatabase.GetAssetPath(asset), out aspect);
+        public static bool TryGetAspectRatio(Texture asset, out float aspect)
+        {
+            return TryGetAspectRatio(AssetDatabase.GetAssetPath(asset), out aspect);
+        }
     }
 }

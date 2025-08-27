@@ -4,6 +4,30 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre.20] - 2025-08-27
+
+### Added
+
+- Expanded image generation capabilities to include BMP, GIF, TIFF, PSD, and HDR, in addition to existing support for PNG, JPG, and EXR.
+- Added pattern search button and window to material generator.
+- Added descriptive shader input label names to generated map material assignments.
+- Added simple heuristic for message log feedback when a generation was likely filtered by a content filter.
+
+### Changed
+
+- Allow partial completion and recovery of generated assets.
+- Improve image preview quality with multi-step blitting.
+- When no image model selected, automatically select favorited model, typically Flux 1.dev.
+
+### Fixed
+
+- Generation download recovery waits until connection is made on startup.
+- Searching generated assets is faster.
+- Remove alpha when sending image references as models do not look at alpha channel.
+- Fixed filters in model selector applying instantly to generator window.
+- Fixed UI offset in Generation Data window.
+- Fixed missing map assignments when promoting between generated material and terrain layer.
+
 ## [1.0.0-pre.19] - 2025-08-14
 
 ### Added

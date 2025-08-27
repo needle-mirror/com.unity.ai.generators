@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Material.Services.Stores.Actions;
 using Unity.AI.Material.Services.Stores.Selectors;
 using Unity.AI.Material.Services.Utilities;
@@ -24,6 +25,7 @@ namespace Unity.AI.Material.Components
             AddToClassList("prompt-image-reference");
 
             image = this.Q<Image>();
+            this.Q<Button>("image-reference-search-button").SetShown(false);
 
             this.Bind(
                 GenerationSettingsActions.setPromptImageReferenceAsset,
