@@ -16,6 +16,19 @@ namespace Unity.AI.ModelSelector.Services.Utilities
 
         public static async Task SetModelAsync<T>(this T card, ModelSettings model) where T: VisualElement, IModelTitleCard
         {
+            SetModelProperties(card, model);
+
+            if (model.thumbnails is { Count: > 0 })
+            {
+                var modelImage = card.Q<Image>(className: "model-title-card-image");
+                modelImage.image = await TextureCache.GetPreview(new Uri(model.thumbnails[0]), (int)TextureSizeHint.Carousel);
+            }
+
+            SetModelProperties(card, model);
+        }
+
+        static void SetModelProperties<T>(T card, ModelSettings model) where T : VisualElement, IModelTitleCard
+        {
             var modelImage = card.Q<Image>(className: "model-title-card-image");
             var modelName = card.Q<Label>(className: "model-title-card-label");
             var modelTags = card.Q<Label>(className: "model-title-card-tags");
@@ -23,16 +36,14 @@ namespace Unity.AI.ModelSelector.Services.Utilities
             var modelProviderIcon = card.Q<Image>(className: "model-title-card-provider-icon");
             var cardParent = card.parent;
 
+            if (model.thumbnails is not { Count: > 0 })
+                modelImage.image = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Warning.png");
+
             modelName.text = model.name;
             modelTags.text = model.tags != null ? string.Join(", ", model.tags) : string.Empty;
 
             if (modelDescription != null)
                 modelDescription.text = model.description;
-
-            if (model.thumbnails is { Count: > 0 })
-                modelImage.image = await TextureCache.GetPreview(new Uri(model.thumbnails[0]), (int)TextureSizeHint.Carousel);
-            else
-                modelImage.image = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Icons/Warning.png");
 
             if (modelProviderIcon != null)
             {
@@ -43,6 +54,9 @@ namespace Unity.AI.ModelSelector.Services.Utilities
                 modelProviderIcon.EnableInClassList("icon-tint-primary-color", model.provider == ModelConstants.Providers.Unity);
             }
 
+            if (cardParent == null)
+                return;
+
             switch (model.provider)
             {
                 case ModelConstants.Providers.Unity:
@@ -51,7 +65,6 @@ namespace Unity.AI.ModelSelector.Services.Utilities
                     break;
                 case ModelConstants.Providers.Scenario:
                 case ModelConstants.Providers.Layer:
-                case ModelConstants.Providers.Kinetix:
                 default:
                     cardParent.tooltip = $"Model provided by {model.provider}. Check the Unity AI Models and Partners page for terms and conditions.";
                     break;

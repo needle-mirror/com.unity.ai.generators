@@ -12,6 +12,7 @@ using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -39,7 +40,7 @@ namespace Unity.AI.ModelSelector.Components
         RadioButtonGroup m_SortOrder;
         VisualElement m_OperationsElement;
         VisualElement m_OperationsContainer;
-        TextField m_SearchBar;
+        ToolbarSearchField m_SearchBar;
         GridView m_GridView;
         VisualElement m_SearchResultsText;
         List<ModelSettings> m_Models = new();
@@ -194,7 +195,7 @@ namespace Unity.AI.ModelSelector.Components
             m_SortOrder.RegisterValueChangedCallback(OnSortValueChanged);
             m_OperationsElement = this.Q<VisualElement>(className: "operations");
             m_OperationsContainer = this.Q<VisualElement>(className: "operations-container");
-            m_SearchBar = this.Q<TextField>(className: "searchbar-text-field");
+            m_SearchBar = this.Q<ToolbarSearchField>(className: "searchbar-text-field");
             m_SearchBar.RegisterValueChangedCallback(OnSearchFieldChanging);
             m_SearchResultsText = this.Q<Label>(className: "no-search-results-text");
 
@@ -415,7 +416,7 @@ namespace Unity.AI.ModelSelector.Components
                     if (!selectedModalities.Contains(model.modality, StringComparer.InvariantCultureIgnoreCase))
                         continue;
 
-                    if (model.operations.Contains(ModelConstants.Operations.StyleTraining) && availableBaseModels.Add(model.id))
+                    if (model.operations.Contains("StyleTraining") && availableBaseModels.Add(model.id))
                     {
                         var baseModelElement = new Toggle
                         {

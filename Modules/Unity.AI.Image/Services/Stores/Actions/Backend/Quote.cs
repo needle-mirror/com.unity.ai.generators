@@ -11,7 +11,10 @@ using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Transform;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Transform.OperationSubTypes;
+using AiEditorToolsSdk.Components.Modalities.Video.Requests.Generate;
+using AiEditorToolsSdk.Components.Modalities.Video.Requests.Generate.OperationSubTypes;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
@@ -24,10 +27,13 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
+using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Connect;
-using UnityEditor;
+using UnityEngine;
 using Constants = Unity.AI.Generators.Sdk.Constants;
+using Logger = Unity.AI.Toolkit.Accounts.Services.Sdk.Logger;
 
 namespace Unity.AI.Image.Services.Stores.Actions.Backend
 {
@@ -77,7 +83,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     return;
                 }
 
-                if (!asset.Exists())
+                if (!arg.allowInvalidAsset && !asset.Exists())
                 {
                     var messages = new[] { "Selected asset is invalid. Please select a valid asset." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
@@ -90,7 +96,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                 var variations = generationSetting.SelectVariationCount();
                 var refinementMode = generationSetting.SelectRefinementMode();
-                if (refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Pixelate)
+                if (refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Pixelate or RefinementMode.Spritesheet)
                 {
                     variations = 1;
                 }
@@ -99,6 +105,15 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 var negativePrompt = generationSetting.SelectNegativePrompt();
                 var modelID = api.State.SelectSelectedModelID(asset);
                 var dimensions = generationSetting.SelectImageDimensionsVector2();
+
+                if (api.State.SelectIsCustomResolutionInvalid(asset))
+                {
+                    var messages = new[] { $"Invalid image dimensions. Width and height must be between {ModelConstants.ModelCapabilities.CustomResolutionsMin} and {ModelConstants.ModelCapabilities.CustomResolutionsMax} pixels." };
+                    api.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                    return;
+                }
+
                 var upscaleFactor = generationSetting.SelectUpscaleFactor();
                 var imageReferences = generationSetting.SelectImageReferencesByRefinement();
 
@@ -108,10 +123,12 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 var pixelateMode = (int)generationSetting.pixelateSettings.mode;
                 var pixelateOutlineThickness = generationSetting.SelectPixelateOutlineThickness();
 
+                var builderLogger = new Logger();
+
                 var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
-                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                    defaultOperationTimeout: Constants.realtimeTimeout);
+                    projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: builderLogger,
+                    unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout, packageInfoProvider: new PackageInfoProvider());
                 var imageComponent = builder.ImageComponent();
 
                 // Create a linked token source that will be canceled if the original is canceled
@@ -152,8 +169,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                         var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, null)
                             .Recolor(new Recolor(assetGuid, paletteAssetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await EditorTask.Run(() =>
-                            imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.Pixelate:
@@ -170,8 +186,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             .Pixelate(new Pixelate(assetGuid, pixelateResizeToTargetSize, pixelateTargetSize, pixelatePixelBlockSize, pixelateMode,
                                 pixelateOutlineThickness))
                             .AsSingleInAList();
-                        quoteResults = await EditorTask.Run(() =>
-                            imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.Inpaint:
@@ -198,8 +213,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt),
                                 new MaskReference(assetGuid, maskGuid, inpaintMaskImageReference.strength));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await EditorTask.Run(() =>
-                            imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                        quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.RemoveBackground:
@@ -214,8 +228,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                         var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(assetGuid));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await EditorTask.Run(() =>
-                            imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.Upscale:
@@ -228,10 +241,49 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             return;
                         }
 
-                        var request = ImageTransformRequestBuilder.Initialize().Upscale(new(assetGuid, upscaleFactor, null, null));
+                        var request = asset.IsCubemap()
+                            ? ImageTransformRequestBuilder.Initialize().SkyboxUpscale(new(assetGuid, upscaleFactor))
+                            : ImageTransformRequestBuilder.Initialize().Upscale(new(assetGuid, upscaleFactor, null, null));
                         var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                        quoteResults = await EditorTask.Run(() =>
-                            imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                        quoteResults = await imageComponent.TransformQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
+                        break;
+                    }
+                    case RefinementMode.Spritesheet:
+                    {
+                        if (generativeModelID == Guid.Empty)
+                        {
+                            var messages = new[] { "No model selected. Please select a valid model." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.UnknownModel, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
+                        var firstImageReference = imageReferences[refinementMode][ImageReferenceType.FirstImage];
+                        var firstAssetGuid = firstImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : Guid.Empty;
+
+                        if (firstAssetGuid == Guid.Empty)
+                        {
+                            var messages = new[] { "Invalid first image. Please select a valid first image." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
+                        if (firstImageReference.SelectImageReferenceIsSpriteSheet())
+                        {
+                            var messages = new[] { "Cannot make a spritesheet of a spritesheet. Please select a different image." };
+                            api.Dispatch(GenerationActions.setGenerationValidationResult,
+                                new(arg.asset, new(false, BackendServiceConstants.ErrorTypes.Unknown, 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
+                            return;
+                        }
+
+                        var lastImageReference = imageReferences[refinementMode][ImageReferenceType.LastImage];
+                        var lastAssetGuid = lastImageReference.SelectImageReferenceIsValid() ? Guid.NewGuid() : (Guid?)null;
+
+                        var videoComponent = builder.VideoComponent();
+                        var request = VideoGenerateRequestBuilder.Initialize(generativeModelID, duration: Mathf.RoundToInt(api.State.SelectDuration(asset))).GenerateWithReference(new TextPrompt(prompt, negativePrompt), new ReferencePrompt(firstAssetGuid, lastAssetGuid));
+                        var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        quoteResults = await videoComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
                         break;
                     }
                     case RefinementMode.Generation:
@@ -281,8 +333,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                     : null);
 
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            quoteResults = await EditorTask.Run(() =>
-                                imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                            quoteResults = await imageComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
                         }
                         catch (UnhandledReferenceCombinationException e)
                         {
@@ -319,10 +370,32 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                 if (!quoteResults.Result.IsSuccessful)
                 {
+                    string[] messages;
                     var errorEnum = quoteResults.Result.Error.AiResponseError;
-                    var messages = quoteResults.Result.Error.Errors.Count == 0
-                        ? new[] { $"An error occurred during validation ({WebUtils.selectedEnvironment})." }
-                        : quoteResults.Result.Error.Errors.Distinct().ToArray();
+                    if (quoteResults.Result.Error.Errors.Count == 0)
+                    {
+                        if (errorEnum == AiResultErrorEnum.Unknown)
+                        {
+                            var baseMessage = $"The endpoint at ({WebUtils.selectedEnvironment}) returned an {errorEnum} message.";
+                            if (builderLogger.LastException != null)
+                            {
+                                var exceptionMessage = $"Encountered an exception of type '{builderLogger.LastException.GetType().Name}' from '{builderLogger.LastException.Source}'.\nDetails: {builderLogger.LastException.Message}";
+                                messages = new[] { $"{baseMessage}\n{exceptionMessage}" };
+                            }
+                            else
+                            {
+                                messages = new[] { baseMessage };
+                            }
+                        }
+                        else
+                        {
+                            messages = new[] { $"An error ({errorEnum}) occurred during validation ({WebUtils.selectedEnvironment})." };
+                        }
+                    }
+                    else
+                    {
+                        messages = quoteResults.Result.Error.Errors.Distinct().ToArray();
+                    }
 
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
                         new(arg.asset,

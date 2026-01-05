@@ -10,6 +10,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Actions;
@@ -17,6 +18,8 @@ using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -30,6 +33,8 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static readonly string slice = "generationResults";
         public static Creator<GenerationTextures> setGeneratedTextures => new($"{slice}/setGeneratedTextures");
 
+        // k_ActiveDownloads is used to track downloads that are currently in progress.
+        // This prevents interrupted downloads from being resumed while they are still active.
         static readonly HashSet<string> k_ActiveDownloads = new();
         static readonly SemaphoreSlim k_SetGeneratedTexturesAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationTextures> setGeneratedTexturesAsync = new($"{slice}/setGeneratedTexturesAsync",
@@ -46,7 +51,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             int taskID = 0;
             try
             {
-                taskID = Progress.Start("Precaching generations.");
+                taskID = ProgressUtility.Start("Precaching generations.");
 
                 // Wait to acquire the semaphore
                 await k_SetGeneratedTexturesAsyncSemaphore.WaitAsync(timeoutToken).ConfigureAwaitMainThread();
@@ -66,7 +71,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     if (semaphoreAcquired)
                         k_SetGeneratedTexturesAsyncSemaphore.Release();
                     if (Progress.Exists(taskID))
-                        Progress.Finish(taskID);
+                        ProgressUtility.Finish(taskID);
                 }
             }
         });
@@ -139,11 +144,11 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
         public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
-        public static Creator<AsssetContext> pruneFulfilledSkeletons => new($"{slice}/pruneFulfilledSkeletons");
         public static Creator<SelectedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static readonly Creator<AssetReference> incrementGenerationCount = new($"{slice}/incrementGenerationCount");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
+        public static Creator<UseUnsavedAssetBytesData> setUseUnsavedAssetBytes => new($"{slice}/{nameof(setUseUnsavedAssetBytes)}");
         public static Creator<PromoteNewAssetPostActionData> setPromoteNewAssetPostAction => new($"{slice}/setPromoteNewAssetPostAction");
 
         public static readonly AsyncThunkCreator<SelectGenerationData, bool> selectGeneration = new($"{slice}/selectGeneration", async (payload, api) =>
@@ -165,38 +170,51 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             var result = false;
 
-            var options = new FileComparisonOptions(payload.result.uri.LocalPath, payload.asset.GetPath(), getBytes1: true);
-            if (!FileIO.AreFilesIdentical(options))
+            FileComparisonOptions options;
+            if (replaceAsset)
             {
-                var replaceWithoutConfirmation = api.State.SelectReplaceWithoutConfirmationEnabled(payload.asset);
-                if (replaceAsset && (!payload.askForConfirmation || await DialogUtilities.ConfirmReplaceAsset(payload.asset, replaceWithoutConfirmation,
-                        b => replaceWithoutConfirmation = b, payload.result.uri.LocalPath)))
+                options = new FileComparisonOptions(payload.result.uri.LocalPath, payload.asset.GetPath(), getBytes1: true);
+                if (!FileComparison.AreFilesIdentical(options))
                 {
-                    Debug.Assert(assetUndoManager != null);
-                    assetUndoManager.BeginRecord(payload.asset);
-                    if (await payload.asset.Replace(payload.result))
+                    var replaceWithoutConfirmation = api.State.SelectReplaceWithoutConfirmationEnabled(payload.asset);
+                    if (!payload.askForConfirmation || await DialogUtilities.ConfirmReplaceAsset(payload.asset, replaceWithoutConfirmation,
+                            b => replaceWithoutConfirmation = b, payload.result.uri.LocalPath))
                     {
-                        AssetDatabase.ImportAsset(payload.asset.GetPath(), ImportAssetOptions.ForceUpdate);
-                        api.Dispatch(setReplaceWithoutConfirmation, new (payload.asset, replaceWithoutConfirmation));
-                        assetUndoManager.EndRecord(payload.asset, payload.result);
-                        result = true;
+                        Debug.Assert(assetUndoManager != null);
+                        assetUndoManager.BeginRecord(payload.asset);
+                        if (await payload.asset.Replace(payload.result))
+                        {
+                            AssetDatabase.ImportAsset(payload.asset.GetPath(), ImportAssetOptions.ForceUpdate);
+                            api.Dispatch(setReplaceWithoutConfirmation, new(payload.asset, replaceWithoutConfirmation));
+                            assetUndoManager.EndRecord(payload.asset, payload.result);
+                            result = true;
+                        }
                     }
                 }
             }
-
-            // run detached because await GetFile is likely to block the main thread when application is out of focus
-            var unsavedBytes = options.bytes1;
-            if (unsavedBytes != null)
-                api.Dispatch(GenerationSettingsActions.setUnsavedAssetBytes, new(payload.asset, unsavedBytes, payload.result));
             else
             {
-                async Task FireAndForget()
-                {
-                    unsavedBytes = await payload.result.GetFile();
-                    api.Dispatch(GenerationSettingsActions.setUnsavedAssetBytes, new(payload.asset, unsavedBytes, payload.result));
-                }
+                options = new FileComparisonOptions(null, null);
+            }
 
-                _ = FireAndForget();
+            if (!api.State.SelectUseUnsavedAssetBytes(payload.asset) || !payload.result.IsImage())
+                api.Dispatch(GenerationSettingsActions.setUnsavedAssetBytes, new(payload.asset, Array.Empty<byte>()));
+            else
+            {
+                // run detached because await GetFile is likely to block the main thread when application is out of focus
+                var unsavedBytes = options.bytes1;
+                if (unsavedBytes != null)
+                    api.Dispatch(GenerationSettingsActions.setUnsavedAssetBytes, new(payload.asset, unsavedBytes, payload.result));
+                else
+                {
+                    async Task FireAndForget()
+                    {
+                        unsavedBytes = await payload.result.GetFile();
+                        api.Dispatch(GenerationSettingsActions.setUnsavedAssetBytes, new(payload.asset, unsavedBytes, payload.result));
+                    }
+
+                    _ = FireAndForget();
+                }
             }
 
             // set late because asset import clears the selection
@@ -204,6 +222,20 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
             return result;
         });
+
+        internal static List<InterruptedDownloadData> GetResumableInterruptedDownloads() =>
+            GenerationRecovery.GetAllInterruptedDownloads()
+                .Where(d => string.IsNullOrEmpty(d.uniqueTaskId) || !k_ActiveDownloads.Contains(d.uniqueTaskId))
+                .ToList();
+
+        internal static void DiscardAllResumableInterruptedDownloads()
+        {
+            var interruptedDownloads = GetResumableInterruptedDownloads();
+            foreach (var download in interruptedDownloads)
+            {
+                GenerationRecovery.RemoveInterruptedDownload(download);
+            }
+        }
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> checkDownloadRecovery = new($"{slice}/checkDownloadRecovery", async (asset, api) =>
         {
@@ -243,15 +275,17 @@ namespace Unity.AI.Image.Services.Stores.Actions
                             {
                                 await api.Dispatch(downloadImagesMain,
                                     new DownloadImagesData(
-                                        data.asset,
-                                        data.ids.Select(Guid.Parse).ToList(),
-                                        data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
-                                        string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
-                                        data.generationMetadata,
-                                        data.customSeeds.ToArray(),
-                                        false,
-                                        false,
-                                        false, false),
+                                        asset: data.asset,
+                                        jobIds: data.ids.Select(Guid.Parse).ToList(),
+                                        progressTaskId: data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                        uniqueTaskId: string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                        generationMetadata: data.generationMetadata,
+                                        customSeeds: data.customSeeds.ToArray(),
+                                        isRefinement: false,
+                                        replaceBlankAsset: false,
+                                        replaceRefinementAsset: false,
+                                        autoApply: false,
+                                        retryable: false),
                                     CancellationToken.None);
                             }
                             finally
@@ -289,41 +323,75 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 catch (OperationCanceledException) { /* ignored */ }
             });
 
-        public static readonly AsyncThunkCreatorWithArg<AssetReference> generateImagesMain = new($"{slice}/generateImagesMain", async (asset, api) =>
+        public static readonly AsyncThunkCreatorWithArg<AssetReference> generateImagesMain = new($"{slice}/generateImagesMain",
+            async (asset, api) => await api.Dispatch(generateImagesMainWithArgs, new GenerationArgs(asset, false)));
+
+        public static readonly AsyncThunkCreatorWithArg<GenerationArgs> generateImagesMainWithArgs = new($"{slice}/generateImagesMainWithArgs", GenerateImagesMainWithArgsAsync);
+
+        public static async Task<Task> GenerateImagesMainWithArgsAsync(GenerationArgs payload, AsyncThunkApi<bool> api)
         {
-            var progressTaskId = Progress.Start($"{api.State.SelectProgressLabel(asset)}.");
-            SkeletonExtensions.Acquire(progressTaskId);
+            var progressTaskId = ProgressUtility.Start($"{api.State.SelectProgressLabel(payload.asset)}.");
             var uniqueTaskId = Guid.NewGuid();
             var uniqueTaskIdString = uniqueTaskId.ToString();
             k_ActiveDownloads.Add(uniqueTaskIdString);
             try
             {
-                api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
-                var generationSetting = api.State.SelectGenerationSetting(asset);
+                api.Dispatch(GenerationActions.setGenerationAllowed, new(payload.asset, false));
+                var generationSetting = api.State.SelectGenerationSetting(payload.asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, generationSetting.SelectSelectedModelID());
-                await api.Dispatch(Backend.Generation.generateImages, new(asset, generationSetting, progressTaskId, uniqueTaskId: uniqueTaskId), CancellationToken.None);
+                var downloadImagesData = await Backend.Generation.GenerateImagesAsync(new(payload.asset, generationSetting, progressTaskId, uniqueTaskId: uniqueTaskId, autoApply: payload.autoApply), api);
+                if (!payload.waitForCompletion)
+                    return DownloadImagesMainAsync(downloadImagesData, api);
+                await DownloadImagesMainAsync(downloadImagesData, api);
             }
             finally
             {
-                k_ActiveDownloads.Remove(uniqueTaskIdString);
-                Progress.Finish(progressTaskId);
-                SkeletonExtensions.Release(progressTaskId);
+                // If we are not downloading synchronously (waitForCompletion), the download will be handled by a separate process.
+                // The uniqueTaskId is kept in k_ActiveDownloads to indicate that the generation is in progress
+                // and not a failed/interrupted download that needs recovery.
+                // The ID is removed from k_ActiveDownloads when the download completes (successfully or not)
+                // in DownloadImagesMainAsync.
+                if (payload.waitForCompletion)
+                {
+                    k_ActiveDownloads.Remove(uniqueTaskIdString);
+                    if (Progress.Exists(progressTaskId))
+                        ProgressUtility.Finish(progressTaskId);
+                }
             }
-        });
+            return Task.CompletedTask;
+        }
 
-        public static readonly AsyncThunkCreatorWithArg<DownloadImagesData> downloadImagesMain = new($"{slice}/downloadImagesMain", async (arg, api) =>
+        public static readonly AsyncThunkCreatorWithArg<DownloadImagesData> downloadImagesMain = new($"{slice}/downloadImagesMain", DownloadImagesMainAsync);
+
+        public static async Task DownloadImagesMainAsync(DownloadImagesData arg, AsyncThunkApi<bool> api)
         {
-            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
-            SkeletonExtensions.Acquire(progressTaskId);
+            if (arg is null)
+                throw new ArgumentNullException(nameof(arg), "Generation request failed and download cannot proceed.");
+
+            var uniqueTaskIdString = arg.uniqueTaskId.ToString();
+            // It's possible for this to be called for an already active download (e.g. resuming).
+            // Add returns true if the item was added, false if it was already there.
+            // We proceed in both cases, but avoid adding it twice.
+            k_ActiveDownloads.Add(uniqueTaskIdString);
+
+            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : ProgressUtility.Start($"Resuming download for asset {arg.asset.GetPath()}.");
             try
             {
                 await api.Dispatch(Backend.Generation.downloadImages, arg with { progressTaskId = progressTaskId }, CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(progressTaskId);
-                SkeletonExtensions.Release(progressTaskId);
+                k_ActiveDownloads.Remove(uniqueTaskIdString);
+                if (Progress.Exists(progressTaskId))
+                    ProgressUtility.Finish(progressTaskId);
+
+                _ = DelayedRefreshPoints();
+                async Task DelayedRefreshPoints()
+                {
+                    await EditorTask.Delay(Generators.Sdk.Constants.downloadRefreshPointsDelayMs);
+                    Account.pointsBalance.Refresh();
+                }
             }
-        });
+        }
     }
 }

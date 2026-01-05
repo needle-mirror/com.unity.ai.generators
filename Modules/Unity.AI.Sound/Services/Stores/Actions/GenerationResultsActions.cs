@@ -10,6 +10,7 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Undo;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Actions;
@@ -17,6 +18,8 @@ using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -29,6 +32,8 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public const string slice = "generationResults";
         public static Creator<GenerationAudioClips> setGeneratedAudioClips => new($"{slice}/setGeneratedAudioClips");
 
+        // k_ActiveDownloads is used to track downloads that are currently in progress.
+        // This prevents interrupted downloads from being resumed while they are still active.
         static readonly HashSet<string> k_ActiveDownloads = new();
         static readonly SemaphoreSlim k_SetGeneratedAudioClipsAsyncSemaphore = new(1, 1);
         public static readonly AsyncThunkCreatorWithArg<GenerationAudioClips> setGeneratedAudioClipsAsync = new($"{slice}/setGeneratedAudioClipsAsync",
@@ -45,7 +50,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             int taskID = 0;
             try
             {
-                taskID = Progress.Start("Precaching generations.");
+                taskID = ProgressUtility.Start("Precaching generations.");
 
                 // Wait to acquire the semaphore
                 await k_SetGeneratedAudioClipsAsyncSemaphore.WaitAsync(timeoutToken).ConfigureAwaitMainThread();
@@ -65,7 +70,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                     if (semaphoreAcquired)
                         k_SetGeneratedAudioClipsAsyncSemaphore.Release();
                     if (Progress.Exists(taskID))
-                        Progress.Finish(taskID);
+                        ProgressUtility.Finish(taskID);
                 }
             }
         });
@@ -138,7 +143,6 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public static Creator<GenerationSkeletons> setGeneratedSkeletons => new($"{slice}/setGeneratedSkeletons");
         public static Creator<RemoveGenerationSkeletonsData> removeGeneratedSkeletons => new($"{slice}/removeGeneratedSkeletons");
         public static Creator<FulfilledSkeletons> setFulfilledSkeletons => new($"{slice}/setFulfilledSkeletons");
-        public static Creator<AsssetContext> pruneFulfilledSkeletons => new($"{slice}/pruneFulfilledSkeletons");
         public static Creator<SelectedGenerationData> setSelectedGeneration => new($"{slice}/setSelectedGeneration");
         public static Creator<AssetUndoData> setAssetUndoManager => new($"{slice}/setAssetUndoManager");
         public static Creator<ReplaceWithoutConfirmationData> setReplaceWithoutConfirmation => new($"{slice}/setReplaceWithoutConfirmation");
@@ -162,7 +166,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             var result = false;
 
-            if (!FileIO.AreFilesIdentical(payload.asset.GetPath(), payload.result.uri.LocalPath))
+            if (!FileComparison.AreFilesIdentical(payload.asset.GetPath(), payload.result.uri.LocalPath))
             {
                 var replaceWithoutConfirmation = api.State.SelectReplaceWithoutConfirmationEnabled(payload.asset);
                 if (replaceAsset && (!payload.askForConfirmation || await DialogUtilities.ConfirmReplaceAsset(payload.asset, replaceWithoutConfirmation,
@@ -185,6 +189,20 @@ namespace Unity.AI.Sound.Services.Stores.Actions
 
             return result;
         });
+
+        internal static List<InterruptedDownloadData> GetResumableInterruptedDownloads() =>
+            GenerationRecovery.GetAllInterruptedDownloads()
+                .Where(d => string.IsNullOrEmpty(d.uniqueTaskId) || !k_ActiveDownloads.Contains(d.uniqueTaskId))
+                .ToList();
+
+        internal static void DiscardAllResumableInterruptedDownloads()
+        {
+            var interruptedDownloads = GetResumableInterruptedDownloads();
+            foreach (var download in interruptedDownloads)
+            {
+                GenerationRecovery.RemoveInterruptedDownload(download);
+            }
+        }
 
         public static readonly AsyncThunkCreatorWithArg<AssetReference> checkDownloadRecovery = new($"{slice}/checkDownloadRecovery", async (asset, api) =>
         {
@@ -223,13 +241,14 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                             try
                             {
                                 await api.Dispatch(downloadAudioClipsMain,
-                                    new DownloadAudioData(data.asset,
-                                        data.ids.Select(Guid.Parse).ToList(),
-                                        data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
-                                        string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
-                                        data.generationMetadata,
-                                        data.customSeeds.ToArray(),
-                                        false, false),
+                                    new DownloadAudioData(asset: data.asset,
+                                        jobIds: data.ids.Select(Guid.Parse).ToList(),
+                                        progressTaskId: data.sessionId == GenerationRecoveryUtils.sessionId ? data.taskId : -1,
+                                        uniqueTaskId: string.IsNullOrEmpty(data.uniqueTaskId) ? Guid.Empty : Guid.Parse(data.uniqueTaskId),
+                                        generationMetadata: data.generationMetadata,
+                                        customSeeds: data.customSeeds.ToArray(),
+                                        autoApply: false,
+                                        retryable: false),
                                     CancellationToken.None);
                             }
                             finally
@@ -268,41 +287,75 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                 catch (OperationCanceledException) { /* ignored */ }
             });
 
-        public static readonly AsyncThunkCreatorWithArg<AssetReference> generateAudioClipsMain = new($"{slice}/generateAudioClipsMain", async (asset, api) =>
+        public static readonly AsyncThunkCreatorWithArg<AssetReference> generateAudioClipsMain = new($"{slice}/generateAudioClipsMain",
+            async (asset, api) => await api.Dispatch(generateAudioClipsMainWithArgs, new GenerationArgs(asset, false)));
+
+        public static readonly AsyncThunkCreatorWithArg<GenerationArgs> generateAudioClipsMainWithArgs = new($"{slice}/generateAudioClipsMainWithArgs", GenerateAudioClipsMainWithArgsAsync);
+
+        public static async Task<Task> GenerateAudioClipsMainWithArgsAsync(GenerationArgs payload, AsyncThunkApi<bool> api)
         {
-            var progressTaskId = Progress.Start($"{api.State.SelectProgressLabel(asset)} with {api.State.SelectGenerationSetting(asset).prompt}.");
-            SkeletonExtensions.Acquire(progressTaskId);
+            var progressTaskId = ProgressUtility.Start($"{api.State.SelectProgressLabel(payload.asset)} with {api.State.SelectGenerationSetting(payload.asset).prompt}.");
             var uniqueTaskId = Guid.NewGuid();
             var uniqueTaskIdString = uniqueTaskId.ToString();
             k_ActiveDownloads.Add(uniqueTaskIdString);
             try
             {
-                api.Dispatch(GenerationActions.setGenerationAllowed, new(asset, false));
-                var modelSettings = api.State.SelectGenerationSetting(asset);
+                api.Dispatch(GenerationActions.setGenerationAllowed, new(payload.asset, false));
+                var modelSettings = api.State.SelectGenerationSetting(payload.asset);
                 api.Dispatch(ModelSelectorActions.setLastUsedSelectedModelID, modelSettings.selectedModelID);
-                await api.Dispatch(Backend.Generation.generateAudioClips, new(asset, modelSettings, progressTaskId, uniqueTaskId: uniqueTaskId), CancellationToken.None);
+                var downloadAudioData = await Backend.Generation.GenerateAudioClipsAsync(new(payload.asset, modelSettings, progressTaskId, uniqueTaskId: uniqueTaskId, autoApply: payload.autoApply), api);
+                if (!payload.waitForCompletion)
+                    return DownloadAudioClipsMainAsync(downloadAudioData, api);
+                await DownloadAudioClipsMainAsync(downloadAudioData, api);
             }
             finally
             {
-                k_ActiveDownloads.Remove(uniqueTaskIdString);
-                Progress.Finish(progressTaskId);
-                SkeletonExtensions.Release(progressTaskId);
+                // If we are not downloading synchronously (waitForCompletion), the download will be handled by a separate process.
+                // The uniqueTaskId is kept in k_ActiveDownloads to indicate that the generation is in progress
+                // and not a failed/interrupted download that needs recovery.
+                // The ID is removed from k_ActiveDownloads when the download completes (successfully or not)
+                // in DownloadAudioClipsMainAsync.
+                if (payload.waitForCompletion)
+                {
+                    k_ActiveDownloads.Remove(uniqueTaskIdString);
+                    if (Progress.Exists(progressTaskId))
+                        ProgressUtility.Finish(progressTaskId);
+                }
             }
-        });
+            return Task.CompletedTask;
+        }
 
-        public static readonly AsyncThunkCreatorWithArg<DownloadAudioData> downloadAudioClipsMain = new($"{slice}/downloadAudioClipsMain", async (arg, api) =>
+        public static readonly AsyncThunkCreatorWithArg<DownloadAudioData> downloadAudioClipsMain = new($"{slice}/downloadAudioClipsMain", DownloadAudioClipsMainAsync);
+
+        public static async Task DownloadAudioClipsMainAsync(DownloadAudioData arg, AsyncThunkApi<bool> api)
         {
-            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : Progress.Start($"Resuming download for asset {arg.asset.GetPath()}.");
-            SkeletonExtensions.Acquire(progressTaskId);
+            if (arg is null)
+                throw new ArgumentNullException(nameof(arg), "Generation request failed and download cannot proceed.");
+
+            var uniqueTaskIdString = arg.uniqueTaskId.ToString();
+            // It's possible for this to be called for an already active download (e.g. resuming).
+            // Add returns true if the item was added, false if it was already there.
+            // We proceed in both cases, but avoid adding it twice.
+            k_ActiveDownloads.Add(uniqueTaskIdString);
+
+            var progressTaskId = Progress.Exists(arg.progressTaskId) ? arg.progressTaskId : ProgressUtility.Start($"Resuming download for asset {arg.asset.GetPath()}.");
             try
             {
                 await api.Dispatch(Backend.Generation.downloadAudioClips, arg with { progressTaskId = progressTaskId }, CancellationToken.None);
             }
             finally
             {
-                Progress.Finish(progressTaskId);
-                SkeletonExtensions.Release(progressTaskId);
+                k_ActiveDownloads.Remove(uniqueTaskIdString);
+                if (Progress.Exists(progressTaskId))
+                    ProgressUtility.Finish(progressTaskId);
+
+                _ = DelayedRefreshPoints();
+                async Task DelayedRefreshPoints()
+                {
+                    await EditorTask.Delay(Generators.Sdk.Constants.downloadRefreshPointsDelayMs);
+                    Account.pointsBalance.Refresh();
+                }
             }
-        });
+        }
     }
 }

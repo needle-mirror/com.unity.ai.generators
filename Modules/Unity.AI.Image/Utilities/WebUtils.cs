@@ -14,7 +14,9 @@ namespace Unity.AI.Image.Services.Utilities
         public static string selectedEnvironment => Environment.GetSelectedEnvironment(imageEnvironmentKey);
 
         [InitializeOnLoadMethod]
-        static void RegisterEnvironmentKeys() { Environment.RegisterEnvironmentKey(imageEnvironmentKey, "Image Environment",
+        static void RegisterEnvironmentKeys()
+        {
+            Environment.RegisterEnvironmentKey(imageEnvironmentKey, "Image Environment",
                 _ => SharedStore.Store.Dispatch(ModelSelector.Services.Stores.Actions.ModelSelectorActions.discoverModels,
                     new DiscoverModelsData(selectedEnvironment)));
 

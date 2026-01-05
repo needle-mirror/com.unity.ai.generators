@@ -1,5 +1,8 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Toolkit.Asset;
 
 namespace Unity.AI.Generators.Asset
 {
@@ -23,5 +26,11 @@ namespace Unity.AI.Generators.Asset
         /// The store
         /// </summary>
         IStore store { get; }
+
+        /// <summary>
+        /// A collection of base types that are allowed to be swapped in the asset context.
+        /// If the current and next asset types derive from any of these types, the swap is allowed.
+        /// </summary>
+        IEnumerable<Type> allowedTypes => null;
     }
 }

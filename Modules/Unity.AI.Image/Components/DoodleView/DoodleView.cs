@@ -8,6 +8,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;

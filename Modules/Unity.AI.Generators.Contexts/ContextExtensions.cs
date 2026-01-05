@@ -68,6 +68,46 @@ namespace Unity.AI.Generators.Contexts
         public static void ProvideContext(this VisualElement element, object value) =>
             element.ProvideContext(value.GetType().FullName, value);
 
+        /// <summary>
+        /// Provides a context value for the root VisualElement (the visual tree) of the current panel,
+        /// or the first parent that already has an equivalent key.
+        /// </summary>
+        /// <param name="visualElement">The VisualElement whose root context will be set.</param>
+        /// <param name="value">The value to associate with its type's FullName as the key.</param>
+        public static void ProvideRootContext(this VisualElement visualElement, object value) =>
+            visualElement.ProvideRootContext(value.GetType().FullName, value);
+
+        /// <summary>
+        /// Provides a context value for a specific key in the root VisualElement (the visual tree) of the current panel,
+        /// or the first parent that already has an equivalent key (or itself).
+        /// </summary>
+        /// <param name="visualElement">The VisualElement whose root context will be set.</param>
+        /// <param name="key">The key identifying the context.</param>
+        /// <param name="value">The value to associate with the key.</param>
+        public static void ProvideRootContext(this VisualElement visualElement, object key, object value)
+        {
+            if (visualElement?.panel?.visualTree == null)
+                return;
+
+            VisualElement target = null;
+            var current = visualElement;
+            while (current != null)
+            {
+                var data = current.GetContextData();
+                if (data.LocalContext.ContainsKey(key))
+                {
+                    target = current;
+                    break;
+                }
+                current = current.parent;
+            }
+
+            if (target == null)
+                target = visualElement.panel.visualTree;
+
+            target.ProvideContext(key, value);
+        }
+
         public static T GetContext<T>(this VisualElement element) =>
             element.GetContext<T>(typeof(T).FullName);
 
@@ -125,7 +165,7 @@ namespace Unity.AI.Generators.Contexts
         // Invalidates the cache for a specific key in all descendant VisualElements
         static void InvalidateCacheForKeyInDescendants(VisualElement element, object key)
         {
-            foreach (var child in element.Children())
+            foreach (var child in element.Children().ToList())
             {
                 var data = child.GetContextData();
 
@@ -170,7 +210,7 @@ namespace Unity.AI.Generators.Contexts
                 InvokeCallbacksSafely(data, key, oldValue, newValue);
             }
 
-            foreach (var child in element.Children())
+            foreach (var child in element.Children().ToList())
             {
                 InvalidateAllCache(child);
             }
@@ -190,7 +230,7 @@ namespace Unity.AI.Generators.Contexts
             }
 
             // Notify descendants who have registered callbacks
-            foreach (var child in element.Children())
+            foreach (var child in element.Children().ToList())
             {
                 NotifyContextChanged(child, key, value);
             }

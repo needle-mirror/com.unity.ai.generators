@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Generators.UIElements.Extensions;
@@ -15,6 +16,7 @@ namespace Unity.AI.Sound.Components
 
         readonly Toggle m_UseCustomSeed;
         readonly IntegerField m_CustomSeed;
+        readonly Toggle m_Loop;
 
         public GenerationOptions()
         {
@@ -25,13 +27,17 @@ namespace Unity.AI.Sound.Components
 
             m_UseCustomSeed = this.Q<Toggle>(className:"generation-options-use-custom-seed");
             m_CustomSeed = this.Q<IntegerField>(className:"generation-options-custom-seed");
+            m_Loop = this.Q<Toggle>(className: "generation-options-loop");
 
             m_UseCustomSeed.RegisterValueChangedCallback(evt =>
                 this.Dispatch(GenerationSettingsActions.setUseCustomSeed, evt.newValue));
             m_CustomSeed.RegisterValueChangedCallback(evt =>
                 this.Dispatch(GenerationSettingsActions.setCustomSeed, evt.newValue));
+            m_Loop.RegisterValueChangedCallback(evt =>
+                this.Dispatch(GenerationSettingsActions.setLoop, evt.newValue));
 
             this.Use(state => state.SelectGenerationOptions(this), OnGenerationOptionsChanged);
+            this.Use(state => state.SelectLoopOptions(this), OnLoopOptionsChanged);
         }
 
         void OnGenerationOptionsChanged((bool useCustomSeed, int customSeed) arg)
@@ -41,6 +47,13 @@ namespace Unity.AI.Sound.Components
             m_CustomSeed.value = customSeed;
             m_CustomSeed.EnableInClassList("flex", useCustomSeed);
             m_CustomSeed.EnableInClassList("hide", !useCustomSeed);
+        }
+
+        void OnLoopOptionsChanged((bool loop, bool supportsLooping) arg)
+        {
+            var (loop, supportsLooping) = arg;
+            m_Loop.value = loop;
+            m_Loop.SetShown(supportsLooping);
         }
     }
 }

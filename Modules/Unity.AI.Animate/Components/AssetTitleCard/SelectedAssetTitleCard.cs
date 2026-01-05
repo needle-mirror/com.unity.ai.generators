@@ -3,6 +3,7 @@ using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

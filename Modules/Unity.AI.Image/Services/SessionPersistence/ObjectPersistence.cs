@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using UnityEditor;
 using UnityEngine;
 

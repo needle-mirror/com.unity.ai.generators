@@ -1,9 +1,12 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace Unity.AI.Image.Services.Utilities
 {
@@ -295,21 +298,143 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static bool AreAllPixelsSameColor(this Texture2D source)
         {
-            var pixels = source.GetPixels32();
-            if (pixels.Length <= 1)
-                return true; // Treat empty or single-pixel image as having all pixels the same color
-
-            var firstColor = pixels[0];
-
-            for (var i = 1; i < pixels.Length; i++)
+            var readableTexture = ImageFileUtilities.MakeTextureReadable(source);
+            try
             {
-                if (!pixels[i].Equals(firstColor))
+                var pixels = readableTexture.GetPixels32();
+                if (pixels.Length <= 1)
+                    return true; // Treat empty or single-pixel image as having all pixels the same color
+
+                var firstColor = pixels[0];
+
+                for (var i = 1; i < pixels.Length; i++)
                 {
-                    return false; // Found a pixel with a different color
+                    if (!pixels[i].Equals(firstColor))
+                    {
+                        return false; // Found a pixel with a different color
+                    }
+                }
+            }
+            finally
+            {
+                if (readableTexture != source)
+                {
+                    readableTexture.SafeDestroy();
                 }
             }
 
             return true; // All pixels are the same color
+        }
+
+        public static bool AreAllPixelsSameColor(this Cubemap source)
+        {
+            var readableTexture = ImageFileUtilities.MakeTextureReadable(source);
+            try
+            {
+                var pixels = readableTexture.GetPixels32();
+                if (pixels.Length <= 1)
+                    return true; // Treat empty or single-pixel image as having all pixels the same color
+
+                var firstColor = pixels[0];
+
+                for (var i = 1; i < pixels.Length; i++)
+                {
+                    if (!pixels[i].Equals(firstColor))
+                    {
+                        return false; // Found a pixel with a different color
+                    }
+                }
+            }
+            finally
+            {
+                if (readableTexture != source)
+                {
+                    readableTexture.SafeDestroy();
+                }
+            }
+
+            return true; // All pixels are the same color
+        }
+
+        /// <summary>
+        /// Checks if an image has transparent corners by loading it from a byte array.
+        /// Note: This can be slow as it decodes the image from the byte array.
+        /// </summary>
+        /// <param name="imageAsset">The image data as a byte array.</param>
+        /// <param name="cornerCount">The minimum number of transparent corners to detect.</param>
+        /// <param name="alphaThreshold">The alpha value below which a pixel is considered transparent.</param>
+        /// <returns>True if the image has at least `cornerCount` transparent corners, false otherwise.</returns>
+        public static bool HasTransparentCorners(byte[] imageAsset, int cornerCount = 2, byte alphaThreshold = 5)
+        {
+            Texture2D source = null;
+            try
+            {
+                source = new Texture2D(2, 2) { hideFlags = HideFlags.HideAndDontSave };
+                if (!source.LoadImage(imageAsset))
+                    return false; // Treat invalid image as not having transparent corners
+                return source.HasTransparentCorners(cornerCount, alphaThreshold);
+            }
+            finally
+            {
+                source?.SafeDestroy();
+            }
+        }
+
+        /// <summary>
+        /// Checks if a Texture2D has transparent corners.
+        /// Note: This can be slow for large textures as it reads all pixels if the texture is not 1x1.
+        /// </summary>
+        /// <param name="source">The source texture.</param>
+        /// <param name="cornerCount">The minimum number of transparent corners to detect.</param>
+        /// <param name="alphaThreshold">The alpha value below which a pixel is considered transparent.</param>
+        /// <returns>True if the texture has at least `cornerCount` transparent corners, false otherwise.</returns>
+        public static bool HasTransparentCorners(this Texture2D source, int cornerCount = 2, byte alphaThreshold = 5)
+        {
+            if (!GraphicsFormatUtility.HasAlphaChannel(source.graphicsFormat))
+                return false;
+
+            var transparentCorners = 0;
+
+            var readableTexture = ImageFileUtilities.MakeTextureReadable(source);
+            try
+            {
+                var width = readableTexture.width;
+                var height = readableTexture.height;
+                var floatAlphaThreshold = alphaThreshold / 255f;
+
+                if (width <= 1 && height <= 1)
+                {
+                    // For a 1x1 texture, all corners are the same pixel.
+                    // We check if its alpha is below threshold. If so, all 4 corners are "transparent".
+                    // This will satisfy the default cornerCount of 2.
+                    return readableTexture.GetPixel(0, 0).a < floatAlphaThreshold;
+                }
+
+                // Bottom-left
+                if (readableTexture.GetPixel(0, 0).a < floatAlphaThreshold)
+                    transparentCorners++;
+
+                // Bottom-right
+                if (readableTexture.GetPixel(width - 1, 0).a < floatAlphaThreshold)
+                    transparentCorners++;
+
+                // Top-left
+                if (readableTexture.GetPixel(0, height - 1).a < floatAlphaThreshold)
+                    transparentCorners++;
+
+                // Top-right
+                if (readableTexture.GetPixel(width - 1, height - 1).a < floatAlphaThreshold)
+                    transparentCorners++;
+            }
+            finally
+            {
+                if (readableTexture != source)
+                {
+                    readableTexture.SafeDestroy();
+                }
+            }
+
+            return transparentCorners >= cornerCount;
         }
     }
 }

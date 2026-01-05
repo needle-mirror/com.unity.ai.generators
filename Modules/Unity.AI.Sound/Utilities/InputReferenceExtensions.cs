@@ -4,6 +4,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -22,7 +23,7 @@ namespace Unity.AI.Sound.Services.Utilities
 
             objectField.AddManipulator(new ScaleToFitObjectFieldImage());
             objectField.RegisterValueChangedCallback(evt =>
-                element.Dispatch(setInputReferenceAsset, AssetReferenceExtensions.FromObject(evt.newValue as AudioClip)));
+                element.Dispatch(setInputReferenceAsset, Unity.AI.Generators.Asset.AssetReferenceExtensions.FromObject(evt.newValue as AudioClip)));
 
             element.Use(state => selectInputReferenceAsset(state, element), asset => objectField.value = asset.GetObject());
         }

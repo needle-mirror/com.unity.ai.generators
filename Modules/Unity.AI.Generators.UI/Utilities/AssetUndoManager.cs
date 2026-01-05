@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 using UnityEditor;
 using UnityEngine;
+using AssetReferenceExtensions = Unity.AI.Toolkit.Asset.AssetReferenceExtensions;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -62,7 +64,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     continue;
 
                 FileIO.CopyFile(tempFilePathToRestore, assetPathToRestore, overwrite: true);
-                AssetReferenceExtensions.ImportAsset(assetPathToRestore);
+                AssetDatabaseExtensions.ImportGeneratedAsset(assetPathToRestore);
             }
 
             try { m_OnRestoreAsset?.Invoke(assetToRestore, resultToRestore); }
@@ -74,7 +76,7 @@ namespace Unity.AI.Generators.UI.Utilities
             if (!File.Exists(tempFilePath))
                 return;
             // update the previous file in case there were external edits
-            FileIO.CopyFile(assetReference.GetPath(), tempFilePath, overwrite: true);
+            FileIO.CopyFile(AssetReferenceExtensions.GetPath(assetReference), tempFilePath, overwrite: true);
         }
 
         public void EndRecord(AssetReference assetReference, T result, bool force = false)
@@ -89,7 +91,7 @@ namespace Unity.AI.Generators.UI.Utilities
             asset = new AssetReference { guid = assetReference.guid };
 
             // this folder is automatically cleaned up by Unity Editor
-            tempFilePath = UndoUtilities.GetTempFileName();
+            tempFilePath = TempUtilities.GetTempFileNameUndo();
             tempFilePaths.Clear();
             tempFilePaths.Add(asset.GetPath(), tempFilePath);
             FileIO.CopyFile(asset.GetPath(), tempFilePath, overwrite: true);

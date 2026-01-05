@@ -1,11 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Compliance;
 using UnityEditor;
+using UnityEditor.Search;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
+using Object = UnityEngine.Object;
 
 namespace Unity.AI.Generators.Asset
 {
@@ -14,10 +19,6 @@ namespace Unity.AI.Generators.Asset
         internal static string GetGeneratedAssetsRoot() => "GeneratedAssets";
         public static string GetGeneratedAssetsPath(string assetGuid) => Path.Combine(GetGeneratedAssetsRoot(), assetGuid);
         public static string GetGeneratedAssetsPath(this AssetReference asset) => GetGeneratedAssetsPath(asset.GetGuid());
-
-        public static string GetPath(this AssetReference asset) => !asset.IsValid() ? string.Empty : AssetDatabase.GUIDToAssetPath(asset.guid);
-
-        public static string GetGuid(this AssetReference asset) => asset.guid;
 
         public static Uri GetUri(this AssetReference asset)
         {
@@ -31,23 +32,13 @@ namespace Unity.AI.Generators.Asset
             return new(Path.GetFullPath(path));
         }
 
-        public static bool IsValid(this AssetReference asset) => asset != null && !string.IsNullOrEmpty(asset.GetGuid());
-
-        public static bool Exists(this AssetReference asset)
-        {
-            var path = asset.GetPath();
-            return !string.IsNullOrEmpty(path) && File.Exists(path);
-        }
-
-        public static bool IsImported(this AssetReference asset) => asset.IsValid() && AssetDatabase.LoadMainAssetAtPath(asset.GetPath());
-
         public static void EnableGenerationLabel(this AssetReference asset)
         {
-            var actual = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(asset.GetPath());
+            var actual = AssetDatabase.LoadAssetAtPath<Object>(asset.GetPath());
             actual?.EnableGenerationLabel();
         }
 
-        public static void EnableGenerationLabel(this UnityEngine.Object asset)
+        public static void EnableGenerationLabel(this Object asset)
         {
             var labelList = new List<string>(AssetDatabase.GetLabels(asset));
             if (labelList.Contains(Legal.UnityAIGeneratedLabel))
@@ -62,16 +53,19 @@ namespace Unity.AI.Generators.Asset
                 if (asset is AudioClip)
                     _ = RefreshInspector(asset);
             }
-            catch { /* ignored */ }
+            catch
+            {
+                /* ignored */
+            }
         }
 
         public static bool FixObjectName(this AssetReference asset)
         {
-            var actual = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(asset.GetPath());
+            var actual = AssetDatabase.LoadAssetAtPath<Object>(asset.GetPath());
             return actual && actual.FixObjectName();
         }
 
-        public static bool FixObjectName(this UnityEngine.Object asset)
+        public static bool FixObjectName(this Object asset)
         {
             if (asset == null)
                 return false;
@@ -86,69 +80,31 @@ namespace Unity.AI.Generators.Asset
             return true;
         }
 
-        public static void SafeCall(this UnityEngine.Object asset, Action<UnityEngine.Object> action)
+        public static void SafeCall(this Object asset, Action<Object> action)
         {
             try { action?.Invoke(asset); }
-            catch { /* ignored */ }
+            catch
+            {
+                /* ignored */
+            }
         }
 
-        public static bool TryGetProjectAssetsRelativePath(string path, out string projectPath)
+        public static bool HasGenerationLabel(this AssetReference asset)
         {
-            projectPath = null;
-            if (string.IsNullOrEmpty(path))
+            if (!asset.IsValid())
                 return false;
 
-            try
-            {
-                var normalizedAbsolutePath = Path.GetFullPath(path).Replace('\\', '/');
-                var normalizedDataPath = Path.GetFullPath(Application.dataPath).Replace('\\', '/');
-
-                if (normalizedAbsolutePath.StartsWith(normalizedDataPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    var remainingPath = normalizedAbsolutePath[normalizedDataPath.Length..];
-                    projectPath = "Assets" + (remainingPath.StartsWith("/") ? remainingPath : "/" + remainingPath);
-                    return true;
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e);
-                return false;
-            }
-
-            return false;
+            var actual = AssetDatabase.LoadAssetAtPath<Object>(asset.GetPath());
+            return actual != null && actual.HasGenerationLabel();
         }
 
-        public static bool ImportAsset(string path)
+        public static bool HasGenerationLabel(this Object asset)
         {
-            if (!TryGetProjectAssetsRelativePath(path, out var assetPath))
+            if (asset == null)
                 return false;
 
-            AssetReference asset;
-
-            try
-            {
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
-                asset.EnableGenerationLabel();
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e);
-                return false;
-            }
-
-            try
-            {
-                // special asset inspector handling, not critical
-                if (BrushAssetWrapper.IsBrushAsset(Selection.activeObject))
-                    _ = RefreshInspector(Selection.activeObject);
-                else if (BrushAssetWrapper.IsTerrainAsset(Selection.activeObject))
-                    BrushAssetWrapper.RefreshTerrainBrushes(AssetDatabase.LoadMainAssetAtPath(asset.GetPath()));
-            }
-            catch { /* ignored */ }
-
-            return true;
+            var labels = AssetDatabase.GetLabels(asset);
+            return Array.Exists(labels, label => label == Legal.UnityAIGeneratedLabel);
         }
 
         public static bool HasGenerations(this AssetReference asset)
@@ -163,20 +119,95 @@ namespace Unity.AI.Generators.Asset
             return Directory.GetFileSystemEntries(generatedPath).Length > 0;
         }
 
-        static async Task RefreshInspector(UnityEngine.Object asset)
+        public static bool HasGenerations(this Object o)
+        {
+            if (o == null)
+                return false;
+
+            var asset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(o)) };
+            return asset.HasGenerations();
+        }
+
+        public static Object GetObject(this AssetReference asset)
+        {
+            var path = asset.GetPath();
+            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<Object>(path);
+        }
+
+        public static T GetObject<T>(this AssetReference asset) where T : Object
+        {
+            var path = asset.GetPath();
+            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
+        }
+
+        public static AssetReference FromObject(Object obj)
+        {
+            var assetPath = AssetDatabase.GetAssetPath(obj);
+            return new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
+        }
+
+        public static AssetReference FromPath(string assetPath) => new() { guid = AssetDatabase.AssetPathToGUID(assetPath) };
+
+        internal static async Task RefreshInspector(Object asset)
         {
             if (Selection.activeObject != asset)
                 return;
 
             try
             {
-                Selection.activeObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets"); // null doesn't apparently force a refresh
+                Selection.activeObject = AssetDatabase.LoadAssetAtPath<Object>("Assets"); // null doesn't apparently force a refresh
                 await EditorTask.Delay(50);
             }
             finally
             {
                 Selection.activeObject = asset;
             }
+        }
+
+        public static async Task LogIfAssetNotSearchable(string assetGuid)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(assetGuid))
+                {
+                    Debug.LogError("Cannot check for searchable asset; asset guid is null or empty.");
+                    return;
+                }
+
+                var searchContext = SearchService.CreateContext("asset", $"{assetGuid}");
+                var searchResults = await SearchAsync(searchContext);
+
+                if (searchResults is { Count: > 0 })
+                {
+                    // Asset was found, our job is done. Exit.
+                    return;
+                }
+
+                // the asset was not found.
+                Debug.LogWarning($"[Search Index Sanity Check] Asset at path '{AssetDatabase.GUIDToAssetPath(assetGuid)}' was not found in the search index. It may not be searchable via the Quick Search window.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"An exception occurred while checking if asset '{AssetDatabase.GUIDToAssetPath(assetGuid)}' is searchable: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// A helper method that wraps the callback-based SearchService.Request API into an awaitable Task.
+        /// </summary>
+        static Task<IList<SearchItem>> SearchAsync(SearchContext context)
+        {
+            var tcs = new TaskCompletionSource<IList<SearchItem>>();
+
+            SearchService.Request(
+                context,
+                (ctx, items) =>
+                {
+                    tcs.TrySetResult(items);
+                }
+            );
+
+            return tcs.Task;
         }
     }
 }

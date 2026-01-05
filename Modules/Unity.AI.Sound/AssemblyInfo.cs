@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Unity.AI.Generators.Chat")]
+[assembly: InternalsVisibleTo("Unity.AI.Generators.Tools")]
 
 // Tests
 [assembly: InternalsVisibleTo("Unity.AI.Toolkit.Tests")]

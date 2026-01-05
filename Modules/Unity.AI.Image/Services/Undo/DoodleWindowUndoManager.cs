@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
+using Newtonsoft.Json;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
@@ -92,7 +92,7 @@ namespace Unity.AI.Image.Services.Undo
                 UnityEditor.Undo.RecordObject(this, "Edit Doodle");
             var guid = Guid.NewGuid().ToString();
             var item = new DoodleWindowHistoryItem { guid = guid, layers = state.layers };
-            WriteBinary(guid, item);
+            WriteJson(guid, item);
             m_LastGuid = guid;
             m_HistoryGuids.Add(guid);
             if (shouldRecord)
@@ -124,7 +124,7 @@ namespace Unity.AI.Image.Services.Undo
                     {
                         // do not do cleanup for now, or we gonna lose the redo states
                         // CleanUpDirectory();
-                        var item = ReadBinary(guid);
+                        var item = ReadJson(guid);
                         InvokeItemChanged(item);
                     }
                     catch (Exception e)
@@ -156,20 +156,20 @@ namespace Unity.AI.Image.Services.Undo
             }
         }
 
-        static void WriteBinary(string guid, DoodleWindowHistoryItem item)
+        static void WriteJson(string guid, DoodleWindowHistoryItem item)
         {
-            var path = Path.Combine(k_Directory, $"{guid}.bin");
-            BinaryFormatter bf = new();
-            using var file = File.Create(path);
-            bf.Serialize(file, item);
+            var path = Path.Combine(k_Directory, $"{guid}.json");
+            using var file = File.CreateText(path);
+            var serializer = new JsonSerializer { Formatting = Formatting.Indented };
+            serializer.Serialize(file, item);
         }
 
-        static DoodleWindowHistoryItem ReadBinary(string guid)
+        static DoodleWindowHistoryItem ReadJson(string guid)
         {
-            var path = Path.Combine(k_Directory, $"{guid}.bin");
-            var bf = new BinaryFormatter();
-            using var file = File.Open(path, FileMode.Open);
-            return (DoodleWindowHistoryItem)bf.Deserialize(file);
+            var path = Path.Combine(k_Directory, $"{guid}.json");
+            using var file = File.OpenText(path);
+            var serializer = new JsonSerializer();
+            return (DoodleWindowHistoryItem)serializer.Deserialize(file, typeof(DoodleWindowHistoryItem));
         }
     }
 }

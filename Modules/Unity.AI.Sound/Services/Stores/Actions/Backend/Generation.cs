@@ -6,13 +6,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Asset.Responses;
+using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
 using AiEditorToolsSdk.Components.Modalities.Audio.Requests.Generate;
+using AiEditorToolsSdk.Components.Modalities.Audio.Responses;
 using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
@@ -22,61 +25,65 @@ using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services.Sdk;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Connect;
 using Constants = Unity.AI.Generators.Sdk.Constants;
-using Logger = Unity.AI.Generators.Sdk.Logger;
+using Logger = Unity.AI.Toolkit.Accounts.Services.Sdk.Logger;
 using Random = UnityEngine.Random;
 
 namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 {
     static class Generation
     {
-        public static readonly AsyncThunkCreatorWithArg<GenerateAudioData> generateAudioClips =
-            new($"{GenerationResultsActions.slice}/generateAudioClipsSuperProxy", GenerateAudioClipsAsync);
-
-        static async Task GenerateAudioClipsAsync(GenerateAudioData arg, AsyncThunkApi<bool> api)
+        public static async Task<DownloadAudioData> GenerateAudioClipsAsync(GenerateAudioData arg, AsyncThunkApi<bool> api)
         {
-            using var editorFocus = new EditorAsyncKeepAliveScope("Generating audio clips.");
+            using var editorFocus = new EditorAsyncKeepAliveScope(name: "Generating audio clips.");
 
             var asset = new AssetReference { guid = arg.asset.guid };
 
             var generationSetting = arg.generationSetting;
-            var generationMetadata = generationSetting.MakeMetadata(arg.asset);
+            var generationMetadata = generationSetting.MakeMetadata(asset: arg.asset);
             var variations = generationSetting.SelectVariationCount();
             var cost = 0;
 
-            api.Dispatch(GenerationResultsActions.setGeneratedSkeletons,
-                new(arg.asset, Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.progressTaskId, i)).ToList()));
+            api.Dispatch(actionCreator: GenerationResultsActions.setGeneratedSkeletons,
+                args: new(asset: arg.asset, skeletons: Enumerable.Range(start: 0, count: variations).Select(selector: i => new AudioClipSkeleton(taskID: arg.progressTaskId, counter: i)).ToList()));
 
-            var progress = new GenerationProgressData(arg.progressTaskId, variations, 0f);
-            api.DispatchProgress(arg.asset, progress with { progress = 0.0f }, "Authenticating with UnityConnect.");
+            var progress = new GenerationProgressData(taskID: arg.progressTaskId, count: variations, progress: 0f);
+            api.DispatchProgress(asset: arg.asset, payload: progress with { progress = 0.0f }, description: "Authenticating with UnityConnect.");
 
-            await WebUtilities.WaitForCloudProjectSettings(TimeSpan.FromSeconds(15));
+            await WebUtilities.WaitForCloudProjectSettings(timeoutDuration: TimeSpan.FromSeconds(value: 15));
 
             if (!WebUtilities.AreCloudProjectSettingsValid())
             {
-                api.DispatchInvalidCloudProjectMessage(arg.asset);
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                return;
+                api.DispatchInvalidCloudProjectMessage(asset: arg.asset);
+                api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
+                return null;
             }
 
-            api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.");
+            api.DispatchProgress(asset: arg.asset, payload: progress with { progress = 0.01f }, description: "Preparing request.");
 
             var duration = generationSetting.SelectGenerableDuration();
             var prompt = generationSetting.SelectPrompt();
             var negativePrompt = generationSetting.SelectNegativePrompt();
-            var modelID = api.State.SelectSelectedModelID(asset);
+            var modelID = api.State.SelectSelectedModelID(asset: asset);
             var soundReference = generationSetting.SelectSoundReference();
             var referenceAudioStrength = soundReference.strength;
             var (useCustomSeed, customSeed) = generationSetting.SelectGenerationOptions();
+            var loop = generationSetting.SelectLoop();
 
             // clamping is important as the backend will increment the value
-            var seed = useCustomSeed ? Math.Clamp(customSeed, 0, int.MaxValue - variations) : Random.Range(0, int.MaxValue - variations);
+            var seed = useCustomSeed ? Math.Clamp(value: customSeed, min: 0, max: int.MaxValue - variations) : Random.Range(minInclusive: 0, maxExclusive: int.MaxValue - variations);
 
-            Guid.TryParse(modelID, out var generativeModelID);
+            Guid.TryParse(input: modelID, result: out var generativeModelID);
 
             var ids = new List<Guid>();
             int[] customSeeds = { };
+            string w3CTraceId = null;
+
+            var generatingAttempted = false;
+            var generatingRequested = false;
 
             try
             {
@@ -85,24 +92,24 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 using var progressTokenSource0 = new CancellationTokenSource();
                 try
                 {
-                    _ = ProgressUtils.RunFuzzyProgress(0.02f, 0.15f,
-                        value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Uploading references."), 1, progressTokenSource0.Token);
+                    _ = ProgressUtils.RunFuzzyProgress(startValue: 0.02f, endValue: 0.15f,
+                        onStep: value => api.DispatchProgress(asset: arg.asset, payload: progress with { progress = value }, description: "Uploading references."), workSize: 1, token: progressTokenSource0.Token);
 
-                    uploadReferences = await UploadReferencesAsync(asset, soundReference, api);
+                    uploadReferences = await UploadReferencesAsync(asset: asset, soundReference: soundReference, api: api);
                 }
                 catch (HandledFailureException)
                 {
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                    api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
 
                     // we can simply return without throwing or additional logging because the error is already logged
-                    return;
+                    return null;
                 }
                 catch (Exception e)
                 {
-                    Debug.LogException(e);
+                    Debug.LogException(exception: e);
 
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                    return;
+                    api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
+                    return null;
                 }
                 finally
                 {
@@ -112,54 +119,61 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 using var progressTokenSource1 = new CancellationTokenSource();
                 try
                 {
-                    _ = ProgressUtils.RunFuzzyProgress(0.15f, 0.24f,
-                        value => api.DispatchProgress(arg.asset, progress with { progress = value }, "Sending request."), 1, progressTokenSource1.Token);
+                    _ = ProgressUtils.RunFuzzyProgress(startValue: 0.15f, endValue: 0.24f,
+                        onStep: value => api.DispatchProgress(asset: arg.asset, payload: progress with { progress = value }, description: "Sending request."), workSize: 1, token: progressTokenSource1.Token);
 
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
 
                     var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                         projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                        unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
+                        unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset: asset),
+                        enableDebugLogging: true, defaultOperationTimeout: Constants.generationTimeToLive, packageInfoProvider: new PackageInfoProvider());
                     var audioComponent = builder.AudioComponent();
 
                     List<AudioGenerateRequest> requests;
                     if (uploadReferences.referenceGuid != Guid.Empty)
                     {
-                        var request = AudioGenerateRequestBuilder.Initialize(generativeModelID, prompt, duration)
-                            .GenerateWithReference(uploadReferences.referenceGuid, referenceAudioStrength, negativePrompt, seed);
-                        requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        var request = AudioGenerateRequestBuilder.Initialize(generativeModelId: generativeModelID, prompt: prompt, duration: duration)
+                            .GenerateWithReference(referenceAsset: uploadReferences.referenceGuid, strength: referenceAudioStrength, negativePrompt: negativePrompt);
+                        requests = variations > 1 ? request.CloneBatch(batchSize: variations) : request.AsSingleInAList();
                     }
                     else
                     {
-                        var request = AudioGenerateRequestBuilder.Initialize(generativeModelID, prompt, duration).Generate(negativePrompt, seed);
-                        requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                        var request = AudioGenerateRequestBuilder
+                            .Initialize(generativeModelId: generativeModelID, prompt: prompt, duration: duration, seed: seed)
+                            .Generate(negativePrompt: negativePrompt, loop: loop, promptInfluence: 0.3f, outputFormat: AudioOutputFormatEnum.Wav);
+                        requests = variations > 1 ? request.CloneBatch(batchSize: variations) : request.AsSingleInAList();
                     }
 
-                    using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.generateTimeout);
+                    using var sdkTimeoutTokenSource = new CancellationTokenSource(delay: Constants.generateTimeout);
 
-                    var generateResults = await EditorTask.Run(() => audioComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                    generatingAttempted = true;
+                    var generateResults = await audioComponent.Generate(audioGenerateRequests: requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                    generatingRequested = true;
+
+                    w3CTraceId = generateResults.W3CTraceId;
                     if (!generateResults.Batch.IsSuccessful)
                     {
-                        api.DispatchFailedBatchMessage(arg.asset, generateResults);
+                        api.DispatchFailedBatchMessage(asset: arg.asset, results: generateResults);
 
                         throw new HandledFailureException();
                     }
 
                     var once = false;
-                    foreach (var generateResult in generateResults.Batch.Value.Where(v => !v.IsSuccessful))
+                    foreach (var generateResult in generateResults.Batch.Value.Where(predicate: v => !v.IsSuccessful))
                     {
                         if (!once)
                         {
-                            api.DispatchFailedBatchMessage(arg.asset, generateResults);
+                            api.DispatchFailedBatchMessage(asset: arg.asset, results: generateResults);
                         }
 
                         once = true;
 
-                        api.DispatchFailedMessage(arg.asset, generateResult.Error);
+                        api.DispatchFailedMessage(asset: arg.asset, result: generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? generateResults.W3CTraceId : generateResult.Error.W3CTraceId);
                     }
 
-                    cost = generateResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
-                    ids = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
+                    cost = generateResults.Batch.Value.Where(predicate: v => v.IsSuccessful).Sum(selector: itemResult => itemResult.Value.PointsCost);
+                    ids = generateResults.Batch.Value.Where(predicate: v => v.IsSuccessful).Select(selector: itemResult => itemResult.Value.JobId).ToList();
                     generationMetadata.w3CTraceId = generateResults.W3CTraceId;
 
                     if (ids.Count == 0)
@@ -169,24 +183,29 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 }
                 catch (HandledFailureException)
                 {
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
+                    api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
 
                     // we can simply return without throwing or additional logging because the error is already logged
-                    return;
+                    return null;
                 }
                 catch (OperationCanceledException)
                 {
-                    api.DispatchGenerationRequestFailedMessage(asset);
+                    if (!generatingAttempted)
+                        api.DispatchClientGenerationAttemptFailedMessage(asset);
+                    else if (!generatingRequested)
+                        api.DispatchClientGenerationRequestFailedMessage(asset);
+                    else
+                        api.DispatchGenerationRequestFailedMessage(asset, w3CTraceId);
 
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                    return;
+                    api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
+                    return null;
                 }
                 catch (Exception e)
                 {
-                    Debug.LogException(e);
+                    Debug.LogException(exception: e);
 
-                    api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                    return;
+                    api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
+                    return null;
                 }
                 finally
                 {
@@ -195,28 +214,29 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
             }
             finally
             {
-                api.Dispatch(GenerationActions.setGenerationAllowed, new(arg.asset, true)); // after validation
+                api.Dispatch(actionCreator: GenerationActions.setGenerationAllowed, args: new(asset: arg.asset, allowed: true)); // after validation
             }
 
             /*
              * If you got here, points were consumed so a restore point is saved
              */
 
-            AIToolbarButton.ShowPointsCostNotification(cost);
+            AIToolbarButton.ShowPointsCostNotification(amount: cost);
 
-            var downloadAudioData = new DownloadAudioData(asset, ids, arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId, generationMetadata, customSeeds, false, false);
-            GenerationRecovery.AddInterruptedDownload(downloadAudioData); // 'potentially' interrupted
+            var downloadAudioData = new DownloadAudioData(asset: asset, jobIds: ids, progressTaskId: arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId,
+                generationMetadata: generationMetadata, customSeeds: customSeeds, autoApply: arg.autoApply, retryable: false);
+            GenerationRecovery.AddInterruptedDownload(data: downloadAudioData); // 'potentially' interrupted
 
             if (WebUtilities.simulateClientSideFailures)
             {
-                api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                throw new Exception("Some simulated client side failure.");
+                api.Dispatch(actionCreator: GenerationResultsActions.removeGeneratedSkeletons, args: new(asset: arg.asset, taskID: arg.progressTaskId));
+                throw new Exception(message: "Some simulated client side failure.");
             }
 
-            await DownloadAudioClipsAsyncWithRetry(downloadAudioData, api);
+            return downloadAudioData;
         }
 
-        static async Task DownloadAudioClipsAsyncWithRetry(DownloadAudioData downloadAudioData, AsyncThunkApi<bool> api)
+        public static async Task DownloadAudioClipsAsyncWithRetry(DownloadAudioData downloadAudioData, AsyncThunkApi<bool> api)
         {
             /* Retry loop. On the last try, retryable is false and we never timeout
                 Each download attempt has a reasonable timeout (90 seconds)
@@ -245,7 +265,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                             $"The last download attempt ({retryCount + 1}/{maxRetries}) is never supposed to timeout. This is a bug in the code, please report it.");
                     }
 
-                    if (UnityEditor.Unsupported.IsDeveloperMode())
+                    if (LoggerUtilities.sdkLogLevel > 0)
                         Debug.Log($"Download timed out. Retrying ({retryCount + 1}/{maxRetries})...");
                 }
                 catch (HandledFailureException)
@@ -271,6 +291,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
             if (soundReference.asset.IsValid())
             {
+                string w3CTraceId = null;
                 try
                 {
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
@@ -278,14 +299,15 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                     var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                         projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment,
                         logger: new Logger(),
-                        unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset),
-                        enableDebugLogging: true, defaultOperationTimeout: Constants.referenceUploadCreateUrlTimeout);
+                        unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset),
+                        enableDebugLogging: true, defaultOperationTimeout: Constants.referenceUploadTimeToLive, packageInfoProvider: new PackageInfoProvider());
                     var assetComponent = builder.AssetComponent();
 
                     using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
 
                     await using var uploadStream = await ReferenceAssetStream(api.State, asset);
                     var assetStreamWithResult = await assetComponent.StoreAssetWithResult(uploadStream, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                    w3CTraceId = assetStreamWithResult.W3CTraceId;
                     if (!api.DispatchStoreAssetMessage(asset, assetStreamWithResult, out referenceGuid))
                     {
                         throw new HandledFailureException();
@@ -293,7 +315,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 }
                 catch (OperationCanceledException)
                 {
-                    api.DispatchReferenceUploadFailedMessage(asset);
+                    api.DispatchReferenceUploadFailedMessage(asset, w3CTraceId);
                     throw new HandledFailureException();
                 }
             }
@@ -354,7 +376,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
             using var editorFocus = new EditorAsyncKeepAliveScope("Downloading audio clips.");
 
             var variations = arg.jobIds.Count;
-            var skeletons = Enumerable.Range(0, variations).Select(i => new TextureSkeleton(arg.progressTaskId, i)).ToList();
+            var skeletons = Enumerable.Range(0, variations).Select(i => new AudioClipSkeleton(arg.progressTaskId, i)).ToList();
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons, new(arg.asset, skeletons));
 
             var progress = new GenerationProgressData(arg.progressTaskId, variations, 0.25f);
@@ -391,8 +413,8 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
                 var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                     projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
-                    defaultOperationTimeout: retryTimeout);
+                    unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(arg.asset),
+                    enableDebugLogging: true, defaultOperationTimeout: retryTimeout, packageInfoProvider: new PackageInfoProvider());
                 var assetComponent = builder.AssetComponent();
 
                 for (var index = 0; index < arg.jobIds.Count; index++)
@@ -410,8 +432,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                         // First job gets most of the time budget, the subsequent jobs just get long enough for a status check
                         using var retryTokenSource = new CancellationTokenSource(index == 0 ? retryTimeout : shortRetryTimeout);
 
-                        url = await EditorTask.Run(() =>
-                            assetComponent.CreateAssetDownloadUrl(jobId, retryTimeout, api.DispatchJobUpdates, retryTokenSource.Token), retryTokenSource.Token);
+                        url = await assetComponent.CreateAssetDownloadUrl(jobId, retryTimeout, status => {
+                                api.DispatchJobUpdates(jobId.ToString(), status);
+                            }, retryTokenSource.Token);
 
                         if (url.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
                         {
@@ -511,22 +534,32 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
                 var metadata = arg.generationMetadata;
-                var saveTasks = generatedAudioClips.Select(async (result, index) =>
+                var saveTasks = generatedAudioClips.Select((result, index) =>
                 {
                     var metadataCopy = metadata with { };
                     if (generatedCustomSeeds.Count > 0 && generatedAudioClips.Count == generatedCustomSeeds.Count)
                         metadataCopy.customSeed = generatedCustomSeeds[index];
 
-                    await result.DownloadToProject(metadataCopy, generativePath, httpClientLease.client);
-                    var fullfilled = new FulfilledSkeletons(arg.asset, new List<FulfilledSkeleton> {new(arg.progressTaskId, result.uri.GetAbsolutePath())});
-                    api.Dispatch(GenerationResultsActions.setFulfilledSkeletons, fullfilled);
+                    return result.DownloadToProject(metadataCopy, generativePath, httpClientLease.client);
                 }).ToList();
 
-                await Task.WhenAll(saveTasks);
+                foreach (var saveTask in saveTasks)
+                {
+                    await saveTask;
+                }
             }
             finally
             {
                 progressTokenSource4.Cancel();
+            }
+
+            // generations are fulfilled when saveTask completes
+            GenerationRecovery.RemoveInterruptedDownload(arg with { jobIds = generatedJobIds.ToList(), customSeeds = generatedCustomSeeds.ToArray() });
+
+            foreach (var result in generatedAudioClips)
+            {
+                var fulfilled = new FulfilledSkeletons(arg.asset, new List<FulfilledSkeleton> {new(arg.progressTaskId, result.uri.GetAbsolutePath())});
+                api.Dispatch(GenerationResultsActions.setFulfilledSkeletons, fulfilled);
             }
 
             if (arg.generationMetadata.autoTrim)
@@ -559,10 +592,9 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 }
             }
 
+            // Mark progress as 99%. Final completion (100%) is handled when the Store State processes the generation result from GenerationFileSystemWatcher and the FulfilledSkeletons above.
             if (timedOutJobIds.Count == 0)
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
-
-            GenerationRecovery.RemoveInterruptedDownload(arg with { jobIds = generatedJobIds.ToList(), customSeeds = generatedCustomSeeds.ToArray() });
+                api.DispatchProgress(arg.asset, progress with { progress = 0.99f }, "Done.");
 
             return arg with { jobIds = timedOutJobIds.ToList(), customSeeds = timedOutCustomSeeds.ToArray() };
         }

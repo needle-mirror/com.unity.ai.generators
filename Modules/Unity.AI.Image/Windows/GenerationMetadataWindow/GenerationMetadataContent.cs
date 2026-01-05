@@ -13,6 +13,7 @@ using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -50,6 +51,7 @@ namespace Unity.AI.Image.Windows
             InitNegativePrompt();
             InitCustomSeed();
             InitUpscaleFactor();
+            InitDimensions();
             InitImageReferences();
 
             m_DismissButtons = this.Query<Button>(className: "data-button").ToList();
@@ -203,6 +205,22 @@ namespace Unity.AI.Image.Windows
             upscaleFactorContainer.EnableInClassList("hidden", upscaleFactor == 0);
         }
 
+        void InitDimensions()
+        {
+            var dimensionsContainer = this.Q<VisualElement>(className: "dimensions-container");
+            var dimensionsMetadata = this.Q<Label>("dimensions-metadata");
+
+            var dimensions = m_GenerationMetadata?.dimensions;
+            var hasDimensions = dimensions is { width: > 0 } or { height: > 0 };
+
+            dimensionsContainer.EnableInClassList("hidden", !hasDimensions);
+
+            if (hasDimensions)
+            {
+                dimensionsMetadata.text = $"{dimensions.width}x{dimensions.height}";
+            }
+        }
+
         void InitImageReferences()
         {
             var imageReferencesContainer = this.Q<VisualElement>(className: "image-references-container");
@@ -251,12 +269,13 @@ namespace Unity.AI.Image.Windows
                 }
                 else // it's an asset reference
                 {
-                    var objectField = doodleUI.Q<ObjectField>("metadata-object-field__input-field");
+                    var objectField = doodleUI.Q<ObjectField>(className:"metadata-object-field__input-field");
                     if (objectField == null) return;
 
                     objectField.EnableInClassList("hidden", false);
                     objectField.SetEnabled(false);
                     objectField.EnableInClassList("unity-disabled", false);
+                    objectField.name = "metadata-object-field__input-field_" + doodleData.assetReferenceGuid;
 
                     var assetPath = AssetDatabase.GUIDToAssetPath(doodleData.assetReferenceGuid);
                     if (!string.IsNullOrEmpty(assetPath) && File.Exists(assetPath))
@@ -301,13 +320,13 @@ namespace Unity.AI.Image.Windows
         void UsePrompt()
         {
             var truncatedPrompt = PromptUtilities.TruncatePrompt(m_GenerationMetadata?.prompt);
-            this.Dispatch(GenerationSettingsActions.setPrompt, truncatedPrompt);
+            this.Dispatch(GenerationSettingsActions.setPrompt, (this.GetState().SelectRefinementMode(this), truncatedPrompt));
         }
 
         void UseNegativePrompt()
         {
             var truncatedPrompt = PromptUtilities.TruncatePrompt(m_GenerationMetadata?.negativePrompt);
-            this.Dispatch(GenerationSettingsActions.setNegativePrompt, truncatedPrompt);
+            this.Dispatch(GenerationSettingsActions.setNegativePrompt, (this.GetState().SelectRefinementMode(this), truncatedPrompt));
         }
 
         void UseCustomSeed()
@@ -331,21 +350,24 @@ namespace Unity.AI.Image.Windows
         {
             if (!Enum.IsDefined(typeof(ImageReferenceType), doodleData.doodleReferenceType)) return;
             var doodlePad = this.Q<DoodlePad>();
-            var objectField = this.Q<ObjectField>("metadata-object-field__input-field");
 
+            var objectField = this.Q<ObjectField>("metadata-object-field__input-field_" + doodleData.assetReferenceGuid);
             UseRefinementMode();
+            var hasImageRef = false;
 
             if (doodlePad != null && doodleData.doodle is { Length: > 0 })
             {
                 doodleData.doodleReferenceType.SetDoodlePadData(doodlePad, doodleData.doodle);
+                hasImageRef = true;
             }
-            else if(objectField != null)
+            else if(objectField != null && objectField.value != null)
             {
                 var assetReference = new AssetReference { guid = doodleData.assetReferenceGuid };
                 doodleData.doodleReferenceType.SetAssetReferenceObjectData(objectField, assetReference);
+                hasImageRef = true;
             }
 
-            if (!Mathf.Approximately(doodleData.strength, 0f))
+            if (hasImageRef && !Mathf.Approximately(doodleData.strength, 0f))
                 this.Dispatch(GenerationSettingsActions.setImageReferenceStrength, new (doodleData.doodleReferenceType, doodleData.strength));
         }
 

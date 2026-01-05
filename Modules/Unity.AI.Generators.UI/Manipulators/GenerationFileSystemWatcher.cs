@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -25,6 +26,7 @@ namespace Unity.AI.Generators.UI
         FileSystemWatcher m_Watcher;
         CancellationTokenSource m_RebuildCancellationTokenSource;
         readonly Action<IEnumerable<string>> m_OnRebuild;
+        readonly bool m_AssetExists;
 
         const int k_DelayMs = 1000;
 
@@ -33,6 +35,7 @@ namespace Unity.AI.Generators.UI
 
         public GenerationFileSystemWatcher(AssetReference asset, IEnumerable<string> suffixes, Action<IEnumerable<string>> onRebuild)
         {
+            m_AssetExists = asset.Exists();
             m_Suffixes = suffixes;
             m_WatchPath = asset.GetGeneratedAssetsPath();
             m_OnRebuild = onRebuild;
@@ -79,6 +82,9 @@ namespace Unity.AI.Generators.UI
 
         void RebuildNow()
         {
+            if (!m_AssetExists)
+                return;
+
             if (m_Watcher is null && (m_PollingCts == null || m_PollingCts.IsCancellationRequested))
                 return;
             try
@@ -97,6 +103,9 @@ namespace Unity.AI.Generators.UI
 
         protected override void RegisterCallbacksOnTarget()
         {
+            if (!m_AssetExists)
+                return;
+
             try
             {
                 nudge += OnNudge;

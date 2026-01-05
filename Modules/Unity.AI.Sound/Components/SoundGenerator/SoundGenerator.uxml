@@ -19,7 +19,7 @@
                         <ui:ModelSelectorButton />
                     </VisualElement>
                     <!-- Prompt Section -->
-                    <VisualElement class="flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
+                    <VisualElement class="text-prompt flex-no-shrink p-8-7-8-8 border-color-dark border-bottom-1px">
                         <ui:Prompt />
                     </VisualElement>
                     <VisualElement class="flex-no-shrink p-8-7-8-8 bg-light">
@@ -32,7 +32,7 @@
                         <ui:GenerationOptions class="pt-8" />
                     </VisualElement>
                     <!-- Input Reference -->
-                    <VisualElement class="flex-no-shrink bg-light">
+                    <VisualElement class="sound-reference flex-no-shrink bg-light">
                         <ui:SoundReference />
                     </VisualElement>
                 </ScrollView>

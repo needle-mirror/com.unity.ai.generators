@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Generators.Redux;
@@ -59,11 +58,6 @@ namespace Unity.AI.Animate.Components
             {
                 m_Button.SetEnabled(!payload.should);
                 m_Button.tooltip = payload.should ? "No additional model currently available" : "Choose another AI model";
-                if (!payload.should)
-                    return;
-                var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
-                if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                    this.Dispatch(GenerationSettingsActions.setSelectedModelID, (payload.mode, autoAssignModel.id));
             });
         }
 

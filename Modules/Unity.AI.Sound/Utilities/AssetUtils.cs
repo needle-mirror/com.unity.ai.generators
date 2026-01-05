@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Toolkit.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
@@ -10,12 +11,19 @@ namespace Unity.AI.Sound.Services.Utilities
 {
     static class AssetUtils
     {
-        public const string defaultNewAssetName = "New Audio Clip";
+        public const string defaultNewAssetName = "New Sound";
+        public const string wavAssetExtension = ".wav";
+        public const string mp3AssetExtension = ".mp3";
         public const string defaultAssetExtension = ".wav";
 
-        public static string CreateBlankAudioClip(string path, bool force = true)
+        // Known mesh file extensions for file system watching
+        public static readonly string[] knownExtensions = { wavAssetExtension, mp3AssetExtension };
+
+        public static string CreateBlankAudioClip(string path) => CreateBlankAudioClip(path, false);
+
+        public static string CreateBlankAudioClip(string path, bool force)
         {
-            path = Path.ChangeExtension(path, defaultAssetExtension);
+            path = Path.ChangeExtension(path, wavAssetExtension);
             if (force || !File.Exists(path))
             {
                 var directory = Path.GetDirectoryName(path);
@@ -50,7 +58,7 @@ namespace Unity.AI.Sound.Services.Utilities
 
             var assetName = Path.GetFileNameWithoutExtension(assetReference.GetPath());
 
-            var path = $"{basePath}/{assetName}{nameSuffix}{defaultAssetExtension}";
+            var path = $"{basePath}/{assetName}{nameSuffix}{wavAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);
@@ -66,7 +74,7 @@ namespace Unity.AI.Sound.Services.Utilities
         public static AudioClip CreateAndSelectBlankAudioClip(bool force = true)
         {
             var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{defaultNewAssetName}{defaultAssetExtension}";
+            var path = $"{basePath}/{defaultNewAssetName}{wavAssetExtension}";
             if (force || !File.Exists(path))
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);

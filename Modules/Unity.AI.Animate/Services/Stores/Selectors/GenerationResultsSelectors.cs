@@ -6,10 +6,12 @@ using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Undo;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Animate.Services.Stores.Selectors
@@ -34,7 +36,7 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
         public static List<GenerationProgressData> SelectGenerationProgress(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationProgress;
         public static GenerationProgressData SelectGenerationProgress(this IState state, VisualElement element, AnimationClipResult result)
         {
-            if (result is TextureSkeleton textureSkeleton)
+            if (result is AnimationClipSkeleton textureSkeleton)
             {
                 var progressReports = state.SelectGenerationResult(element).generationProgress;
                 var progressReport = progressReports.FirstOrDefault(d => d.taskID == textureSkeleton.taskID);
@@ -45,7 +47,9 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             return new GenerationProgressData(-1, 1, 1);
         }
         public static List<GenerationFeedbackData> SelectGenerationFeedback(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationFeedback;
+        public static List<GenerationFeedbackData> SelectGenerationFeedback(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generationFeedback;
         public static GenerationValidationResult SelectGenerationValidationResult(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationValidation;
+        public static GenerationValidationResult SelectGenerationValidationResult(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generationValidation;
 
         public static int SelectGeneratedResultVisibleCount(this IState state, VisualElement element) => state.SelectGenerationResult(element)
             .generatedResultSelectorSettings.Values.Select(hints => hints.itemCountHint).DefaultIfEmpty(0).Max();
@@ -53,8 +57,9 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             .generatedResultSelectorSettings.Values.Select(hints => hints.itemCountHint).DefaultIfEmpty(0).Max();
 
         public static List<AnimationClipResult> SelectGeneratedAnimations(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedAnimations;
-        public static List<TextureSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
-        public static List<TextureSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
+        public static List<AnimationClipResult> SelectGeneratedAnimations(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAnimations;
+        public static List<AnimationClipSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
+        public static List<AnimationClipSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
 
         /// <summary>
         /// Returns a combined, deferred-execution collection of generated textures and skeletons for an element.
@@ -167,7 +172,8 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             return hc.ToHashCode();
         }
 
-        public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAnimations.Count > 0;
+        public static bool HasHistory(this IState state, AssetReference asset) =>
+            state.SelectGenerationResult(asset).generatedAnimations.Count > 0 || asset.HasGenerations();
         public static AnimationClipResult SelectSelectedGeneration(this IState state, VisualElement element) => state.SelectGenerationResult(element).selectedGeneration;
         public static AnimationClipResult SelectSelectedGeneration(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).selectedGeneration;
         public static AssetUndoManager SelectAssetUndoManager(this IState state, VisualElement element) => state.SelectGenerationResult(element).assetUndoManager;

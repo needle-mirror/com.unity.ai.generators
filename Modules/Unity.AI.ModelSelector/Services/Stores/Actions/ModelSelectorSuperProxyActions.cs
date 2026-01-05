@@ -6,6 +6,7 @@ using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.GenerativeModels.Requests;
 using AiEditorToolsSdk.Components.GenerativeModels.Responses;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
@@ -13,17 +14,18 @@ using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services.Sdk;
 using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using UnityEngine;
 using Constants = Unity.AI.Generators.Sdk.Constants;
-using Logger = Unity.AI.Generators.Sdk.Logger;
+using Logger = Unity.AI.Toolkit.Accounts.Services.Sdk.Logger;
 
 namespace Unity.AI.ModelSelector.Services.Stores.Actions
 {
     static class ModelSelectorSuperProxyActions
     {
-        public static ModelSettings FromSuperProxy(PlatformGenerativeModelsResult info, bool isFavorite)
+        public static ModelSettings FromSuperProxy(PlatformGenerativeModelsResult info, bool isFavorite, bool isAssistantFavorite)
         {
             var model = new ModelSettings
             {
@@ -42,8 +44,28 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 imageSizes = info.ImageSizes
                     .Select(r => new ImageDimensions { width = r.Width, height = r.Height })
                     .OrderBy(dim => dim.GetSquarenessFactor())
-                    .ToList()
+                    .ToList(),
+                // capabilities will be set below
             };
+
+            // Set capabilities
+            model.capabilities = new List<string>();
+            if (isAssistantFavorite)
+            {
+                model.capabilities.Add(ModelConstants.ModelCapabilities.AssistantFavorite);
+            }
+            var nameLower = (model.name ?? string.Empty).ToLowerInvariant();
+            if (nameLower.StartsWith(k_SeedreamStartsWith))
+            {
+                model.capabilities.Add(ModelConstants.ModelCapabilities.EditWithPrompt);
+                model.capabilities.Add(ModelConstants.ModelCapabilities.CustomResolutions);
+            }
+            if (model.modality == ModelConstants.Modalities.Skybox)
+                model.capabilities.Add(ModelConstants.ModelCapabilities.SingleInputImage);
+            if (nameLower.StartsWith(k_ElevenLabsStartsWith))
+                model.capabilities.Add(ModelConstants.ModelCapabilities.SupportsLooping);
+            if (nameLower.StartsWith(k_GameUIStartsWith))
+                model.capabilities.Add(ModelConstants.ModelCapabilities.Supports9SliceUI);
 
             if (model.thumbnails.Count == 0 && !string.IsNullOrWhiteSpace(model.icon))
                 model.thumbnails = new List<string> { model.icon };
@@ -55,33 +77,52 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                 catch { /* ignored */ }
             }
 
+            // First and Last frame references for video models with reference prompt support
+            if (model.modality == ModelConstants.Modalities.Video && model.operations.Contains(ModelConstants.Operations.ReferencePrompt))
+            {
+                if (!model.operations.Contains(ModelConstants.Operations.FirstFrameReference))
+                    model.operations.Add(ModelConstants.Operations.FirstFrameReference);
+                if (!model.operations.Contains(ModelConstants.Operations.LastFrameReference))
+                    model.operations.Add(ModelConstants.Operations.LastFrameReference);
+            }
+
             return model;
         }
 
-        static readonly List<string> k_PreferredFavorites = new() { "gpt image", "flux.1 dev" };
+        const string k_SeedreamStartsWith = "seedream";
+        const string k_ElevenLabsStartsWith = "elevenlabs";
+        const string k_GameUIStartsWith = "game ui elements (flux)";
 
-        // Prevents concurrent execution globally of fetchModels when multiple requests overlap
+        static readonly List<string> k_PreferredAssistantFavorites = new() { "gpt image", "nano banana", k_SeedreamStartsWith, "standard", "cinematic", "hunyuan", k_ElevenLabsStartsWith, k_GameUIStartsWith, "gemini" };
+        static readonly List<string> k_PreferredFavorites = new(k_PreferredAssistantFavorites) { "flux.1 dev", "realistic textures" };
+
+        // While fetching models is safe to do concurrently, we use this mutex as a best-effort
+        // mechanism to minimize redundant API calls. A short timeout allows requests to proceed
+        // in extreme cases, and frequent cache checks within the method will often prevent
+        // redundant work even if the semaphore wait times out.
         static readonly SemaphoreSlim k_Mutex = new(1, 1);
 
         public static readonly AsyncThunkCreator<DiscoverModelsData, List<ModelSettings>> fetchModels = new($"{ModelSelectorActions.slice}/fetchModelsSuperProxy", async (data, api) =>
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Fetching models from backend.");
 
-            var taskID = Progress.Start($"Requesting models.");
+            var taskID = ProgressUtility.Start($"Requesting models.");
             using var progressTokenSource = new CancellationTokenSource();
             List<ModelSettings> models = new();
+            var semaphoreAcquired = false;
 
             try
             {
-                await k_Mutex.WaitAsync().ConfigureAwaitMainThread();
-
                 // Check cache first
                 if (ModelsCache.IsValid(data.environment))
-                {
-                    //if (Unsupported.IsDeveloperMode())
-                    //    Debug.Log($"Using cached models (age: {(DateTime.Now - ModelsCache.cacheTimestamp).TotalSeconds:F1}s)");
                     return ModelsCache.models;
-                }
+
+                const int millisecondsTimeout = 2000;
+                semaphoreAcquired = await k_Mutex.WaitAsync(millisecondsTimeout).ConfigureAwaitMainThread();
+
+                // Check cache again after waiting for the mutex
+                if (ModelsCache.IsValid(data.environment))
+                    return ModelsCache.models;
 
                 SetProgress(0.0f, "Authenticating with UnityConnect.");
                 if (!WebUtilities.AreCloudProjectSettingsValid())
@@ -91,26 +132,33 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                     return models;
                 }
 
+                // Check cache again after potentially long authentication
+                if (ModelsCache.IsValid(data.environment))
+                    return ModelsCache.models;
+
                 SetProgress(0.1f, "Preparing request.");
 
                 {
-                    using var sdkExceptionHandler = new ExceptionTracker(Debug.LogException);
+                    var logger = new Logger();
 
                     using var httpClientLease = HttpClientManager.instance.AcquireLease();
                     var timeout = Constants.modelsFetchTimeout;
 
                     var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
-                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: data.environment, logger: new Logger(),
-                        unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true, defaultOperationTimeout: timeout);
+                        projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: data.environment, logger: logger,
+                        unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true, defaultOperationTimeout: timeout, packageInfoProvider: new PackageInfoProvider());
                     var generativeModelsComponent = builder.GenerativeModelsComponent();
 
                     using var timeoutTokenSource = new CancellationTokenSource(timeout);
 
                     SetProgress(0.2f, "Requesting model list.");
 
-                    var modelResults = await EditorTask.Run(
-                        () => generativeModelsComponent.GetGenerativeModelsList(timeoutOverride: timeout, cancellationToken: timeoutTokenSource.Token),
-                        timeoutTokenSource.Token);
+                    var modelResults = await generativeModelsComponent.GetGenerativeModelsList(timeoutOverride: timeout, cancellationToken: timeoutTokenSource.Token);
+
+                    // Check cache again after potentially long request
+                    if (ModelsCache.IsValid(data.environment))
+                        return ModelsCache.models;
+
                     SetProgress(0.4f, "Finishing model list request.");
                     if (timeoutTokenSource.IsCancellationRequested)
                         throw new OperationCanceledException();
@@ -119,9 +167,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 
                     if (!modelResults.Result.IsSuccessful)
                     {
-                        if (modelResults.Result.Error.AiResponseError is AiResultErrorEnum.None or AiResultErrorEnum.Unknown)
-                            sdkExceptionHandler.Enable();
-
                         if (modelResults.Result.Error.Errors.Count == 0)
                             Debug.Log($"Error reason is '{modelResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({data.environment}).");
                         else
@@ -133,9 +178,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 
                     SetProgress(0.6f, "Requesting model favorites.");
 
-                    var favoritesResults = await EditorTask.Run(() =>
-                        generativeModelsComponent.GetGenerativeModelsFavoritesList(timeoutOverride: timeout, cancellationToken: timeoutTokenSource.Token),
-                        timeoutTokenSource.Token);
+                    var favoritesResults = await generativeModelsComponent.GetGenerativeModelsFavoritesList(timeoutOverride: timeout, cancellationToken: timeoutTokenSource.Token);
                     SetProgress(0.7f, "Finishing model favorites request.");
                     if (timeoutTokenSource.IsCancellationRequested)
                         throw new OperationCanceledException();
@@ -145,15 +188,12 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
                     var favoritesSuccessful = favoritesResults.Result.IsSuccessful;
                     if (!favoritesSuccessful)
                     {
-                        if (modelResults.Result.Error.AiResponseError is AiResultErrorEnum.None or AiResultErrorEnum.Unknown)
-                            sdkExceptionHandler.Enable();
-
                         if (favoritesResults.Result.Error.Errors.Count == 0)
                             Debug.Log($"Error reason is '{favoritesResults.Result.Error.AiResponseError.ToString()}' and no additional error information was provided ({data.environment}).");
                         else
                         {
-                            if (modelResults.Result.Error.AiResponseError is AiResultErrorEnum.None or AiResultErrorEnum.Unknown)
-                                Debug.LogException(Logger.lastException);
+                            if (modelResults.Result.Error.AiResponseError is AiResultErrorEnum.None or AiResultErrorEnum.Unknown && logger.LastException != null)
+                                Debug.LogException(logger.LastException);
                             favoritesResults.Result.Error.Errors.ForEach(e => Debug.Log($"{favoritesResults.Result.Error.AiResponseError.ToString()}: {e}"));
                         }
 
@@ -164,32 +204,34 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
 
                     foreach (var modelResult in modelResults.Result.Value)
                     {
-                        if (modelResult.Modality != ModalityEnum.None || modelResult.Provider == ProviderEnum.None)
+                        if (modelResult.ModelType != ModelTypeEnum.Base && (modelResult.Modality != ModalityEnum.None || modelResult.Provider == ProviderEnum.None))
                         {
-                            var isFavorite = favoritesSuccessful && favoritesResults.Result.Value
+                            var isUserFavorite = favoritesSuccessful && favoritesResults.Result.Value
                                 .Any(f => f.GenerativeModelId == modelResult.GenerativeModelId);
-                            if (k_PreferredFavorites.Any(preferred => modelResult.Name.ToLower().StartsWith(preferred)))
-                                isFavorite = true;
-                            models.Add(FromSuperProxy(modelResult, isFavorite));
+
+                            var isFavorite = isUserFavorite ||
+                                k_PreferredFavorites.Any(preferred => modelResult.Name.ToLower().StartsWith(preferred));
+                            var isAssistantFavorite = isUserFavorite ||
+                                k_PreferredAssistantFavorites.Any(preferred => modelResult.Name.ToLower().StartsWith(preferred)) ||
+                                modelResult.Provider != ProviderEnum.Unity && modelResult.Modality != ModalityEnum.Image && modelResult.Modality != ModalityEnum.Skybox;
+
+                            models.Add(FromSuperProxy(modelResult, isFavorite, isAssistantFavorite));
                         }
                     }
 
                     // Update cache only if both operations were successful
                     if (favoritesSuccessful)
-                    {
                         ModelsCache.UpdateCache(models, data.environment);
-                        //if (Unsupported.IsDeveloperMode())
-                        //    Debug.Log("Models cache updated successfully.");
-                    }
                 }
             }
             finally
             {
-                k_Mutex.Release();
+                if (semaphoreAcquired)
+                    k_Mutex.Release();
 
                 progressTokenSource.Cancel();
                 SetProgress(1, models.Count > 0 ? $"Retrieved {models.Count} models." : "Failed to retrieve models.");
-                Progress.Finish(taskID);
+                ProgressUtility.Finish(taskID);
             }
 
             return models;
@@ -214,14 +256,14 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             using var httpClientLease = HttpClientManager.instance.AcquireLease();
             var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                 projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: environment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true);
+                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), enableDebugLogging: true, packageInfoProvider: new PackageInfoProvider());
             var generativeModelsComponent = builder.GenerativeModelsComponent();
 
-            var res = await EditorTask.Run(() => generativeModelsComponent.UpdateGenerativeModelsFavorite(new GenerativeModelsFavoritesRequest
+            var res = await generativeModelsComponent.UpdateGenerativeModelsFavorite(new GenerativeModelsFavoritesRequest
             {
                 GenerativeModelId = Guid.Parse(payload.modelId),
                 ModelOperation = payload.isFavorite ? ModelOperationEnum.Favorite : ModelOperationEnum.Unfavorite
-            }));
+            });
             if (!res.Result.IsSuccessful)
             {
                 if (res.Result.Error.Errors.Count == 0)

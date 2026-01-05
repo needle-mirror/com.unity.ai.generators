@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEngine;
 
 namespace Unity.AI.Sound.Services.Stores.Slices
 {
@@ -49,39 +49,7 @@ namespace Unity.AI.Sound.Services.Stores.Slices
                     var results = state.generationResults.Ensure(payload.asset);
                     results.fulfilledSkeletons = results.fulfilledSkeletons.Union(payload.skeletons).ToList();
                 })
-                .Add(GenerationResultsActions.pruneFulfilledSkeletons, (state, payload) => {
-                    // This reducer follows the core Redux principle of immutability. State must not be
-                    // mutated directly. Instead, we create new collections (e.g., using `Where().ToList()`)
-                    // and assign them to the new state.
-                    var results = state.generationResults.Ensure(payload.asset);
-
-                    // 1. Find the taskIDs of all skeletons that have a fulfilled audioClip result.
-                    // This is the "cleanup" logic from your original code, now in the right place.
-                    var audioClipUris = new HashSet<string>(
-                        results.generatedAudioClips
-                            .Where(audioClip => audioClip.uri != null)
-                            .Select(audioClip => audioClip.uri.GetAbsolutePath())
-                    );
-
-                    var fulfilledTaskIds = results.fulfilledSkeletons
-                        .Where(fs => audioClipUris.Contains(fs.resultUri))
-                        .Select(fs => fs.progressTaskID)
-                        .ToHashSet();
-
-                    if (fulfilledTaskIds.Count == 0)
-                        return; // Nothing to prune
-
-                    // 2. Filter the lists, keeping only the items NOT in the set of completed IDs.
-                    // This is safe to do now, because we are deliberately cleaning up. The UI has
-                    // already correctly displayed the final AudioClipResult.
-                    results.generatedSkeletons = results.generatedSkeletons
-                        .Where(skeleton => !fulfilledTaskIds.Contains(skeleton.taskID))
-                        .ToList();
-
-                    results.fulfilledSkeletons = results.fulfilledSkeletons
-                        .Where(fs => !fulfilledTaskIds.Contains(fs.progressTaskID))
-                        .ToList();
-                })
+                .Add(GenerationActions.pruneFulfilledSkeletons, PruneFulfilledSkeletonsReducer)
                 .Add(GenerationResultsActions.removeGeneratedSkeletons, (state, payload) => {
                     var results = state.generationResults.Ensure(payload.asset);
                     results.generatedSkeletons = results.generatedSkeletons.Where(s => s.taskID != payload.taskID).ToList();
@@ -121,5 +89,33 @@ namespace Unity.AI.Sound.Services.Stores.Slices
                     })
                 )
             });
+
+        internal static void PruneFulfilledSkeletonsReducer(GenerationResults state, AsssetContext payload)
+        {
+            // This reducer follows the core Redux principle of immutability. State must not be
+            // mutated directly. Instead, we create new collections (e.g., using `Where().ToList()`)
+            // and assign them to the new state.
+            var results = state.generationResults.Ensure(payload.asset);
+
+            // 1. Find the taskIDs of all skeletons that have a fulfilled audioClip result.
+            // This is the "cleanup" logic.
+            var audioClipUris = new HashSet<string>(results.generatedAudioClips.Where(audioClip => audioClip.uri != null)
+                .Select(audioClip => audioClip.uri.GetAbsolutePath()));
+
+            var fulfilledTaskIds = results.fulfilledSkeletons.Where(fs => audioClipUris.Contains(fs.resultUri))
+                .Select(fs => fs.progressTaskID)
+                .ToHashSet();
+
+            if (fulfilledTaskIds.Count == 0) return; // Nothing to prune
+
+            // 2. Filter the lists, keeping only the items NOT in the set of completed IDs.
+            // This is safe to do now, because we are deliberately cleaning up. The UI has
+            // already correctly displayed the final AudioClipResult.
+            results.generatedSkeletons = results.generatedSkeletons.Where(skeleton => !fulfilledTaskIds.Contains(skeleton.taskID))
+                .ToList();
+
+            results.fulfilledSkeletons = results.fulfilledSkeletons.Where(fs => !fulfilledTaskIds.Contains(fs.progressTaskID))
+                .ToList();
+        }
     }
 }

@@ -1,7 +1,6 @@
 ﻿using System;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEngine;
 
 namespace Unity.AI.Image.Services.Utilities
 {

@@ -1,4 +1,3 @@
-using System;
 using Unity.AI.Generators.Redux;
 
 namespace Unity.AI.Image.Services.Stores.Actions.Creators

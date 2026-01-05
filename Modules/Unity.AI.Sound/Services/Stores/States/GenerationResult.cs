@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Sound.Services.Undo;
 using Unity.AI.Sound.Services.Utilities;
-using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEngine;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Sound.Services.Stores.States
 {
@@ -17,7 +15,7 @@ namespace Unity.AI.Sound.Services.Stores.States
         public List<GenerationProgressData> generationProgress = new();
         public List<GenerationFeedbackData> generationFeedback = new();
         public List<AudioClipResult> generatedAudioClips = new();
-        public List<TextureSkeleton> generatedSkeletons = new();
+        public List<AudioClipSkeleton> generatedSkeletons = new();
 
         /// <summary>
         /// Maps in-progress skeletons to their completed texture results.

@@ -1,9 +1,9 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -28,7 +28,7 @@ namespace Unity.AI.Image.Windows
 
             if (textureResult != null)
             {
-                 window.generationMetadata = await textureResult.GetMetadata();
+                 window.generationMetadata = await textureResult.GetMetadataAsync();
                  window.RefreshView();
             }
 

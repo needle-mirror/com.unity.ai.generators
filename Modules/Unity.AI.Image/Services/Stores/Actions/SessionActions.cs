@@ -1,15 +1,15 @@
-using System;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Windows;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Image.Services.Stores.Selectors;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
-using UnityEngine;
 
 namespace Unity.AI.Image.Services.Stores.Actions
 {
@@ -31,13 +31,13 @@ namespace Unity.AI.Image.Services.Stores.Actions
             var promotedAsset = new AssetReference { guid = AssetDatabase.AssetPathToGUID(destFileName) };
 
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
-            await promotedTextureResult.CopyToProject(await originalTextureResult.GetMetadata(), generativePath);
+            await promotedTextureResult.CopyToProject(await originalTextureResult.GetMetadataAsync(), generativePath);
 
             var postPromoteAction = api.api.State.SelectPromoteNewAssetPostAction(data.asset);
             postPromoteAction?.Invoke(promotedAsset);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedTextureResult, true, false));
-            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
+            AssetDatabaseExtensions.ImportGeneratedAsset(promotedAsset.GetPath());
 
             // copy sprite properties
             var sourceImporter = AssetImporter.GetAtPath(data.asset.GetPath()) as TextureImporter;

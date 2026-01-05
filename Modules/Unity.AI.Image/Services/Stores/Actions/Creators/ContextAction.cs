@@ -1,4 +1,3 @@
-using System;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 

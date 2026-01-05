@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using AiEditorToolsSdk.Components.Common.Enums;
+using UnityEngine;
 
 namespace Unity.AI.ModelSelector.Services.Stores.States
 {
@@ -31,5 +32,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public bool favoriteProcessing;
         public bool isCustom;
         public ModelTypeEnum modelType;
+        public List<string> capabilities = new();
     }
 }

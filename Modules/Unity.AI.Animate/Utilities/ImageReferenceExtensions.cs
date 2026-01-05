@@ -3,6 +3,7 @@ using Unity.AI.Animate.Services.Stores.Actions.Creators;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -21,7 +22,7 @@ namespace Unity.AI.Animate.Services.Utilities
         {
             var objectField = element.Q<ObjectField>();
             objectField.RegisterValueChangedCallback(evt =>
-                element.Dispatch(setInputReferenceAsset, AssetReferenceExtensions.FromObject(evt.newValue as VideoClip)));
+                element.Dispatch(setInputReferenceAsset, Unity.AI.Generators.Asset.AssetReferenceExtensions.FromObject(evt.newValue as VideoClip)));
 
             var settingsButton = element.Q<Button>("input-reference-settings-button");
             settingsButton.clicked += () => ShowMenu();

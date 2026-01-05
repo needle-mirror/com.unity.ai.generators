@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.ModelSelector.Services.Stores.Slices
 {
@@ -39,7 +39,13 @@ namespace Unity.AI.ModelSelector.Services.Stores.Slices
                         // We increment popularity score locally, but this data will come from the server in the future and will be global.
                         state.modelPopularityScore[payload] = state.modelPopularityScore.TryGetValue(payload, out var score) ? score + 1 : 1;
                     })
-                    .Add(ModelSelectorActions.setLastModelDiscoveryTimestamp, (state, payload) => state.settings.lastModelDiscoveryTimestamp = payload),
+                    .Add(ModelSelectorActions.setLastModelDiscoveryTimestamp, (state, payload) => state.settings.lastModelDiscoveryTimestamp = payload)
+                    .Add(ModelSelectorActions.addCustomModel, (state, payload) => 
+                    {
+                        // Only add if not already present
+                        if (!state.settings.models.Any(m => m.id == payload.id))
+                            state.settings.models.Add(payload);
+                    }),
                 extraReducers => extraReducers
                     .AddCase(ModelSelectorActions.init).With((_, payload) => payload.payload.modelSelectorSlice with { }),
                 state => state with {

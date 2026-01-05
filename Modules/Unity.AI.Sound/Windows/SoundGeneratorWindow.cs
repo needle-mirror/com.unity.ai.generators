@@ -7,6 +7,7 @@ using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 

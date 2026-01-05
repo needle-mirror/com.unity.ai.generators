@@ -17,6 +17,7 @@ using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -33,7 +34,8 @@ namespace Unity.AI.Image.Interfaces
         Upscale = RefinementMode.Upscale,
         Pixelate = RefinementMode.Pixelate,
         Recolor = RefinementMode.Recolor,
-        Inpaint = RefinementMode.Inpaint
+        Inpaint = RefinementMode.Inpaint,
+        Spritesheet = RefinementMode.Spritesheet
     }
 
     [EditorBrowsable(EditorBrowsableState.Never)]

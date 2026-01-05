@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
+using Unity.AI.ModelSelector.Services.Stores.Middleware;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Stores;
@@ -24,6 +25,7 @@ namespace Unity.AI.Sound.Services.SessionPersistence
                     MemoryPersistence.Persist(s_Store, AppActions.init, Selectors.SelectAppData);
                     MemoryPersistence.Persist(s_Store, ModelSelectorActions.init, ModelSelectorSelectors.SelectAppData);
                     Store.ApplyMiddleware(PersistenceMiddleware);
+                    Store.ApplyMiddleware(FilterCacheClearingMiddleware.Create());
                 }
 
                 return s_Store;

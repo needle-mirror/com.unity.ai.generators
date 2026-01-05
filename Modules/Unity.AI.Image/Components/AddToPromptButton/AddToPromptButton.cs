@@ -11,8 +11,8 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Image.Services.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Components
@@ -59,7 +59,7 @@ namespace Unity.AI.Image.Components
                 return;
             }
 
-            var typesToValidate = GetTypesToValidate();
+            var typesToValidate = GetTypesToValidate(this.GetState().SelectRefinementMode(this));
             if (typesToValidate.Length == 0)
             {
                 // No types to validate - just rebuild with empty results
@@ -100,12 +100,12 @@ namespace Unity.AI.Image.Components
             m_AddToPrompt.tooltip = !hasItems ? "No controls available to add for this model." : "Add additional controls to guide generation using images as references.";
         }
 
-        static ImageReferenceType[] GetTypesToValidate()
+        static ImageReferenceType[] GetTypesToValidate(RefinementMode mode)
         {
             var typesToValidate = new List<ImageReferenceType>();
             foreach (var type in Enum.GetValues(typeof(ImageReferenceType)).Cast<ImageReferenceType>().OrderBy(t => t.GetDisplayOrder()))
             {
-                if (type.GetRefinementModeForType().Contains(RefinementMode.Generation))
+                if (type.GetRefinementModeForType().Contains(mode))
                     typesToValidate.Add(type);
             }
             return typesToValidate.ToArray();

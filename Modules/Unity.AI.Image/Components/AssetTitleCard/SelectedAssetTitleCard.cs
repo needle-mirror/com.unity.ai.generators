@@ -1,10 +1,9 @@
-﻿using System;
-using Unity.AI.Image.Services.Stores.Selectors;
+﻿using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 

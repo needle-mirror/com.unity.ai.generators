@@ -5,6 +5,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -31,21 +32,18 @@ namespace Unity.AI.ModelSelector.Windows
             await tcs.Task;
         }
 
-        public static async Task<string> Open(VisualElement parent, string selectedModelID, string[] modality, string[] operations)
+        public static async Task<string> Open(VisualElement parent, string selectedModelID, string[] modalities, string[] operations)
         {
             // model selection is transient and needs to be exchanged with the current modality's slice
             parent.Dispatch(Services.Stores.Actions.ModelSelectorActions.setFilters, parent.GetState().SelectModelSelectorFilters() with
             {
-                modalities = modality,
+                modalities = modalities,
                 operations = operations
             });
             parent.Dispatch(Services.Stores.Actions.ModelSelectorActions.setLastSelectedModelID, selectedModelID);
             await Open(parent.GetStore());
             return parent.GetState().SelectSelectedModelID();
         }
-
-        public static async Task<string> Open(VisualElement parent, string selectedModelID, string modality, string[] operations) =>
-            await Open(parent, selectedModelID, new[] { modality }, operations);
 
         void CreateGUI()
         {

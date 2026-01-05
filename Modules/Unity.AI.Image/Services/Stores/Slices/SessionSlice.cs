@@ -1,10 +1,9 @@
-using System;
 using System.Linq;
 using Unity.AI.Image.Services.SessionPersistence;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Image.Services.Stores.Slices
 {
@@ -34,14 +33,17 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         return mergedState;
                     })
                     .AddCase(GenerationSettingsActions.setSelectedModelID).With((state, payload) =>
-                        state.settings.lastSelectedModels.Ensure(payload.payload.mode).modelID = payload.payload.modelID),
+                    {
+                        var modality = Selectors.Selectors.SelectModality(payload.context.asset, payload.payload.mode);
+                        state.settings.lastSelectedModels.Ensure(new LastSelectedModelKey(modality, payload.payload.mode)).modelID = payload.payload.modelID;
+                    }),
                 state => state with
                 {
                     settings = state.settings with
                     {
-                        lastSelectedModels = new SerializableDictionary<RefinementMode, ModelSelection>(
-                            state.settings.lastSelectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
-                                modelID = kvp.Value.modelID
+                        lastSelectedModels = new SerializableDictionary<LastSelectedModelKey, ModelSelection>(
+                            state.settings.lastSelectedModels.ToDictionary(kvp => kvp.Key, kvp => (kvp.Value ?? new ModelSelection()) with {
+                                modelID = kvp.Value?.modelID ?? string.Empty
                             })),
                         previewSettings = state.settings.previewSettings with
                         {

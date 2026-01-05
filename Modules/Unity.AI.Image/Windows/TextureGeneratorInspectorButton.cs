@@ -7,6 +7,8 @@ using Unity.AI.Toolkit.GenerationContextMenu;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit.Accounts.Services;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -43,21 +45,12 @@ namespace Unity.AI.Image.Windows
         [MenuItem("Assets/Create/Rendering/Generate Texture 2D", true)]
         static bool ValidateEmptyTextureMenu() => Account.settings.AiGeneratorsEnabled;
 
-        public static Texture2D EmptyTexture()
-        {
-            var texture = AssetUtils.CreateAndSelectBlankTexture();
-            Selection.activeObject = texture;
-            GenerateImage();
-            return texture;
-        }
+        [MenuItem("Assets/Create/Rendering/Generate Cubemap", false, -1000)]
+        public static void EmptyCubemapMenu() => CreateAndNameCubemap();
 
-        public static Texture2D EmptySprite()
-        {
-            var texture = AssetUtils.CreateAndSelectBlankSprite();
-            Selection.activeObject = texture;
-            GenerateImage();
-            return texture;
-        }
+        [MenuItem("Assets/Create/Rendering/Generate Cubemap", true)]
+        static bool ValidateCubemapMenu() => Account.settings.AiGeneratorsEnabled;
+
 
         public static void CreateAndNameSprite()
         {
@@ -77,7 +70,7 @@ namespace Unity.AI.Image.Windows
             ProjectWindowUtil.StartNameEditingIfProjectWindowExists(
                 0,
                 doCreate,
-                $"{AssetUtils.defaultNewAssetNameAlt}{AssetUtils.defaultAssetExtension}",
+                $"{AssetUtils.defaultNewAssetNameSprite}{AssetUtils.defaultAssetExtension}",
                 icon,
                 null,
                 true);
@@ -102,6 +95,30 @@ namespace Unity.AI.Image.Windows
                 0,
                 doCreate,
                 $"{AssetUtils.defaultNewAssetName}{AssetUtils.defaultAssetExtension}",
+                icon,
+                null,
+                true);
+        }
+
+        public static void CreateAndNameCubemap()
+        {
+            var icon = EditorGUIUtility.ObjectContent(null, typeof(Cubemap))?.image as Texture2D;
+            var doCreate = ScriptableObject.CreateInstance<DoCreateBlankAsset>();
+            doCreate.action = (_, path, _) =>
+            {
+                path = AssetDatabase.GenerateUniqueAssetPath(path);
+                path = AssetUtils.CreateBlankCubemap(path);
+                if (string.IsNullOrEmpty(path))
+                    Debug.Log($"Failed to create texture file for '{path}'.");
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                var texture = AssetDatabase.LoadAssetAtPath<Cubemap>(path);
+                Selection.activeObject = texture;
+                GenerateImage();
+            };
+            ProjectWindowUtil.StartNameEditingIfProjectWindowExists(
+                0,
+                doCreate,
+                $"{AssetUtils.defaultNewAssetNameCube}{AssetUtils.defaultAssetExtension}",
                 icon,
                 null,
                 true);
@@ -172,9 +189,6 @@ namespace Unity.AI.Image.Windows
                     break;
                 case TextureImporter importer:
                     path = importer.assetPath;
-                    // todo we don't support cubemaps yet
-                    if (importer.textureShape == TextureImporterShape.TextureCube)
-                        return false;
                     break;
                 default:
                     path = null;

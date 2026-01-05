@@ -1,6 +1,11 @@
 using System;
+using System.Linq;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Image.Services.Utilities;
+using Unity.AI.Image.Utilities;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Image.Services.Stores.States
 {
@@ -8,8 +13,8 @@ namespace Unity.AI.Image.Services.Stores.States
     record GenerationSetting
     {
         public SerializableDictionary<RefinementMode, ModelSelection> selectedModels = new();
-        public string prompt = "";
-        public string negativePrompt = "";
+        public SerializableDictionary<RefinementMode, string> prompt = new();
+        public SerializableDictionary<RefinementMode, string> negativePrompt = new();
         public int variationCount = 1;
         public bool useCustomSeed;
         public int customSeed;
@@ -18,6 +23,7 @@ namespace Unity.AI.Image.Services.Stores.States
         public bool replaceBlankAsset = true;
         public bool replaceRefinementAsset = true;
         public int upscaleFactor = 2;
+        public float duration = VideoResultFrameCache.Duration;
 
         public UnsavedAssetBytesSettings unsavedAssetBytes = new();
 
@@ -31,7 +37,9 @@ namespace Unity.AI.Image.Services.Stores.States
             new PaletteImageReference(),
             new PoseImageReference(),
             new PromptImageReference(),
-            new StyleImageReference()
+            new StyleImageReference(),
+            new FirstImageReference(),
+            new LastImageReference()
         };
 
         public PixelateSettings pixelateSettings = new();
@@ -39,6 +47,15 @@ namespace Unity.AI.Image.Services.Stores.States
         public string pendingPing;
         public float historyDrawerHeight = 200;
         public float generationPaneWidth = 280;
+
+        public LoopSettings loopSettings = new();
+    }
+
+    [Serializable]
+    record LoopSettings
+    {
+        public float trimStartTime = 0f;
+        public float trimEndTime = 1f;
     }
 
     [Serializable]
@@ -47,6 +64,8 @@ namespace Unity.AI.Image.Services.Stores.States
         public byte[] data = Array.Empty<byte>();
         public long timeStamp;
         public Uri uri;
+        public bool spriteSheet;
+        public float duration = 0;
     }
 
     [Serializable]
@@ -71,14 +90,46 @@ namespace Unity.AI.Image.Services.Stores.States
     record PaletteImageReference() : ImageReferenceSettings(1, true);
     record InpaintMaskImageReference() : ImageReferenceSettings(0.1f, true);
 
+
+    record FirstImageReference() : ImageReferenceSettings(1, true);
+    record LastImageReference() : ImageReferenceSettings(1, true);
+
+
+
+    [AttributeUsage(AttributeTargets.Field)]
+    class DisplayLabelAttribute : Attribute
+    {
+        public string Label { get; }
+        public DisplayLabelAttribute(string label) => Label = label;
+    }
+
+    static class RefinementModeExtensions
+    {
+        public static string GetDisplayLabel(this RefinementMode mode)
+        {
+            var type = typeof(RefinementMode);
+            var memInfo = type.GetMember(mode.ToString());
+            var attr = memInfo[0].GetCustomAttributes(typeof(DisplayLabelAttribute), false).FirstOrDefault() as DisplayLabelAttribute;
+            return attr?.Label ?? mode.ToString();
+        }
+    }
+
     enum RefinementMode : int
     {
+        [DisplayOrder(0), DisplayLabel("Generate")]
         Generation = 0,
+        [DisplayOrder(1), DisplayLabel("Remove BG")]
         RemoveBackground = 1,
+        [DisplayOrder(3), DisplayLabel("Upscale")]
         Upscale = 2,
+        [DisplayOrder(4), DisplayLabel("Pixelate")]
         Pixelate = 3,
+        [DisplayOrder(5), DisplayLabel("Recolor")]
         Recolor = 4,
-        Inpaint = 5
+        [DisplayOrder(6), DisplayLabel("Inpaint")]
+        Inpaint = 5,
+        [DisplayOrder(2), DisplayLabel("Spritesheet")]
+        Spritesheet = 6
     }
 
     enum ImageReferenceMode : int

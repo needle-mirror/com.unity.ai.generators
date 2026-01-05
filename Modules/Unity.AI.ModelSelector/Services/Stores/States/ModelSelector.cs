@@ -1,5 +1,5 @@
 using System;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.ModelSelector.Services.Stores.States
 {

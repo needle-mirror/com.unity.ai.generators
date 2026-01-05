@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using Unity.AI.Toolkit.Asset;
+using System.Linq;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 
@@ -10,8 +13,10 @@ namespace Unity.AI.Image.Services.Utilities
     static class AssetUtils
     {
         public const string defaultNewAssetName = "New Texture";
-        public const string defaultNewAssetNameAlt = "New Sprite";
+        public const string defaultNewAssetNameSprite = "New Sprite";
+        public const string defaultNewAssetNameCube = "New Cubemap";
         public const string defaultAssetExtension = ".png";
+        public static readonly IReadOnlyList<string> supportedAssetExtensions = ImageFileUtilities.knownExtensions.Append(SpriteSheetExtensions.defaultAssetExtension).ToArray();
 
         static string CreateBlankTexture(string path, bool force, int width, int height)
         {
@@ -61,7 +66,9 @@ namespace Unity.AI.Image.Services.Utilities
             return texturePath;
         }
 
-        public static string CreateBlankSprite(string path, bool force = true)
+        public static string CreateBlankSprite(string path) => CreateBlankSprite(path, false);
+
+        public static string CreateBlankSprite(string path, bool force)
         {
             const int size = 1024;
             var texturePath = CreateBlankTexture(path, force, size, size);
@@ -80,42 +87,24 @@ namespace Unity.AI.Image.Services.Utilities
             return texturePath;
         }
 
-        static Texture2D CreateTexture(string name, bool force = true)
+        public static string CreateBlankCubemap(string path) => CreateBlankCubemap(path, false);
+
+        public static string CreateBlankCubemap(string path, bool force)
         {
-            var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{name}{defaultAssetExtension}";
-            if (force || !File.Exists(path))
+            const int size = 1024;
+            var texturePath = CreateBlankTexture(path, force, size, size);
+            if (string.IsNullOrEmpty(texturePath))
+                return string.Empty;
+
+            var textureImporter = AssetImporter.GetAtPath(texturePath) as TextureImporter;
+            if (textureImporter != null)
             {
-                path = AssetDatabase.GenerateUniqueAssetPath(path);
-                path = CreateBlankTexture(path);
-                if (string.IsNullOrEmpty(path))
-                    Debug.Log($"Failed to create texture file for '{path}'.");
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                textureImporter.textureType = TextureImporterType.Default;
+                textureImporter.textureShape = TextureImporterShape.TextureCube;
+                textureImporter.SaveAndReimport();
             }
-            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            Selection.activeObject = texture;
-            return texture;
+
+            return texturePath;
         }
-
-        static Texture2D CreateSprite(string name, bool force = true)
-        {
-            var basePath = AssetUtilities.GetSelectionPath();
-            var path = $"{basePath}/{name}{defaultAssetExtension}";
-            if (force || !File.Exists(path))
-            {
-                path = AssetDatabase.GenerateUniqueAssetPath(path);
-                path = CreateBlankSprite(path);
-                if (string.IsNullOrEmpty(path))
-                    Debug.Log($"Failed to create sprite file for '{path}'.");
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-            }
-            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            Selection.activeObject = texture;
-            return texture;
-        }
-
-        public static Texture2D CreateAndSelectBlankTexture(bool force = true) => CreateTexture(defaultNewAssetName, force);
-
-        public static Texture2D CreateAndSelectBlankSprite(bool force = true) => CreateSprite(defaultNewAssetNameAlt, force);
     }
 }

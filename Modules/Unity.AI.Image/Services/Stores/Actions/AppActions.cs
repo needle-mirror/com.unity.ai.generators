@@ -1,4 +1,3 @@
-using System;
 using Unity.AI.Image.Services.SessionPersistence;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.Selectors;
@@ -6,6 +5,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 
 namespace Unity.AI.Image.Services.Stores.Actions

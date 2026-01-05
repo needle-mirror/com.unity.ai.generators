@@ -10,9 +10,11 @@ using Unity.AI.Image.Utilities;
 using Unity.AI.Image.Windows;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -69,7 +71,7 @@ namespace Unity.AI.Image.Services.Utilities
             objectField.RegisterValueChangedCallback(async evt =>
             {
                 var wasTempAsset = ExternalFileDragDrop.tempAssetDragged;
-                var assetRef = AssetReferenceExtensions.FromObject(evt.newValue);
+                var assetRef = Unity.AI.Generators.Asset.AssetReferenceExtensions.FromObject(evt.newValue);
                 if (wasTempAsset)
                 {
                     ExternalFileDragDrop.EndDragFromExternalPath();
@@ -265,7 +267,7 @@ namespace Unity.AI.Image.Services.Utilities
                     {
                         var imageGuid = buffer.Substring(assetPrefix.Length);
                         var assetPath = AssetDatabase.GUIDToAssetPath(imageGuid);
-                        var assetRef = AssetReferenceExtensions.FromPath(assetPath);
+                        var assetRef = Unity.AI.Generators.Asset.AssetReferenceExtensions.FromPath(assetPath);
 
                         e.Dispatch(GenerationSettingsActions.setImageReferenceMode, new (e.type, ImageReferenceMode.Asset));
                         e.Dispatch(GenerationSettingsActions.setImageReferenceAsset, new (e.type, assetRef));

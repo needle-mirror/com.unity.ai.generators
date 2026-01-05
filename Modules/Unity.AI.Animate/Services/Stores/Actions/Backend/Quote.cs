@@ -11,6 +11,7 @@ using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
@@ -18,8 +19,9 @@ using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services.Sdk;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Connect;
-using UnityEditor;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Random = UnityEngine.Random;
 
@@ -72,7 +74,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                     return;
                 }
 
-                if (!asset.Exists())
+                if (!asset.Exists() && !arg.allowInvalidAsset)
                 {
                     var messages = new[] { "Selected asset is invalid. Please select a valid asset." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
@@ -104,8 +106,8 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
 
                 var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                     projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                    defaultOperationTimeout: Constants.realtimeTimeout);
+                    unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout, packageInfoProvider: new PackageInfoProvider());
                 var animationComponent = builder.AnimationComponent();
 
                 // Create a linked token source that will be canceled if the original is canceled
@@ -131,8 +133,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Backend
                     }
                 }
 
-                var quoteResults = await EditorTask.Run(() =>
-                    animationComponent.GenerateAnimationQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                var quoteResults = await animationComponent.GenerateAnimationQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
 
                 if (cancellationTokenSource.IsCancellationRequested)
                 {

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using Unity.AI.Generators.Redux;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Actions;
@@ -59,11 +58,6 @@ namespace Unity.AI.Sound.Components
             {
                 m_Button.SetEnabled(!payload.should);
                 m_Button.tooltip = payload.should ? "No additional model currently available" : "Choose another AI model";
-                if (!payload.should)
-                    return;
-                var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
-                if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                    this.Dispatch(GenerationSettingsActions.setSelectedModelID, autoAssignModel.id);
             });
         }
 

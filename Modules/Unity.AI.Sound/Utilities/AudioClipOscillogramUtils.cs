@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.Mathematics;
 using UnityEditor;

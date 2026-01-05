@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using UnityEditor;
 using UnityEngine;
 
@@ -17,7 +17,20 @@ namespace Unity.AI.Generators.UI.Utilities
     }
 
     [Serializable]
-    record TextureWithTimestamp(Texture texture, long timestamp);
+    record TextureWithTimestamp
+    {
+        public TextureWithTimestamp(Texture texture, long timestamp)
+        {
+            this.texture = texture;
+            this.timestamp = timestamp;
+        }
+
+        /// <summary>
+        /// must be public and declared for proper serialization
+        /// </summary>
+        public Texture texture;
+        public long timestamp;
+    }
 
     [Serializable]
     class TextureCachePersistence : ScriptableSingleton<TextureCachePersistence>

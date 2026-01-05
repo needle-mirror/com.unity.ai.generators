@@ -12,6 +12,9 @@ using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSu
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Transform;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Transform.OperationSubTypes;
 using AiEditorToolsSdk.Components.Modalities.Image.Responses;
+using AiEditorToolsSdk.Components.Modalities.Video.Requests.Generate;
+using AiEditorToolsSdk.Components.Modalities.Video.Requests.Generate.OperationSubTypes;
+using AiEditorToolsSdk.Components.Modalities.Video.Responses;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
@@ -19,6 +22,7 @@ using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
@@ -27,29 +31,30 @@ using Unity.AI.Generators.Sdk;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services.Sdk;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Connect;
+using UnityEngine;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Debug = UnityEngine.Debug;
-using Logger = Unity.AI.Generators.Sdk.Logger;
+using Logger = Unity.AI.Toolkit.Accounts.Services.Sdk.Logger;
 
 namespace Unity.AI.Image.Services.Stores.Actions.Backend
 {
     static class Generation
     {
-        public static readonly AsyncThunkCreatorWithArg<GenerateImagesData> generateImages = new($"{GenerationResultsActions.slice}/generateImagesSuperProxy",
-            GenerateImagesAsync);
-
-        static async Task GenerateImagesAsync(GenerateImagesData arg, AsyncThunkApi<bool> api)
+        public static async Task<DownloadImagesData> GenerateImagesAsync(GenerateImagesData arg, AsyncThunkApi<bool> api)
         {
             using var editorFocus = new EditorAsyncKeepAliveScope("Generating images.");
 
             var asset = new AssetReference { guid = arg.asset.guid };
 
             var generationSetting = arg.generationSetting;
-            var generationMetadata = generationSetting.MakeMetadata(arg.asset);
+            var generationMetadata = await api.State.MakeMetadata(arg.asset);
             var variations = generationSetting.SelectVariationCount();
             var refinementMode = generationSetting.SelectRefinementMode();
-            variations = refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Pixelate
+            var duration = generationSetting.SelectDuration();
+            variations = refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Pixelate or RefinementMode.Spritesheet
                 ? 1
                 : variations;
 
@@ -65,7 +70,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
             {
                 api.DispatchInvalidCloudProjectMessage(arg.asset);
                 api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                return;
+                return null;
             }
 
             api.DispatchProgress(arg.asset, progress with { progress = 0.01f }, "Preparing request.");
@@ -91,6 +96,10 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
             var ids = new List<Guid>();
             int[] customSeeds = { };
+            string w3CTraceId = null;
+
+            var generatingAttempted = false;
+            var generatingRequested = false;
 
             try
             {
@@ -109,14 +118,14 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
 
                     // we can simply return without throwing or additional logging because the error is already logged
-                    return;
+                    return null;
                 }
                 catch (Exception e)
                 {
                     Debug.LogException(e);
 
                     api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                    return;
+                    return null;
                 }
                 finally
                 {
@@ -133,11 +142,13 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                     var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                         projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                        unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true);
+                        unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset),
+                        enableDebugLogging: true, defaultOperationTimeout: Constants.generationTimeToLive, packageInfoProvider: new PackageInfoProvider());
                     var imageComponent = builder.ImageComponent();
 
                     BatchOperationResult<ImageGenerateResult> generateResults = null;
                     BatchOperationResult<ImageTransformResult> transformResults = null;
+                    BatchOperationResult<VideoGenerateResult> videoResults = null;
 
                     using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.generateTimeout);
 
@@ -148,7 +159,10 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             var request = ImageGenerateRequestBuilder.Initialize(recolorModelID, dimensions.x, dimensions.y, useCustomSeed ? customSeed : null)
                                 .Recolor(new Recolor(uploadReferences.assetGuid, uploadReferences.paletteAssetGuid));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                            generatingAttempted = true;
+                            generateResults = await imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                            generatingRequested = true;
+                            w3CTraceId = generateResults.W3CTraceId;
                             break;
                         }
                         case RefinementMode.Pixelate:
@@ -157,7 +171,10 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                 .Pixelate(new Pixelate(uploadReferences.assetGuid, pixelateResizeToTargetSize, pixelateTargetSize, pixelatePixelBlockSize, pixelateMode,
                                     pixelateOutlineThickness))
                                 .AsSingleInAList();
-                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                            generatingAttempted = true;
+                            transformResults = await imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                            generatingRequested = true;
+                            w3CTraceId = transformResults.W3CTraceId;
                             break;
                         }
                         case RefinementMode.Inpaint:
@@ -166,21 +183,52 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                 .GenerateWithMaskReference(new TextPrompt(prompt, negativePrompt),
                                     new MaskReference(uploadReferences.assetGuid, uploadReferences.maskGuid, uploadReferences.inpaintMaskImageReference.strength));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                            generatingAttempted = true;
+                            generateResults = await imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                            generatingRequested = true;
+                            w3CTraceId = generateResults.W3CTraceId;
                             break;
                         }
                         case RefinementMode.RemoveBackground:
                         {
                             var request = ImageTransformRequestBuilder.Initialize().RemoveBackground(new RemoveBackground(uploadReferences.assetGuid));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                            generatingAttempted = true;
+                            transformResults = await imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                            generatingRequested = true;
+                            w3CTraceId = transformResults.W3CTraceId;
                             break;
                         }
                         case RefinementMode.Upscale:
                         {
-                            var request = ImageTransformRequestBuilder.Initialize().Upscale(new(uploadReferences.assetGuid, upscaleFactor, null, null));
+                            var request = asset.IsCubemap()
+                                ? ImageTransformRequestBuilder.Initialize().SkyboxUpscale(new(uploadReferences.assetGuid, upscaleFactor))
+                                : ImageTransformRequestBuilder.Initialize().Upscale(new(uploadReferences.assetGuid, upscaleFactor, null, null));
                             var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                            transformResults = await EditorTask.Run(() => imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                            generatingAttempted = true;
+                            transformResults = await imageComponent.Transform(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                            generatingRequested = true;
+                            w3CTraceId = transformResults.W3CTraceId;
+
+                            break;
+                        }
+                        case RefinementMode.Spritesheet:
+                        {
+                            var videoComponent = builder.VideoComponent();
+                            var firstFrameGuid =
+                                uploadReferences.referenceGuids.TryGetValue(ImageReferenceType.FirstImage, out var firstImageGuid) && firstImageGuid != Guid.Empty
+                                    ? firstImageGuid
+                                    : Guid.Empty;
+                            var lastFrameGuid = uploadReferences.referenceGuids.TryGetValue(ImageReferenceType.LastImage, out var lastImageGuid) && lastImageGuid != Guid.Empty
+                                ? lastImageGuid
+                                : (Guid?)null;
+                            var referencePrompt = new ReferencePrompt(firstFrameGuid, lastFrameGuid);
+                            var request = VideoGenerateRequestBuilder.Initialize(generativeModelID, duration: duration).GenerateWithReference(new TextPrompt(prompt, negativePrompt), referencePrompt);
+                            var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
+                            generatingAttempted = true;
+                            videoResults = await videoComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                            generatingRequested = true;
+                            w3CTraceId = videoResults.W3CTraceId;
                             break;
                         }
                         case RefinementMode.Generation:
@@ -221,14 +269,20 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                                         : null);
 
                                 var requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
-                                generateResults = await EditorTask.Run(() => imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token), sdkTimeoutTokenSource.Token);
+                                generatingAttempted = true;
+                                generateResults = await imageComponent.Generate(requests, cancellationToken: sdkTimeoutTokenSource.Token);
+                                generatingRequested = true;
+                                w3CTraceId = generateResults.W3CTraceId;
+#if SIMULATE_GENERATION_TIMEOUT
+                                throw new OperationCanceledException("Simulating generation timeout.");
+#endif
                             }
                             catch (UnhandledReferenceCombinationException e)
                             {
                                 var messages = new[] { $"{e.responseError.ToString()}: {e.Message}" };
                                 api.Dispatch(GenerationActions.setGenerationValidationResult,
                                     new(arg.asset, new(false, e.responseError.ToString(), 0, messages.Select(m => new GenerationFeedbackData(m)).ToList())));
-                                return;
+                                return null;
                             }
 
                             break;
@@ -254,13 +308,13 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                             once = true;
 
-                            api.DispatchFailedMessage(arg.asset, generateResult.Error);
+                            api.DispatchFailedMessage(arg.asset, generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? generateResults.W3CTraceId : generateResult.Error.W3CTraceId);
                         }
 
                         cost = generateResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                         ids = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
                         customSeeds = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(result => result.Value.Request.Seed ?? -1).ToArray();
-                        generationMetadata.w3CTraceId = generateResults.W3CTraceId;
+                        generationMetadata.w3CTraceId = w3CTraceId;
                     }
 
                     if (transformResults != null)
@@ -270,7 +324,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             api.DispatchFailedBatchMessage(arg.asset, transformResults);
 
                             // we can simply return because the error is already logged and we rely on finally statements for cleanup
-                            return;
+                            return null;
                         }
 
                         var once = false;
@@ -283,12 +337,40 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                             once = true;
 
-                            api.DispatchFailedMessage(arg.asset, transformResult.Error);
+                            api.DispatchFailedMessage(arg.asset, transformResult.Error, string.IsNullOrEmpty(transformResult.Error?.W3CTraceId) ? transformResults.W3CTraceId : transformResult.Error.W3CTraceId);
                         }
 
                         cost = transformResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                         ids = transformResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
-                        generationMetadata.w3CTraceId = transformResults.W3CTraceId;
+                        generationMetadata.w3CTraceId = w3CTraceId;
+                    }
+
+                    if (videoResults != null)
+                    {
+                        if (!videoResults.Batch.IsSuccessful)
+                        {
+                            api.DispatchFailedBatchMessage(arg.asset, videoResults);
+
+                            throw new HandledFailureException();
+                        }
+
+                        var once = false;
+                        foreach (var generateResult in videoResults.Batch.Value.Where(v => !v.IsSuccessful))
+                        {
+                            if (!once)
+                            {
+                                api.DispatchFailedBatchMessage(arg.asset, videoResults);
+                            }
+
+                            once = true;
+
+                            api.DispatchFailedMessage(arg.asset, generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? videoResults.W3CTraceId : generateResult.Error.W3CTraceId);
+                        }
+
+                        cost = videoResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
+                        ids = videoResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
+                        customSeeds = videoResults.Batch.Value.Where(v => v.IsSuccessful).Select(result => result.Value.Request.Seed ?? -1).ToArray();
+                        generationMetadata.w3CTraceId = w3CTraceId;
                     }
 
                     if (ids.Count == 0)
@@ -311,21 +393,26 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
 
                 // we can simply return without throwing or additional logging because the error is already logged
-                return;
+                return null;
             }
             catch (OperationCanceledException)
             {
-                api.DispatchGenerationRequestFailedMessage(asset);
+                if (!generatingAttempted)
+                    api.DispatchClientGenerationAttemptFailedMessage(asset);
+                else if (!generatingRequested)
+                    api.DispatchClientGenerationRequestFailedMessage(asset);
+                else
+                    api.DispatchGenerationRequestFailedMessage(asset, w3CTraceId);
 
                 api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                return;
+                return null;
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
 
                 api.Dispatch(GenerationResultsActions.removeGeneratedSkeletons, new(arg.asset, arg.progressTaskId));
-                return;
+                return null;
             }
             finally
             {
@@ -339,9 +426,11 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
             AIToolbarButton.ShowPointsCostNotification(cost);
 
             // Generate a unique task ID for download recovery
-            var downloadImagesData = new DownloadImagesData(asset, ids, arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId, generationMetadata, customSeeds,
-                refinementMode is RefinementMode.RemoveBackground or RefinementMode.Pixelate or RefinementMode.Upscale or RefinementMode.Recolor,
-                generationSetting.replaceBlankAsset, generationSetting.replaceRefinementAsset, false);
+            var downloadImagesData = new DownloadImagesData(asset: asset, jobIds: ids, progressTaskId: arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId,
+                generationMetadata: generationMetadata, customSeeds: customSeeds,
+                isRefinement: refinementMode is RefinementMode.RemoveBackground or RefinementMode.Pixelate or RefinementMode.Upscale or RefinementMode.Recolor or RefinementMode.Spritesheet,
+                replaceBlankAsset: generationSetting.replaceBlankAsset, replaceRefinementAsset: generationSetting.replaceRefinementAsset, autoApply: arg.autoApply,
+                retryable: false);
 
             GenerationRecovery.AddInterruptedDownload(downloadImagesData); // 'potentially' interrupted
 
@@ -351,10 +440,10 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 throw new Exception("Some simulated client side failure.");
             }
 
-            await DownloadImagesAsyncWithRetry(downloadImagesData, api);
+            return downloadImagesData;
         }
 
-        static async Task DownloadImagesAsyncWithRetry(DownloadImagesData downloadImagesData, AsyncThunkApi<bool> api)
+        public static async Task DownloadImagesAsyncWithRetry(DownloadImagesData downloadImagesData, AsyncThunkApi<bool> api)
         {
             /* Retry loop. On the last try, retryable is false and we never timeout
                Each download attempt has a reasonable timeout (90 seconds)
@@ -383,7 +472,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             $"The last download attempt ({retryCount + 1}/{maxRetries}) is never supposed to timeout. This is a bug in the code, please report it.");
                     }
 
-                    if (UnityEditor.Unsupported.IsDeveloperMode())
+                    if (LoggerUtilities.sdkLogLevel > 0)
                         Debug.Log($"Download timed out. Retrying ({retryCount + 1}/{maxRetries})...");
                 }
                 catch (HandledFailureException)
@@ -417,16 +506,17 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
             var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                 projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                defaultOperationTimeout: Constants.referenceUploadCreateUrlTimeout);
+                unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset), enableDebugLogging: true,
+                defaultOperationTimeout: Constants.referenceUploadTimeToLive, packageInfoProvider: new PackageInfoProvider());
             var assetComponent = builder.AssetComponent();
 
             var refineAsset = refinementMode is RefinementMode.RemoveBackground or RefinementMode.Upscale or RefinementMode.Recolor
-                or RefinementMode.Pixelate or RefinementMode.Inpaint;
+                or RefinementMode.Pixelate or RefinementMode.Inpaint or RefinementMode.Spritesheet;
 
             // main asset is only uploaded when refining
             if (refineAsset)
             {
+                string w3CTraceId = null;
                 var streamsToDispose = new List<Stream>();
                 try
                 {
@@ -445,6 +535,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
 
                     var mainAssetWithResult = await assetComponent.StoreAssetWithResult(streamToStore, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                    w3CTraceId = mainAssetWithResult.W3CTraceId;
                     if (!api.DispatchStoreAssetMessage(asset, mainAssetWithResult, out assetGuid))
                     {
                         throw new HandledFailureException();
@@ -452,7 +543,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 }
                 catch (OperationCanceledException)
                 {
-                    api.DispatchReferenceUploadFailedMessage(asset);
+                    api.DispatchReferenceUploadFailedMessage(asset, w3CTraceId);
                     throw new HandledFailureException();
                 }
                 finally
@@ -470,6 +561,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     var paletteImageReference = imageReferences[refinementMode][ImageReferenceType.PaletteImage];
                     if (paletteImageReference.SelectImageReferenceIsValid())
                     {
+                        string w3CTraceId = null;
                         try
                         {
                             await using var paletteAsset = await paletteImageReference.SelectImageReferenceStream();
@@ -480,6 +572,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
 
                             var assetWithResult = await assetComponent.StoreAssetWithResult(paletteApproximation, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                            w3CTraceId = assetWithResult.W3CTraceId;
                             if (!api.DispatchStoreAssetMessage(asset, assetWithResult, out paletteAssetGuid))
                             {
                                 throw new HandledFailureException();
@@ -487,7 +580,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                         }
                         catch (OperationCanceledException)
                         {
-                            api.DispatchReferenceUploadFailedMessage(asset);
+                            api.DispatchReferenceUploadFailedMessage(asset, w3CTraceId);
                             throw new HandledFailureException();
                         }
                     }
@@ -507,6 +600,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     inpaintMaskImageReference = imageReferences[refinementMode][ImageReferenceType.InPaintMaskImage];
                     if (inpaintMaskImageReference.SelectImageReferenceIsValid())
                     {
+                        string w3CTraceId = null;
                         try
                         {
                             await using var maskAsset = ImageFileUtilities.CheckImageSize(await inpaintMaskImageReference.SelectImageReferenceStream());
@@ -514,6 +608,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             using var sdkTimeoutTokenSource = new CancellationTokenSource(Constants.referenceUploadCreateUrlTimeout);
 
                             var assetWithResult = await assetComponent.StoreAssetWithResult(maskAsset, httpClientLease.client, sdkTimeoutTokenSource.Token, CancellationToken.None);
+                            w3CTraceId = assetWithResult.W3CTraceId;
                             if (!api.DispatchStoreAssetMessage(asset, assetWithResult, out maskGuid))
                             {
                                 throw new HandledFailureException();
@@ -521,15 +616,17 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                         }
                         catch (OperationCanceledException)
                         {
-                            api.DispatchReferenceUploadFailedMessage(asset);
+                            api.DispatchReferenceUploadFailedMessage(asset, w3CTraceId);
                             throw new HandledFailureException();
                         }
                     }
 
                     break;
                 }
+                case RefinementMode.Spritesheet:
                 case RefinementMode.Generation:
                 {
+                    string w3CTraceId = null;
                     var streamsToDispose = new List<Stream>();
                     try
                     {
@@ -564,6 +661,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                         foreach (var uploadTask in referenceAssetTasks.Values)
                         {
                             await uploadTask;
+                            w3CTraceId = uploadTask.Result.W3CTraceId;
                         }
 
                         referenceGuids = imageReferences[refinementMode].ToDictionary(kvp => kvp.Key, _ => Guid.Empty);
@@ -579,7 +677,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                     }
                     catch (OperationCanceledException)
                     {
-                        api.DispatchReferenceUploadFailedMessage(asset);
+                        api.DispatchReferenceUploadFailedMessage(asset, w3CTraceId);
                         throw new HandledFailureException();
                     }
                     finally
@@ -680,8 +778,8 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                 var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                     projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(arg.asset), enableDebugLogging: true,
-                    defaultOperationTimeout: retryTimeout);
+                    unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(arg.asset),
+                    enableDebugLogging: true, defaultOperationTimeout: retryTimeout, packageInfoProvider: new PackageInfoProvider());
                 var assetComponent = builder.AssetComponent();
 
                 for (var index = 0; index < arg.jobIds.Count; index++)
@@ -699,8 +797,9 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                         // First job gets most of the time budget, the subsequent jobs just get long enough for a status check
                         using var retryTokenSource = new CancellationTokenSource(index == 0 ? retryTimeout : shortRetryTimeout);
 
-                        url = await EditorTask.Run(() =>
-                            assetComponent.CreateAssetDownloadUrl(jobId, retryTimeout, api.DispatchJobUpdates, retryTokenSource.Token), retryTokenSource.Token);
+                        url = await assetComponent.CreateAssetDownloadUrl(jobId, retryTimeout, status => {
+                                api.DispatchJobUpdates(jobId.ToString(), status);
+                            }, retryTokenSource.Token);
 
                         if (url.Result.IsSuccessful && !WebUtilities.simulateServerSideFailures)
                         {
@@ -803,26 +902,36 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
 
                 var generativePath = arg.asset.GetGeneratedAssetsPath();
                 var metadata = arg.generationMetadata;
-                var saveTasks = generatedImages.Select(async (result, index) =>
+                var saveTasks = generatedImages.Select((result, index) =>
                 {
                     var metadataCopy = metadata with { };
                     if (generatedCustomSeeds.Count > 0 && generatedImages.Count == generatedCustomSeeds.Count)
                         metadataCopy.customSeed = generatedCustomSeeds[index];
 
-                    await result.DownloadToProject(metadataCopy, generativePath, httpClientLease.client);
-                    var fullfilled = new FulfilledSkeletons(arg.asset, new List<FulfilledSkeleton> {new(arg.progressTaskId, result.uri.GetAbsolutePath())});
-                    api.Dispatch(GenerationResultsActions.setFulfilledSkeletons, fullfilled);
+                    return result.DownloadToProject(metadataCopy, generativePath, httpClientLease.client);
                 }).ToList();
 
-                await Task.WhenAll(saveTasks);
+                foreach (var saveTask in saveTasks)
+                {
+                    await saveTask;
+                }
             }
             finally
             {
                 progressTokenSource4.Cancel();
             }
 
+            // generations are fulfilled when saveTask completes
+            GenerationRecovery.RemoveInterruptedDownload(arg with { jobIds = generatedJobIds.ToList(), customSeeds = generatedCustomSeeds.ToArray() });
+
+            foreach (var generatedImage in generatedImages)
+            {
+                var fulfilled = new FulfilledSkeletons(arg.asset, new List<FulfilledSkeleton> {new(arg.progressTaskId, generatedImage.uri.GetAbsolutePath())});
+                api.Dispatch(GenerationResultsActions.setFulfilledSkeletons, fulfilled);
+            }
+
             // auto-apply if blank or if RefinementMode
-            if (generatedImages.Count > 0 && ((assetWasBlank && arg.replaceBlankAsset) || (arg.isRefinement && arg.replaceRefinementAsset)))
+            if (generatedImages.Count > 0 && ((assetWasBlank && arg.replaceBlankAsset) || (arg.isRefinement && arg.replaceRefinementAsset) || arg.autoApply))
             {
                 await api.Dispatch(GenerationResultsActions.selectGeneration, new(arg.asset, generatedImages[0], backupSuccess, !assetWasBlank));
                 if (assetWasBlank)
@@ -831,10 +940,9 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                 }
             }
 
+            // Mark progress as 99%. Final completion (100%) is handled when the Store State processes the generation result from GenerationFileSystemWatcher and the FulfilledSkeletons above.
             if (timedOutJobIds.Count == 0)
-                api.DispatchProgress(arg.asset, progress with { progress = 1f }, "Done.");
-
-            GenerationRecovery.RemoveInterruptedDownload(arg with { jobIds = generatedJobIds.ToList(), customSeeds = generatedCustomSeeds.ToArray() });
+                api.DispatchProgress(arg.asset, progress with { progress = 0.99f }, "Done.");
 
             return arg with { jobIds = timedOutJobIds.ToList(), customSeeds = timedOutCustomSeeds.ToArray() };
         }

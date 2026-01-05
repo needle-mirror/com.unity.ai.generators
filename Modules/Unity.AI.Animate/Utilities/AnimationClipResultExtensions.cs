@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -113,7 +115,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
                 Directory.CreateDirectory(cacheDirectory);
                 await FileIO.CopyFileAsync(path, newPath, overwrite: true);
-                Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
+                AssetDatabaseExtensions.ImportGeneratedAsset(newPath);
                 animationClipResult.uri = newUri;
 
                 try
@@ -145,7 +147,7 @@ namespace Unity.AI.Animate.Services.Utilities
 
                 Directory.CreateDirectory(cacheDirectory);
 
-                var newUri = await UriExtensions.DownloadFile(animationClipResult.uri, cacheDirectory, httpClient);
+                var newUri = await Unity.AI.Generators.IO.Utilities.UriExtensions.DownloadFile(animationClipResult.uri, cacheDirectory, httpClient);
                 if (newUri == animationClipResult.uri)
                     return;
 
@@ -209,7 +211,7 @@ namespace Unity.AI.Animate.Services.Utilities
             if (!fileInfo.Exists)
                 return false;
 
-            return FileIO.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
+            return FileComparison.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
         }
 
         public static async Task<bool> CopyToAsync(this AnimationClipResult generatedAnimationClip, AssetReference asset)

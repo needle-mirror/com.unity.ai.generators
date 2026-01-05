@@ -10,12 +10,29 @@ Sprite Generator provides several post-processing options to refine the generate
 
 Use the **Remove BG** tab to remove the background elements from the generated sprite.
 
+To use this tab, follow these steps:
+
 1. In the **Generate** window, select the **Remove BG** tab.
 1. Select **Remove BG**.
+
+## Spritesheet
+
+Use the **Spritesheet** tab to generate an animation-ready spritesheet from the selected sprite. Sprite Generator creates a short animation video, samples frames from the video, and arranges them into a 4 × 4 spritesheet (16 frames).
+
+To use this tab, follow these steps:
+
+1. In the **Generate** window, select the **Spritesheet** tab.
+2. In the **Prompt** field, specify a motion type. For example: `Turntable`.
+3. Provide a reference image that acts as the first frame of the generated spritesheet.
+4. Select **Spritesheet**.
+
+For more information on spritesheet, refer to [Generate a spritesheet](xref:spritesheet-generation).
 
 ## Upscale
 
 Use the **Upscale** tab to increase the resolution of the generated sprite without losing detail.
+
+To use this tab, follow these steps:
 
 1. In the **Generate** window, select the **Upscale** tab.
 1. Select **Change** to choose a model from the **Select Model** window.
@@ -28,6 +45,8 @@ View the upscaled image in the **Generations** panel. The resolution badge (for 
 ## Pixelate
 
 Use the **Pixelate** tab to convert the sprite into a pixel art style.
+
+To use this tab, follow these steps:
 
 1. In the **Generate** window, select the **Pixelate** tab.
 1. Adjust the following settings:
@@ -43,6 +62,8 @@ Use the **Pixelate** tab to convert the sprite into a pixel art style.
 ## Recolor
 
 Use the **Recolor** tab to customize the color palette used in the sprite.
+
+To use this tab, follow these steps:
 
 1. In the **Generate** window, select the **Recolor** tab.
 1. In the **Palette Reference** field, select the **Paint Brush** tool.
@@ -62,6 +83,8 @@ Use the **Recolor** tab to customize the color palette used in the sprite.
 ## Inpaint
 
 Use the **Inpaint** tab to refine specific areas of the sprite with masking. You can adjust the mask with brush settings and an eraser.
+
+To use this tab, follow these steps:
 
 1. In the **Generate** window, select the **Inpaint** tab.
 1. In the **Prompt** field, specify the object that you want to insert in the area defined by the mask.

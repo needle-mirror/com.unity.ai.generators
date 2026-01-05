@@ -8,7 +8,7 @@ namespace Unity.AI.Generators.UI.Utilities
     [InitializeOnLoad]
     static class DomainReloadUtilities
     {
-        static readonly string k_TokenFilePath = Path.Combine(UndoUtilities.projectRootPath, "Temp", "ai_tk_domain_reload_token");
+        static readonly string k_TokenFilePath = Path.Combine(TempUtilities.projectRootPath, "Temp", "ai_tk_domain_reload_token");
 
         static bool? s_WasDomainReloaded;
 

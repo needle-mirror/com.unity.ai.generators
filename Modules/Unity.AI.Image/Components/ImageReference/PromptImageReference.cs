@@ -1,9 +1,7 @@
-﻿using System;
-using Unity.AI.Image.Services.Utilities;
+﻿using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.UI;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Components

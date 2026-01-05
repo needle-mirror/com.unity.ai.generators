@@ -5,6 +5,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Toolkit.Accounts.Services;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.GenerationContextMenu;
 using UnityEditor;
 using UnityEngine;
@@ -52,7 +53,7 @@ namespace Unity.AI.Sound.Windows
             ProjectWindowUtil.StartNameEditingIfProjectWindowExists(
                 0,
                 doCreate,
-                $"{AssetUtils.defaultNewAssetName}{AssetUtils.defaultAssetExtension}",
+                $"{AssetUtils.defaultNewAssetName}{AssetUtils.wavAssetExtension}",
                 icon,
                 null,
                 true);
@@ -138,7 +139,7 @@ namespace Unity.AI.Sound.Windows
             if (!string.IsNullOrEmpty(path))
             {
                 var extension = Path.GetExtension(path).ToLower();
-                if (extension is AssetUtils.defaultAssetExtension)
+                if (extension is AssetUtils.wavAssetExtension)
                 {
                     return true;
                 }

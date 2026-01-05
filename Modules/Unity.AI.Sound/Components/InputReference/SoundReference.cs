@@ -10,6 +10,7 @@ using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -86,7 +87,7 @@ namespace Unity.AI.Sound.Components
         void CreateNewBlankAudioAndReferenceIt()
         {
             var audioClip = AssetUtils.CreateBlankAudioClipSameFolder(this.GetAsset(), " Recording");
-            this.Dispatch(GenerationSettingsActions.setSoundReferenceAsset, AssetReferenceExtensions.FromObject(audioClip));
+            this.Dispatch(GenerationSettingsActions.setSoundReferenceAsset, Unity.AI.Generators.Asset.AssetReferenceExtensions.FromObject(audioClip));
         }
 
         async Task ToggleRecording()

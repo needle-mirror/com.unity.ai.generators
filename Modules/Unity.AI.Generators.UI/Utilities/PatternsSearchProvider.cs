@@ -131,7 +131,7 @@ namespace Unity.AI.Generators.UI.Utilities
         {
             for (var i = 0; i <= 47; i++)
             {
-                var patternPath = $"Unity.AI.Material/Patterns/Pattern_{i}.png";
+                var patternPath = $"Unity.AI.Pbr/Patterns/Pattern_{i}.png";
                 k_PatternKeywords[patternPath] = new List<string>
                 {
                     $"pattern{i}",
@@ -302,7 +302,7 @@ namespace Unity.AI.Generators.UI.Utilities
 
             foreach (var index in patternIndices)
             {
-                var patternPath = $"Unity.AI.Material/Patterns/Pattern_{index}.png";
+                var patternPath = $"Unity.AI.Pbr/Patterns/Pattern_{index}.png";
                 if (k_PatternKeywords.ContainsKey(patternPath))
                 {
                     k_PatternKeywords[patternPath] = keywordList;

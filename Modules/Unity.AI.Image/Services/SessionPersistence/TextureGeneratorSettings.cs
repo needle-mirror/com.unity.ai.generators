@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Image.Services.Stores.States;

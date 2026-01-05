@@ -6,7 +6,10 @@ using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.ModelSelector.Services.Stores.States;
+using Unity.AI.ModelSelector.Services.Utilities;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -32,6 +35,16 @@ namespace Unity.AI.Sound.Components
                 Selectors.SelectGenerationPaneWidth);
 
             this.UseArray(state => state.SelectGenerationFeedback(this), OnGenerationFeedbackChanged);
+            this.Use(state => state.SelectSelectedModel(this), settings =>
+            {
+                if (!settings.IsValid())
+                    return;
+
+                var supportsReferencePrompt = settings.operations.Contains(ModelConstants.Operations.ReferencePrompt);
+                if (!supportsReferencePrompt)
+                    this.Dispatch(GenerationSettingsActions.setSoundReference, new());
+                this.Q<VisualElement>(className: "sound-reference")?.SetShown(supportsReferencePrompt);
+            });
         }
 
         void OnGenerationFeedbackChanged(IEnumerable<GenerationFeedbackData> messages)

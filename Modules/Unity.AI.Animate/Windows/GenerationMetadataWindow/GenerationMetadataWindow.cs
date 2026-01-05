@@ -3,6 +3,7 @@ using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine.UIElements;
 

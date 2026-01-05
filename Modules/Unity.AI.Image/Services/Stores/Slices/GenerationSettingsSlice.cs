@@ -6,8 +6,10 @@ using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.UI.Actions;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Image.Services.Stores.Slices
 {
@@ -17,11 +19,17 @@ namespace Unity.AI.Image.Services.Stores.Slices
             GenerationSettingsActions.slice,
             new GenerationSettings(),
             reducers => reducers
+                .Add(GenerationActions.initializeAsset, (state, payload) =>
+                {
+                    if (payload == null || !payload.IsValid())
+                        return;
+                    state.generationSettings.Ensure(payload).EnsureSelectedModelID(store.State, payload);
+                })
                 .Slice<GenerationSetting, IContext<AssetContext>>(
                     (state, action, slice) =>
                     {
-                        if (action.context.asset == null) return;
-                        var subState = state.generationSettings.Ensure(action.context.asset).EnsureSelectedModelID(store.State);
+                        if (action?.context?.asset == null) return;
+                        var subState = state.generationSettings.Ensure(action.context.asset).EnsureSelectedModelID(store.State, action.context.asset);
                         state.generationSettings[action.context.asset] = slice(subState);
                     },
                     reducers => reducers
@@ -29,8 +37,8 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         .Add(GenerationSettingsActions.setHistoryDrawerHeight, (state, payload) => state.historyDrawerHeight = payload)
                         .Add(GenerationSettingsActions.setSelectedModelID, (state, payload) => state.selectedModels.Ensure(payload.mode).modelID = payload.modelID)
                         .Add(GenerationSettingsActions.setUnsavedAssetBytes, (state, payload) => state.ApplyUnsavedAssetBytes(payload))
-                        .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt = payload)
-                        .Add(GenerationSettingsActions.setNegativePrompt, (state, payload) => state.negativePrompt = payload)
+                        .Add(GenerationSettingsActions.setPrompt, (state, payload) => state.prompt[payload.mode] = payload.prompt)
+                        .Add(GenerationSettingsActions.setNegativePrompt, (state, payload) => state.negativePrompt[payload.mode] = payload.negativePrompt)
                         .Add(GenerationSettingsActions.setVariationCount, (state, payload) => state.variationCount = payload)
                         .Add(GenerationSettingsActions.setUseCustomSeed, (state, payload) => state.useCustomSeed = payload)
                         .Add(GenerationSettingsActions.setCustomSeed, (state, payload) => state.customSeed = Math.Max(0, payload))
@@ -39,6 +47,7 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         .Add(GenerationSettingsActions.setReplaceBlankAsset, (state, payload) => state.replaceBlankAsset = payload)
                         .Add(GenerationSettingsActions.setReplaceRefinementAsset, (state, payload) => state.replaceRefinementAsset = payload)
                         .Add(GenerationSettingsActions.setUpscaleFactor, (state, payload) => state.upscaleFactor = payload)
+                        .Add(GenerationSettingsActions.setDuration, (state, payload) => state.duration = payload)
 
                         .Add(GenerationSettingsActions.setImageReferenceAsset, (state, payload) => state.imageReferences[(int)payload.type].asset = payload.reference)
                         .Add(GenerationSettingsActions.setImageReferenceDoodle, (state, payload) => state.ApplyEditedDoodle(new (payload.type, payload.doodle)))
@@ -46,6 +55,7 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         .Add(GenerationSettingsActions.setImageReferenceStrength, (state, payload) => state.imageReferences[(int)payload.type].strength = payload.strength)
                         .Add(GenerationSettingsActions.setImageReferenceActive, (state, payload) => state.imageReferences[(int)payload.type].isActive = payload.active)
                         .Add(GenerationSettingsActions.setImageReferenceSettings, (state, payload) => state.imageReferences[(int)payload.type] = payload.settings)
+                        .Add(GenerationSettingsActions.clearImageReferences, (state, _) => state.imageReferences = new GenerationSetting().imageReferences)
 
                         .Add(GenerationSettingsActions.setPixelateTargetSize, (state, payload) => state.pixelateSettings.targetSize = payload)
                         .Add(GenerationSettingsActions.setPixelateKeepImageSize, (state, payload) => state.pixelateSettings.keepImageSize = payload)
@@ -60,6 +70,10 @@ namespace Unity.AI.Image.Services.Stores.Slices
                             state.pixelateSettings.mode = payload.mode;
                             state.pixelateSettings.outlineThickness = payload.outlineThickness;
                         })
+
+                        .Add(GenerationSettingsActions.setTrimStartTime, (state, payload) => state.loopSettings.trimStartTime = payload)
+                        .Add(GenerationSettingsActions.setTrimEndTime, (state, payload) => state.loopSettings.trimEndTime = payload)
+
                         .Add(GenerationSettingsActions.setPendingPing, (state, payload) => state.pendingPing = payload)
                         .Add(GenerationSettingsActions.applyEditedImageReferenceDoodle, (state, payload) => state.ApplyEditedDoodle(payload))
 
@@ -80,8 +94,10 @@ namespace Unity.AI.Image.Services.Stores.Slices
                             entry.Value.selectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
                                 modelID = kvp.Value.modelID
                             })),
-                        prompt = entry.Value.prompt,
-                        negativePrompt = entry.Value.negativePrompt,
+                        prompt = new SerializableDictionary<RefinementMode, string>(
+                            entry.Value.prompt.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)),
+                        negativePrompt = new SerializableDictionary<RefinementMode, string>(
+                            entry.Value.negativePrompt.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)),
                         variationCount = entry.Value.variationCount,
                         useCustomSeed = entry.Value.useCustomSeed,
                         customSeed = entry.Value.customSeed,
@@ -90,8 +106,10 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         replaceBlankAsset = entry.Value.replaceBlankAsset,
                         replaceRefinementAsset = entry.Value.replaceRefinementAsset,
                         upscaleFactor = entry.Value.upscaleFactor,
+                        duration = entry.Value.duration,
                         historyDrawerHeight = entry.Value.historyDrawerHeight,
                         generationPaneWidth = entry.Value.generationPaneWidth,
+                        loopSettings = entry.Value.loopSettings with { },
                         imageReferences = entry.Value.imageReferences.Select(imageReference => imageReference with {
                             strength = imageReference.strength,
                             asset = imageReference.asset,

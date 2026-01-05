@@ -5,12 +5,13 @@ using Unity.AI.Animate.Services.Undo;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
 {
-    record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId) : AsssetContext(asset);
+    record QuoteAnimationsData(AssetReference asset, GenerationSetting generationSetting, bool allowInvalidAsset = false) : AsssetContext(asset);
+    record GenerateAnimationsData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId, bool autoApply) : AsssetContext(asset);
     record DownloadAnimationsData(
         AssetReference asset,
         List<Guid> jobIds,
@@ -32,7 +33,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions.Payloads
         long modelsSelectorTimeStampUtcTicks) : AsssetContext(asset);
     record GenerationDataWindowArgs(AssetReference asset, VisualElement element, AnimationClipResult result) : AsssetContext(asset);
     record GenerationAnimations(AssetReference asset, List<AnimationClipResult> animations) : AsssetContext(asset);
-    record GenerationSkeletons(AssetReference asset, List<TextureSkeleton> skeletons) : AsssetContext(asset);
+    record GenerationSkeletons(AssetReference asset, List<AnimationClipSkeleton> skeletons) : AsssetContext(asset);
     record RemoveGenerationSkeletonsData(AssetReference asset, int taskID) : AsssetContext(asset);
     record SelectGenerationData(AssetReference asset, AnimationClipResult result, bool replaceAsset, bool askForConfirmation) : AsssetContext(asset);
     record PromotedGenerationData(AssetReference asset, AnimationClipResult result) : AsssetContext(asset);

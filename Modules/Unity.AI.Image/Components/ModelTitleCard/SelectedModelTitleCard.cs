@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
@@ -8,7 +7,6 @@ using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.ModelSelector.Services.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Components

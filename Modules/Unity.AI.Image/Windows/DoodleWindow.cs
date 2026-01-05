@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Image.Components;
@@ -13,6 +12,7 @@ using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

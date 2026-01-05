@@ -1,4 +1,4 @@
-﻿<UXML xmlns="UnityEngine.UIElements">
+﻿<UXML xmlns="UnityEngine.UIElements" xmlns:editorui="UnityEditor.UIElements">
     <Style src="./SearchBar.uss"/>
-    <TextField class="searchbar-text-field"/>
+    <editorui:ToolbarSearchField class="searchbar-text-field"/>
 </UXML>

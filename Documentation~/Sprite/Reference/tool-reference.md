@@ -8,7 +8,7 @@ This section describes the UI elements for the Generators.
 
 | Topic       | Description |
 | ----------- | ----------- |
-| [Use custom seed to generate consistent sprites](xref:custom-seed) | Learn how to use the custom seed to get consistent results when you generate an asset. |
+| [Use a custom seed to generate consistent sprites](xref:custom-seed) | Learn how to use the custom seed to get consistent results when you generate an asset. |
 | [Remove unwanted elements with negative prompts](xref:negative-prompt) | Discover how to exclude specific features or styles from generated assets using the **Negative Prompt** field. |
 | [Prompt guidelines for asset generation](xref:prompts) | Follow best practices to write clear, descriptive prompts that guide the Generator tools toward accurate results. |
 | [Generate and assign assets with the Object Picker](xref:asset-picker) | Use the Object Picker to create and directly assign new assets from within the **Inspector** window. |

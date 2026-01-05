@@ -1,5 +1,5 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
@@ -7,6 +7,7 @@ using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

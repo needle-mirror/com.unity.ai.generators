@@ -4,6 +4,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine;
 
 namespace Unity.AI.Image.Services.Stores.Selectors

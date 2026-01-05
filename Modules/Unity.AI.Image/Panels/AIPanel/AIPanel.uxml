@@ -10,5 +10,6 @@
     <ui:RecolorPanel />
     <ui:UpscalePanel />
     <ui:RemoveBackgroundPanel />
+    <ui:SpritesheetPanel />
     </VisualElement>
 </UXML>

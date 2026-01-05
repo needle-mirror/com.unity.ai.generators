@@ -1,12 +1,11 @@
-using System;
 using System.ComponentModel;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
+using Unity.AI.ModelSelector.Services.Stores.Middleware;
 using Unity.AI.Generators.Redux;
-using UnityEngine;
 
 namespace Unity.AI.Image.Services.SessionPersistence
 {
@@ -25,6 +24,7 @@ namespace Unity.AI.Image.Services.SessionPersistence
                     MemoryPersistence.Persist(s_Store, ModelSelectorActions.init, ModelSelectorSelectors.SelectAppData);
                     MemoryPersistence.Persist(s_Store, DoodleWindowActions.init, DoodleWindowSelectors.SelectDoodleAppData);
                     Store.ApplyMiddleware(PersistenceMiddleware);
+                    Store.ApplyMiddleware(FilterCacheClearingMiddleware.Create());
                 }
 
                 return s_Store;

@@ -1,6 +1,4 @@
-using System;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Panel

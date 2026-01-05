@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,6 +6,7 @@ using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
@@ -16,6 +16,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services;
 
 namespace Unity.AI.Sound.Components
 {
@@ -27,7 +28,7 @@ namespace Unity.AI.Sound.Components
 
         readonly Button m_Button;
         readonly Label m_Label;
-        readonly Label m_PointsIndicator;
+        readonly GenerateButtonInsufficientPointsManipulator m_InsufficientPointsManipulator;
         CancellationTokenSource m_CancellationTokenSource;
 
         [UxmlAttribute]
@@ -47,9 +48,11 @@ namespace Unity.AI.Sound.Components
 
             this.AddManipulator(new GeneratorsSessionStatusTracker());
 
-            m_Button = this.Q<Button>();
-            m_Label = this.Q<Label>();
-            m_PointsIndicator = this.Q<Label>("points-indicator");
+            m_InsufficientPointsManipulator = new GenerateButtonInsufficientPointsManipulator(() => OnGenerationValidationResultsChanged(this.GetState().SelectGenerationValidationResult(this)));
+            this.AddManipulator(m_InsufficientPointsManipulator);
+
+            m_Button = this.Q<Button>("generate-button");
+            m_Label = m_Button.Q<Label>();
             m_Button.clickable = new Clickable(() =>
                 this.GetStoreApi().Dispatch(GenerationResultsActions.generateAudioClipsMain, this.GetAsset()));
 
@@ -73,12 +76,11 @@ namespace Unity.AI.Sound.Components
 
         void OnGenerationValidationResultsChanged(GenerationValidationResult result)
         {
-            m_PointsIndicator.SetShown(result.cost > 0);
-            m_PointsIndicator.text = result.cost.ToString();
-
+            m_InsufficientPointsManipulator.OnGenerationValidationResultChanged(result);
             if (result.success)
             {
                 tooltip = "";
+                m_Button.SetEnabled(Account.pointsBalance.CanAfford(result.cost));
                 return;
             }
 

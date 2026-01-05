@@ -1,5 +1,4 @@
-﻿using System;
-using Unity.AI.Generators.Redux;
+﻿using Unity.AI.Generators.Redux;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
@@ -8,7 +7,6 @@ using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Toolkit;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Components
@@ -58,11 +56,6 @@ namespace Unity.AI.Image.Components
             {
                 m_Button.SetEnabled(!payload.should);
                 m_Button.tooltip = payload.should ? "No additional model currently available" : "Choose another AI model";
-                if (!payload.should)
-                    return;
-                var autoAssignModel = this.GetState().SelectAutoAssignModel(this);
-                if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                    this.Dispatch(GenerationSettingsActions.setSelectedModelID, (payload.mode, autoAssignModel.id));
             });
         }
 

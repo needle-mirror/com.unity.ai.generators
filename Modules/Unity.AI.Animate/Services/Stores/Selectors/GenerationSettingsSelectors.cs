@@ -10,8 +10,9 @@ using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -20,6 +21,8 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
 {
     static partial class Selectors
     {
+        internal static readonly string[] modalities = { ModelConstants.Modalities.Animate };
+
         public static GenerationSettings SelectGenerationSettings(this IState state) => state.Get<GenerationSettings>(GenerationSettingsActions.slice);
 
         public static GenerationSetting SelectGenerationSetting(this IState state, AssetReference asset)
@@ -60,36 +63,48 @@ namespace Unity.AI.Animate.Services.Stores.Selectors
             return modelSettings?.name;
         }
 
-        public static List<string> SelectRefinementOperations(this IState state, AssetReference asset)
+        public static string[] SelectRefinementOperations(RefinementMode mode)
         {
-            var mode = state.SelectRefinementMode(asset);
             var operations = mode switch
             {
                 RefinementMode.TextToMotion => new[] { ModelConstants.Operations.TextPrompt },
                 RefinementMode.VideoToMotion => new[] { ModelConstants.Operations.ReferencePrompt },
                 _ => new[] { ModelConstants.Operations.TextPrompt }
             };
-            return operations.ToList();
+            return operations;
         }
-        public static List<string> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+        public static string[] SelectRefinementOperations(this IState state, AssetReference asset) => SelectRefinementOperations(state.SelectRefinementMode(asset));
+        public static string[] SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
-        public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
+        public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, AssetReference asset)
         {
-            var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Animate },
-                operations: state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
+            var mode = state.SelectRefinementMode(asset);
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(asset), modalities: modalities,
+                operations: state.SelectRefinementOperations(asset)), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
-        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Animate },
-                operations: state.SelectRefinementOperations(element).ToArray());
+        public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
+            state.SelectShouldAutoAssignModel(element.GetAsset());
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
             {
                 var selection = setting.selectedModels.Ensure(mode);
-                selection.modelID = !string.IsNullOrEmpty(selection.modelID) ? selection.modelID : state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
+                var lastSelectedModelId = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
+                if (!string.IsNullOrEmpty(lastSelectedModelId))
+                    selection.modelID = lastSelectedModelId;
+
+                var currentModelId = selection.modelID;
+                var operations = SelectRefinementOperations(mode);
+                var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
+
+                if (shouldAutoAssign)
+                {
+                    var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
+                    if (!string.IsNullOrEmpty(autoAssignModel?.id))
+                        selection.modelID = autoAssignModel.id;
+                }
             }
             return setting;
         }

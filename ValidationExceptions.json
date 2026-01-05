@@ -1,0 +1,25 @@
+{
+    "ErrorExceptions":
+    [
+        {
+            "ValidationTest": "API Validation",
+            "ExceptionMessage": "Breaking changes require a new major version.",
+            "PackageVersion": "1.5.0-pre.1"
+        },
+		{
+            "ValidationTest": "API Validation",
+            "ExceptionMessage": "Assembly \"Unity.AI.Material\" no longer exists or is no longer included in build. This change requires a new major version.",
+            "PackageVersion": "1.5.0-pre.1"
+        },
+		{
+            "ValidationTest": "API Validation",
+            "ExceptionMessage": "Assembly \"Unity.AI.Material.Srp\" no longer exists or is no longer included in build. This change requires a new major version.",
+            "PackageVersion": "1.5.0-pre.1"
+        },
+		{
+            "ValidationTest": "API Validation",
+            "ExceptionMessage": "Assembly \"Unity.AI.ModelTrainer\" no longer exists or is no longer included in build. This change requires a new major version.",
+            "PackageVersion": "1.5.0-pre.1"
+        }
+    ]
+}

@@ -1,11 +1,11 @@
-using System;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Image.Services.Utilities;
 using Unity.AI.ModelSelector.Services.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Components
@@ -31,8 +31,8 @@ namespace Unity.AI.Image.Components
             promptText.maxLength = PromptUtilities.maxPromptLength;
             negativePromptText.maxLength = PromptUtilities.maxPromptLength;
 
-            promptText.RegisterValueChangedCallback(evt => this.Dispatch(GenerationSettingsActions.setPrompt, PromptUtilities.TruncatePrompt(evt.newValue)));
-            negativePromptText.RegisterValueChangedCallback(evt => this.Dispatch(GenerationSettingsActions.setNegativePrompt, PromptUtilities.TruncatePrompt(evt.newValue)));
+            promptText.RegisterValueChangedCallback(evt => this.Dispatch(GenerationSettingsActions.setPrompt, (this.GetState().SelectRefinementMode(this), PromptUtilities.TruncatePrompt(evt.newValue))));
+            negativePromptText.RegisterValueChangedCallback(evt => this.Dispatch(GenerationSettingsActions.setNegativePrompt, (this.GetState().SelectRefinementMode(this), PromptUtilities.TruncatePrompt(evt.newValue))));
 
             promptText.RegisterTabEvent();
             negativePromptText.RegisterTabEvent();
@@ -49,6 +49,24 @@ namespace Unity.AI.Image.Components
             });
             this.Use(state => state.SelectSelectedModel(this),
                 model => negativePromptGroup.SetShown(!model.IsValid() || !model.name.ToLower().StartsWith(k_DoesntSupportNegativePrompt)));
+
+            this.UseAsset(asset =>
+            {
+                var promptPlaceholder = Selectors.SelectPromptPlaceholderText(asset, this.GetState());
+                var negativePromptPlaceholder = Selectors.SelectNegativePromptPlaceholderText(asset);
+                promptText.textEdition.placeholder = promptPlaceholder;
+                negativePromptText.textEdition.placeholder = negativePromptPlaceholder;
+            });
+
+            this.Use(state => state.SelectRefinementMode(this), _ =>
+            {
+                if (!this.GetAsset().IsValid())
+                    return;
+                var promptPlaceholder = Selectors.SelectPromptPlaceholderText(this.GetAsset(), this.GetState());
+                var negativePromptPlaceholder = Selectors.SelectNegativePromptPlaceholderText(this.GetAsset());
+                promptText.textEdition.placeholder = promptPlaceholder;
+                negativePromptText.textEdition.placeholder = negativePromptPlaceholder;
+            });
         }
     }
 }

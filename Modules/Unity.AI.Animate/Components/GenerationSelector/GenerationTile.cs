@@ -11,12 +11,14 @@ using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -50,20 +52,6 @@ namespace Unity.AI.Animate.Components
         readonly Label m_Type;
         GenerationMetadata m_Metadata;
 
-        ~GenerationTile()
-        {
-            try
-            {
-                if (m_AnimationTexture)
-                    RenderTexture.ReleaseTemporary(m_AnimationTexture);
-                m_AnimationTexture = null;
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-
         public GenerationTile()
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
@@ -95,6 +83,15 @@ namespace Unity.AI.Animate.Components
 
             progress = this.Q<VisualElement>("progress");
             progress.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
+
+            this.AddManipulator(new DelayedCleanupManipulator(() =>
+            {
+                if (m_AnimationTexture)
+                {
+                    RenderTexture.ReleaseTemporary(m_AnimationTexture);
+                    m_AnimationTexture = null;
+                }
+            }));
         }
 
         void MouseLeave(MouseLeaveEvent evt)
@@ -131,10 +128,10 @@ namespace Unity.AI.Animate.Components
 
         public void SetGenerationProgress(IEnumerable<GenerationProgressData> data)
         {
-            if (animationClipResult is not TextureSkeleton)
+            if (animationClipResult is not AnimationClipSkeleton)
                 return;
 
-            var progressReport = data.FirstOrDefault(d => d.taskID == ((TextureSkeleton)animationClipResult).taskID);
+            var progressReport = data.FirstOrDefault(d => d.taskID == ((AnimationClipSkeleton)animationClipResult).taskID);
             if (progressReport == null)
                 return;
 
@@ -145,7 +142,7 @@ namespace Unity.AI.Animate.Components
             var screenScaleFactor = this.GetContext<ScreenScaleFactor>()?.value ?? 1f;
             var previousSkeletonTexture = m_SkeletonTexture;
             var width = float.IsNaN(resolvedStyle.width) ? (int)TextureSizeHint.Carousel : (int)resolvedStyle.width;
-            m_SkeletonTexture = SkeletonRenderingUtils.GetTemporary(progressReport.progress, width, width, screenScaleFactor);
+            m_SkeletonTexture = SkeletonRenderingUtils.GetCached(progressReport.progress, width, width, screenScaleFactor);
             if (previousSkeletonTexture == m_SkeletonTexture)
                 return;
 
@@ -158,7 +155,7 @@ namespace Unity.AI.Animate.Components
         void BuildContextualMenu(ContextualMenuPopulateEvent evt)
         {
             evt.menu.MenuItems().Clear();
-            if (animationClipResult is TextureSkeleton)
+            if (animationClipResult is AnimationClipSkeleton)
                 return;
 
             evt.menu.AppendAction("Select", _ =>
@@ -219,7 +216,7 @@ namespace Unity.AI.Animate.Components
                         return;
 
                     await FileIO.CopyFileAsync(path, saveFilePath, true);
-                    Generators.Asset.AssetReferenceExtensions.ImportAsset(saveFilePath);
+                    AssetDatabaseExtensions.ImportGeneratedAsset(saveFilePath);
                 }, DropdownMenuAction.AlwaysEnabled);
             }
         }
@@ -227,7 +224,7 @@ namespace Unity.AI.Animate.Components
         void BuildFailedContextualMenu(ContextualMenuPopulateEvent evt)
         {
             evt.menu.MenuItems().Clear();
-            if (animationClipResult is TextureSkeleton)
+            if (animationClipResult is AnimationClipSkeleton)
                 return;
 
             evt.menu.AppendAction(
@@ -255,10 +252,7 @@ namespace Unity.AI.Animate.Components
 
         async void OnGeometryChanged(GeometryChangedEvent evt)
         {
-            if (animationClipResult is TextureSkeleton)
-                return;
-
-            if (animationClipResult == null)
+            if (animationClipResult is AnimationClipSkeleton or null)
             {
                 image.style.backgroundImage = null;
                 return;
@@ -311,7 +305,7 @@ namespace Unity.AI.Animate.Components
 
             m_SpinnerManipulator.Stop();
 
-            m_Label.SetShown(result is TextureSkeleton);
+            m_Label.SetShown(result is AnimationClipSkeleton);
             _ = UpdateTypeLabel();
 
             image.style.backgroundImage = null;
@@ -336,7 +330,7 @@ namespace Unity.AI.Animate.Components
 
             SetSelectedGeneration(this.GetState().SelectSelectedGeneration(this));
 
-            if (result is TextureSkeleton)
+            if (result is AnimationClipSkeleton)
             {
                 SetGenerationProgress(new [] { this.GetState().SelectGenerationProgress(this, result) });
                 return;
@@ -370,7 +364,7 @@ namespace Unity.AI.Animate.Components
 
         static bool IsFbxResult(AnimationClipResult result)
         {
-            if (result == null || result is TextureSkeleton || result.IsFailed())
+            if (result == null || result is AnimationClipSkeleton || result.IsFailed())
                 return false;
 
             return result.IsFbx();
@@ -378,7 +372,7 @@ namespace Unity.AI.Animate.Components
 
         bool HasFbxDownloadOption()
         {
-            if (animationClipResult == null || animationClipResult is TextureSkeleton || animationClipResult.IsFailed())
+            if (animationClipResult == null || animationClipResult is AnimationClipSkeleton || animationClipResult.IsFailed())
                 return false;
 
             return animationClipResult.IsFbx();
@@ -387,7 +381,7 @@ namespace Unity.AI.Animate.Components
         async Task UpdateTooltip()
         {
             tooltip = this.GetState()?.SelectTooltipModelSettings(null);
-            if (animationClipResult is null or TextureSkeleton)
+            if (animationClipResult is null or AnimationClipSkeleton)
                 return;
 
             m_Metadata = await animationClipResult.GetMetadata();

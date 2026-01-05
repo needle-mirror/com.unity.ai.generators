@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Unity.AI.Generators.Redux.Thunks;
-using Unity.AI.Generators.Redux.Services;
+using Unity.AI.Toolkit.Utility;
 using UnityEngine;
 
 namespace Unity.AI.Generators.Redux.Toolkit

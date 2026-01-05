@@ -3,8 +3,10 @@ using System.IO;
 using System.Threading.Tasks;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Generators.IO.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -17,7 +19,7 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static async Task<bool> Replace(this AssetReference asset, TextureResult generatedTexture)
         {
-            if (await generatedTexture.CopyTo(asset.GetPath()))
+            if (await generatedTexture.CopyTo(asset))
             {
                 asset.EnableGenerationLabel();
                 return true;
@@ -28,6 +30,9 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static async Task<bool> IsBlank(this AssetReference asset)
         {
+            if (!asset.Exists())
+                return false; // not existing is not blank
+
             if (IsOneByOnePixel(asset))
                 return true;
 
@@ -46,16 +51,116 @@ namespace Unity.AI.Image.Services.Utilities
             return width == 1 && height == 1;
         }
 
-        public static async Task<bool> IsOneByOnePixelOrLikelyBlank(this AssetReference asset)
+        public static bool IsOneByOnePixel(this Texture texture)
         {
+            if (!texture)
+                return false;
+
+            return texture.width == 1 && texture.height == 1;
+        }
+
+        const long k_SmallFileSizeHint = 25 * 1024;
+
+        public static async Task<bool> IsOneByOnePixelOrLikelyBlankAsync(this AssetReference asset)
+        {
+            if (!asset.Exists())
+                return false; // not existing is not blank
+
             if (IsOneByOnePixel(asset))
                 return true;
 
-            try { return new FileInfo(asset.GetPath()).Length < 25 * 1024 && TextureUtils.AreAllPixelsSameColor(await FileIO.ReadAllBytesAsync(asset.GetPath())); }
+            try { return new FileInfo(asset.GetPath()).Length < k_SmallFileSizeHint && TextureUtils.AreAllPixelsSameColor(await FileIO.ReadAllBytesAsync(asset.GetPath())); }
             catch { return false; }
         }
 
-        public static bool IsSkydome(this AssetReference asset)
+        /// <summary>
+        /// Synchronous version of IsOneByOnePixelOrLikelyBlankAsync.
+        /// </summary>
+        public static bool IsOneByOnePixelOrLikelyBlank(this AssetReference asset)
+        {
+            if (!asset.Exists())
+                return false; // not existing is not blank
+
+            if (IsOneByOnePixel(asset))
+                return true;
+
+            try { return new FileInfo(asset.GetPath()).Length < k_SmallFileSizeHint && TextureUtils.AreAllPixelsSameColor(FileIO.ReadAllBytes(asset.GetPath())); }
+            catch { return false; }
+        }
+
+        public static bool IsOneByOnePixelOrLikelyBlank(this Texture2D texture)
+        {
+            if (!texture)
+                return true;
+
+            if (IsOneByOnePixel(texture))
+                return true;
+
+            try { return texture.AreAllPixelsSameColor(); }
+            catch { return false; }
+        }
+
+        public static bool IsOneByOnePixelOrLikelyBlank(this Cubemap cubemap)
+        {
+            if (!cubemap)
+                return true;
+
+            if (IsOneByOnePixel(cubemap))
+                return true;
+
+            try { return cubemap.AreAllPixelsSameColor(); }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Checks if the image has at least a certain number of transparent corners.
+        /// Note: This is the slowest of the asset check functions as it needs to read the whole file from disk and decode it.
+        /// </summary>
+        /// <param name="asset">The asset reference to check.</param>
+        /// <returns>True if the image has transparent corners, false otherwise.</returns>
+        public static async Task<bool> HasTransparentCornersAsync(this AssetReference asset)
+        {
+            try
+            {
+                return TextureUtils.HasTransparentCorners(await FileIO.ReadAllBytesAsync(asset.GetPath()));
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Synchronous version of HasTransparentCornersAsync.
+        /// </summary>
+        public static bool HasTransparentCorners(this AssetReference asset)
+        {
+            try
+            {
+                return TextureUtils.HasTransparentCorners(FileIO.ReadAllBytes(asset.GetPath()));
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool HasTransparentCorners(this Texture2D texture)
+        {
+            if (!texture)
+                return false;
+
+            try
+            {
+                return TextureUtils.HasTransparentCorners(texture);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool IsCubemap(this AssetReference asset)
         {
             if (!asset.IsValid())
                 return false;
@@ -71,33 +176,38 @@ namespace Unity.AI.Image.Services.Utilities
             return importer != null && importer.textureType == TextureImporterType.Sprite;
         }
 
+        public static bool IsSpriteSheet(this AssetReference asset)
+        {
+            if (!asset.IsValid())
+                return false;
+
+            var path = asset.GetPath();
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+
+            if (importer == null || importer.textureType != TextureImporterType.Sprite || importer.spriteImportMode != SpriteImportMode.Multiple)
+                return false;
+
+            var factory = new SpriteDataProviderFactories();
+            factory.Init();
+            var dataProvider = factory.GetSpriteEditorDataProviderFromObject(importer);
+            if (dataProvider == null)
+                return false;
+
+            dataProvider.InitSpriteEditorDataProvider();
+
+            // A sprite sheet is only considered as such if it has more than one sprite rect.
+            return dataProvider.GetSpriteRects().Length > 1;
+        }
+
         public static TextureResult ToResult(this AssetReference asset) => TextureResult.FromPath(asset.GetPath());
-
-        public static Object GetObject(this AssetReference asset)
-        {
-            var path = asset.GetPath();
-            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<Object>(path);
-        }
-
-        public static T GetObject<T>(this AssetReference asset) where T : Object
-        {
-            var path = asset.GetPath();
-            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
-        }
-
-        public static AssetReference FromObject(Object obj)
-        {
-            var assetPath = AssetDatabase.GetAssetPath(obj);
-            return new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
-        }
-
-        public static AssetReference FromPath(string assetPath) => new() { guid = AssetDatabase.AssetPathToGUID(assetPath) };
 
         public static async Task<bool> SaveToGeneratedAssets(this AssetReference asset)
         {
             try
             {
-                await asset.ToResult().CopyToProject(new GenerationSetting().MakeMetadata(asset), asset.GetGeneratedAssetsPath());
+                await asset.ToResult().CopyToProject(
+                    new GenerationMetadata { asset = asset.guid, spriteSheet = asset.IsSpriteSheet() },
+                    asset.GetGeneratedAssetsPath());
                 return true;
             }
             catch

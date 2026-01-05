@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine;
 
 namespace Unity.AI.Image.Services.Stores.States

@@ -1,6 +1,4 @@
-﻿using System;
-using UnityEditor;
-using UnityEngine;
+﻿using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Components

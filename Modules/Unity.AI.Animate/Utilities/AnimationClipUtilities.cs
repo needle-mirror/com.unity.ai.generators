@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Unity.AI.Animate.Motion;
 using Unity.AI.Animate.Services.Stores.States;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI.Utilities;
 using UnityEditor;
 using UnityEngine;
@@ -33,6 +34,9 @@ namespace Unity.AI.Animate.Services.Utilities
             // is it an fbx?
             if (result.IsFbx())
                 return await result.ImportFbxAnimationClipTemporarily();
+
+            if (result.IsFailed())
+                return null;
 
             // Load the motion data from file
             var response = await MotionResponse.FromFileAsync(result.uri.GetLocalPath());
@@ -115,6 +119,10 @@ namespace Unity.AI.Animate.Services.Utilities
             return true;
         }
 
+        /// <summary>
+        /// Determines if the AnimationClip can be edited by these tools.
+        /// Only Unity humanoid animation clips are supported.
+        /// </summary>
         public static bool CanBeEdited(this AnimationClip animClip)
         {
             if (animClip == null || !animClip.isHumanMotion)

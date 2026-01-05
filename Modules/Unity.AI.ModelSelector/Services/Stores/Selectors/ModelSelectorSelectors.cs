@@ -10,14 +10,18 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
 {
     static partial class ModelSelectorSelectors
     {
-        public static States.ModelSelector SelectModels(this IState state) => state.Get<States.ModelSelector>(ModelSelectorActions.slice);
+        public static States.ModelSelector SelectModels(this IState state) => state.Get<States.ModelSelector>(ModelSelectorActions.slice) ?? new();
 
         public static IEnumerable<ModelSettings> SelectModelSettings(this IState state) =>
             state.SelectModels().settings.models
                 .Presort()
                 .ToArray();
 
-        public static ModelSettings SelectModelSettingsWithModelId(this IState state, string modelId) => state.SelectModelSettings().FirstOrDefault(s => s.id == modelId);
+        public static ModelSettings SelectModelSettingsWithModelId(this IState state, string modelId) =>
+            state.SelectModels().settings.models.FirstOrDefault(s => s.id == modelId);
+
+        public static bool SelectModelSettingsExists(this IState state, string modelId) =>
+            state.SelectModels().settings.models.Any(s => s.id == modelId);
 
         public const double timeToLiveGlobally = 30;
         public const double timeToLivePerModality = 60;
@@ -50,7 +54,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
             IEnumerable<string> operations = null)
         {
             var models = state.SelectUnfilteredModelSettings(modalities, operations);
-            if (string.IsNullOrEmpty(currentModel))
+            if (string.IsNullOrEmpty(currentModel) || !models.Any(m => m.id == currentModel))
             {
                 if (models.Any(m => m.isFavorite))
                     return true;
@@ -60,17 +64,32 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
         }
 
         public static ModelSettings SelectAutoAssignModel(this IState state,
-            string currentModel,
+            string currentModelID,
             IEnumerable<string> modalities = null,
             IEnumerable<string> operations = null)
         {
             var models = state.SelectUnfilteredModelSettings(modalities, operations);
-            if (string.IsNullOrEmpty(currentModel))
+
+            ModelSettings currentModel = null;
+            ModelSettings favoriteModel = null;
+
+            foreach (var model in models)
             {
-                var favorite = models.FirstOrDefault(m => m.isFavorite);
-                if (favorite != null && favorite.IsValid())
-                    return favorite;
+                if (currentModel == null && !string.IsNullOrEmpty(currentModelID) && model.id == currentModelID)
+                    currentModel = model;
+
+                if (favoriteModel == null && model.isFavorite)
+                    favoriteModel = model;
+
+                if (currentModel != null && favoriteModel != null)
+                    break;
             }
+
+            if (currentModel != null && currentModel.IsValid())
+                return currentModel;
+
+            if (favoriteModel != null && favoriteModel.IsValid())
+                return favoriteModel;
 
             return models is { Count: 1 } ? models[0] : k_InvalidModelSettings;
         }
@@ -125,45 +144,21 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
             var lastUsedRanking = state.SelectModels().lastUsedModels;
             var popularityRanking = state.SelectModels().modelPopularityScore;
 
-            var modalitiesSet = CreateHashSetIfNotEmpty(modalities);
-            var operationsSet = CreateHashSetIfNotEmpty(operations);
-            var tagsSet = CreateHashSetIfNotEmpty(tags);
-            var providersSet = CreateHashSetIfNotEmpty(providers);
-            var miscModelsSet = CreateHashSetIfNotEmpty(miscModels);
-            var baseModelsDict = CreateBaseModelsDictionary(baseModelIds, allModels);
+            var modalitiesSet = FilterCollectionsCache.GetOrCreateHashSet(modalities);
+            var operationsSet = FilterCollectionsCache.GetOrCreateHashSet(operations);
+            var tagsSet = FilterCollectionsCache.GetOrCreateHashSet(tags);
+            var providersSet = FilterCollectionsCache.GetOrCreateHashSet(providers);
+            var miscModelsSet = FilterCollectionsCache.GetOrCreateHashSet(miscModels);
+            var baseModelsDict = FilterCollectionsCache.GetOrCreateBaseModelsDict(baseModelIds, allModels);
 
             var filteredQuery = allModels.Where(m => ApplyFilters(m, modalitiesSet, operationsSet, tagsSet, providersSet, miscModelsSet, baseModelsDict));
 
             if (!string.IsNullOrEmpty(searchText))
             {
-                filteredQuery = ApplySearchFilter(filteredQuery, searchText.ToLower(), allModels);
+                filteredQuery = ApplySearchFilterCached(filteredQuery, searchText.ToLower(), allModels);
             }
 
-            return ApplySorting(filteredQuery, sortMode, lastUsedRanking, popularityRanking);
-        }
-
-        static HashSet<T> CreateHashSetIfNotEmpty<T>(IEnumerable<T> collection)
-        {
-            if (collection == null) return null;
-            var hashSet = new HashSet<T>();
-            foreach (var item in collection)
-            {
-                hashSet.Add(item);
-            }
-            return hashSet.Count > 0 ? hashSet : null;
-        }
-
-        static Dictionary<string, string> CreateBaseModelsDictionary(IEnumerable<string> baseModelIds, IEnumerable<ModelSettings> allModels)
-        {
-            if (baseModelIds == null) return null;
-
-            var dict = new Dictionary<string, string>();
-            foreach (var id in baseModelIds)
-            {
-                var modelName = allModels.FirstOrDefault(m => m.id == id)?.name ?? string.Empty;
-                dict[id] = modelName;
-            }
-            return dict.Count > 0 ? dict : null;
+            return ApplySortingCached(filteredQuery, sortMode, lastUsedRanking, popularityRanking);
         }
 
         static bool ApplyFilters(
@@ -186,10 +181,8 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
                     (miscModelsSet.Contains(MiscModelType.Custom) && model.isCustom));
         }
 
-        static IEnumerable<ModelSettings> ApplySearchFilter(IEnumerable<ModelSettings> query, string searchLower, IEnumerable<ModelSettings> allModels)
+        static IEnumerable<ModelSettings> ApplySearchFilterCached(IEnumerable<ModelSettings> query, string searchLower, IEnumerable<ModelSettings> allModels)
         {
-            var baseModelCache = new Dictionary<string, ModelSettings>();
-
             return query.Where(m =>
             {
                 if (m.MatchSearchText(searchLower))
@@ -198,29 +191,41 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
                 if (string.IsNullOrEmpty(m.baseModelId))
                     return false;
 
-                if (!baseModelCache.TryGetValue(m.baseModelId, out var baseModel))
+                if (!FilterCollectionsCache.BaseModelLookupCache.TryGetValue(m.baseModelId, out var baseModel))
                 {
                     baseModel = allModels.FirstOrDefault(bm => bm.id == m.baseModelId);
-                    baseModelCache[m.baseModelId] = baseModel;
+                    if (baseModel != null)
+                        FilterCollectionsCache.BaseModelLookupCache[m.baseModelId] = baseModel;
                 }
 
                 return baseModel?.name?.ToLower().Contains(searchLower) == true;
             });
         }
 
-        static List<ModelSettings> ApplySorting(IEnumerable<ModelSettings> query, SortMode sortMode,
+        static List<ModelSettings> ApplySortingCached(IEnumerable<ModelSettings> query, SortMode sortMode,
             Dictionary<string, string> lastUsedRanking, Dictionary<string, int> popularityRanking)
         {
-            var orderedQuery = query.OrderBy(m => m.isFavorite ? 0 : 1);
-
-            return sortMode switch
+            // this list is used asynchronously by many services and cannot be shared
+            var resultList = query.ToList();
+            resultList.Sort((x, y) =>
             {
-                SortMode.Name => orderedQuery.ThenBy(m => m.name).ToList(),
-                SortMode.NameDescending => orderedQuery.ThenByDescending(m => m.name).ToList(),
-                SortMode.RecentlyUsed => orderedQuery.ThenByDescending(m => GetLastUsedDateTime(m.id, lastUsedRanking)).ToList(),
-                SortMode.Popularity => orderedQuery.ThenByDescending(m => popularityRanking?.GetValueOrDefault(m.id, 0) ?? 0).ToList(),
-                _ => throw new ArgumentOutOfRangeException(nameof(sortMode), sortMode, null)
-            };
+                // Primary sort: favorites first
+                var favoriteComparison = (x.isFavorite ? 0 : 1).CompareTo(y.isFavorite ? 0 : 1);
+                if (favoriteComparison != 0)
+                    return favoriteComparison;
+
+                // Secondary sort based on sort mode
+                return sortMode switch
+                {
+                    SortMode.Name => string.Compare(x.name, y.name, StringComparison.Ordinal),
+                    SortMode.NameDescending => string.Compare(y.name, x.name, StringComparison.Ordinal),
+                    SortMode.RecentlyUsed => GetLastUsedDateTime(y.id, lastUsedRanking).CompareTo(GetLastUsedDateTime(x.id, lastUsedRanking)),
+                    SortMode.Popularity => (popularityRanking?.GetValueOrDefault(y.id, 0) ?? 0).CompareTo(popularityRanking?.GetValueOrDefault(x.id, 0) ?? 0),
+                    _ => throw new ArgumentOutOfRangeException(nameof(sortMode), sortMode, null)
+                };
+            });
+
+            return resultList;
         }
 
         static DateTime GetLastUsedDateTime(string modelId, Dictionary<string, string> lastUsedRanking)

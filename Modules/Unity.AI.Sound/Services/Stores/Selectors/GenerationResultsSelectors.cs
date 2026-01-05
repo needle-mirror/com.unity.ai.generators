@@ -6,10 +6,12 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Undo;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Sound.Services.Stores.Selectors
@@ -33,7 +35,7 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
         public static List<GenerationProgressData> SelectGenerationProgress(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationProgress;
         public static GenerationProgressData SelectGenerationProgress(this IState state, VisualElement element, AudioClipResult result)
         {
-            if (result is TextureSkeleton textureSkeleton)
+            if (result is AudioClipSkeleton textureSkeleton)
             {
                 var progressReports = state.SelectGenerationResult(element).generationProgress;
                 var progressReport = progressReports.FirstOrDefault(d => d.taskID == textureSkeleton.taskID);
@@ -44,7 +46,9 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             return new GenerationProgressData(-1, 1, 1);
         }
         public static List<GenerationFeedbackData> SelectGenerationFeedback(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationFeedback;
+        public static List<GenerationFeedbackData> SelectGenerationFeedback(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generationFeedback;
         public static GenerationValidationResult SelectGenerationValidationResult(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationValidation;
+        public static GenerationValidationResult SelectGenerationValidationResult(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generationValidation;
 
         public static int SelectGeneratedResultVisibleCount(this IState state, VisualElement element) => state.SelectGenerationResult(element)
             .generatedResultSelectorSettings.Values.Select(hints => hints.itemCountHint).DefaultIfEmpty(0).Max();
@@ -52,8 +56,9 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             .generatedResultSelectorSettings.Values.Select(hints => hints.itemCountHint).DefaultIfEmpty(0).Max();
 
         public static IEnumerable<AudioClipResult> SelectGeneratedAudioClips(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedAudioClips;
-        public static IEnumerable<TextureSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
-        public static IEnumerable<TextureSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
+        public static IEnumerable<AudioClipResult> SelectGeneratedAudioClips(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAudioClips;
+        public static IEnumerable<AudioClipSkeleton> SelectGeneratedSkeletons(this IState state, VisualElement element) => state.SelectGenerationResult(element).generatedSkeletons;
+        public static IEnumerable<AudioClipSkeleton> SelectGeneratedSkeletons(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedSkeletons;
 
         /// <summary>
         /// Returns a combined, deferred-execution collection of generated textures and skeletons for an element.
@@ -166,7 +171,8 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             return hc.ToHashCode();
         }
 
-        public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedAudioClips.Count > 0;
+        public static bool HasHistory(this IState state, AssetReference asset) =>
+            state.SelectGenerationResult(asset).generatedAudioClips.Count > 0 || asset.HasGenerations();
         public static AudioClipResult SelectSelectedGeneration(this IState state, VisualElement element) => state.SelectGenerationResult(element).selectedGeneration;
         public static AudioClipResult SelectSelectedGeneration(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).selectedGeneration;
         public static AssetUndoManager SelectAssetUndoManager(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).assetUndoManager;

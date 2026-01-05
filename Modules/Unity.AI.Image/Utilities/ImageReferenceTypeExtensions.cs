@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.ModelSelector.Services.Stores.States;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Utilities
@@ -76,7 +76,21 @@ namespace Unity.AI.Image.Utilities
         [RefinementModes(RefinementMode.Generation)]
         [DisplayName("Style")]
         [OperationSubTypes(ModelConstants.Operations.StyleReference)]
-        StyleImage
+        StyleImage,
+
+        [DisplayOrder(9)]
+        [ImageReferenceName("first")]
+        [RefinementModes(RefinementMode.Spritesheet)]
+        [DisplayName("First")]
+        [OperationSubTypes(ModelConstants.Operations.FirstFrameReference)]
+        FirstImage,
+
+        [DisplayOrder(10)]
+        [ImageReferenceName("last")]
+        [RefinementModes(RefinementMode.Spritesheet)]
+        [DisplayName("Last")]
+        [OperationSubTypes(ModelConstants.Operations.LastFrameReference)]
+        LastImage
     }
 
     [AttributeUsage(AttributeTargets.Field)]

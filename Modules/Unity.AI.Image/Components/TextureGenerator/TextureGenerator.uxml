@@ -16,6 +16,8 @@
                     <Tab label="Generate" tooltip="Generate an image based on a text prompt."/>
                     <!-- Remove BG Tab -->
                     <Tab label="Remove BG" tooltip="Remove the background elements from the Base Image."/>
+                    <!-- Spritesheet Tab -->
+                    <Tab label="Spritesheet" tooltip="Create a spritesheet animation from an image and text prompt."/>
                     <!-- Upscale Tab -->
                     <Tab label="Upscale" tooltip="Increase the resolution of the Base Image without losing detail."/>
                     <!-- Pixelate Tab -->

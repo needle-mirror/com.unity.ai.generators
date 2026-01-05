@@ -1,5 +1,3 @@
-using System;
-
 namespace Unity.AI.Image.Services.Contexts
 {
     record ExternalDoodleEditor(bool enabled)

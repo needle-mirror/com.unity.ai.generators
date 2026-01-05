@@ -1,18 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
+using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Actions;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
 using Unity.AI.Toolkit;
@@ -28,7 +26,7 @@ namespace Unity.AI.Image.Components
 
         readonly Button m_Button;
         readonly Label m_Label;
-        readonly Label m_PointsIndicator;
+        readonly GenerateButtonInsufficientPointsManipulator m_InsufficientPointsManipulator;
         CancellationTokenSource m_CancellationTokenSource;
 
         [UxmlAttribute]
@@ -48,9 +46,11 @@ namespace Unity.AI.Image.Components
 
             this.AddManipulator(new GeneratorsSessionStatusTracker());
 
-            m_Button = this.Q<Button>();
-            m_Label = this.Q<Label>();
-            m_PointsIndicator = this.Q<Label>("points-indicator");
+            m_InsufficientPointsManipulator = new GenerateButtonInsufficientPointsManipulator(() => OnGenerationValidationResultsChanged(this.GetState().SelectGenerationValidationResult(this)));
+            this.AddManipulator(m_InsufficientPointsManipulator);
+
+            m_Button = this.Q<Button>("generate-button");
+            m_Label = m_Button.Q<Label>();
             m_Button.clickable = new Clickable(() =>
             {
                 this.GetStoreApi().Dispatch(GenerationResultsActions.generateImagesMain, this.GetAsset());
@@ -73,17 +73,15 @@ namespace Unity.AI.Image.Components
                 _ = this.GetStoreApi().Dispatch(GenerationResultsActions.checkDownloadRecovery, asset);
             });
             this.Use(state => state.SelectGenerationValidationResult(this), OnGenerationValidationResultsChanged);
-            this.Use(_ => Account.sessionStatus.IsUsable, _ => OnGenerationValidationResultsChanged(this.GetState().SelectGenerationValidationResult(this)));
         }
 
         void OnGenerationValidationResultsChanged(GenerationValidationResult result)
         {
-            m_PointsIndicator.SetShown(result.cost > 0);
-            m_PointsIndicator.text = result.cost.ToString();
-
+            m_InsufficientPointsManipulator.OnGenerationValidationResultChanged(result);
             if (result.success)
             {
                 tooltip = "";
+                m_Button.SetEnabled(Account.pointsBalance.CanAfford(result.cost));
                 return;
             }
 

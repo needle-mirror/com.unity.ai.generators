@@ -12,7 +12,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
             public const string Unity = "Unity";
             public const string Scenario = "Scenario";
             public const string Layer = "Layer";
-            public const string Kinetix = "Kinetix";
+            public const string CSM = "CSM";
 
             public static IEnumerable<string> EnumerateAll()
             {
@@ -20,7 +20,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
                 yield return Unity;
                 yield return Scenario;
                 yield return Layer;
-                yield return Kinetix;
+                yield return CSM;
             }
         }
 
@@ -31,6 +31,9 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
             public const string Texture2d = "Texture2d";
             public const string Sound = "Sound";
             public const string Animate = "Animate";
+            public const string Skybox = "Skybox";
+            public const string Model3D = "Model3d";
+            public const string Video = "Video";
 
             public static IEnumerable<string> EnumerateAll()
             {
@@ -39,6 +42,9 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
                 yield return Texture2d;
                 yield return Sound;
                 yield return Animate;
+                yield return Skybox;
+                yield return Model3D;
+                yield return Video;
             }
         }
 
@@ -67,7 +73,12 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
             public const string FeatureReference = "FeatureReference";
             public const string MaskReference = "MaskReference";
             public const string RecolorReference = "RecolorReference";
-            //public const string GenerativeUpscale = "GenerativeUpscale";
+            public const string GenerativeUpscale = "GenerativeUpscale";
+            public const string TextureUpscale = "TextureUpscale";
+
+            // Specific Stylesheet references
+            public const string FirstFrameReference = "FirstFrameReference";
+            public const string LastFrameReference = "LastFrameReference";
 
             // Specific Animate references
             public const string MotionFrameReference = "MotionFrameReference";
@@ -75,15 +86,11 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
             // Specific Texture2D references
             public const string Pbr = "Pbr";
 
-            // Specific Style Training references
-            public const string StyleTraining = "StyleTraining";
-            public const string StyleTrainingStop = "StyleTrainingStop";
-            public const string StyleTrainingDeletion = "StyleTrainingDeletion";
-
             ////////////////////////////////////// Transformative
             public const string Pixelate = "Pixelate";
             public const string RemoveBackground = "RemoveBackground";
             public const string Upscale = "Upscale";
+            public const string SkyboxUpscale = "SkyboxUpscale";
 
 
             public static IEnumerable<string> EnumerateAll()
@@ -99,15 +106,14 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
                 yield return FeatureReference;
                 yield return MaskReference;
                 yield return RecolorReference;
-                //yield return GenerativeUpscale;
+                yield return GenerativeUpscale;
                 yield return MotionFrameReference;
                 yield return Pbr;
-                yield return StyleTraining;
-                yield return StyleTrainingStop;
-                yield return StyleTrainingDeletion;
                 yield return Pixelate;
                 yield return RemoveBackground;
                 yield return Upscale;
+                yield return SkyboxUpscale;
+                yield return TextureUpscale;
             }
         }
 
@@ -124,6 +130,23 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
         public static OperationSubTypeEnum ConvertToOperation(string operation)
         {
             return Enum.TryParse<OperationSubTypeEnum>(operation, out var result) ? result : OperationSubTypeEnum.None;
+        }
+
+        // replace Texture2d with Material when needing to resolve ambiguities caused by Texture2d with agents
+        public const string Material = "Material";
+        public const string Cubemap = "Cubemap";
+
+        public static class ModelCapabilities
+        {
+            public const string EditWithPrompt = "EditWithPrompt";
+            public const string SingleInputImage = "SingleInputImage";
+            public const string CustomResolutions = "CustomResolutions";
+            public const string AssistantFavorite = "AssistantFavorite";
+            public const string SupportsLooping = "SupportsLooping";
+            public const string Supports9SliceUI = "Supports9SliceUI";
+
+            public const int CustomResolutionsMin = 1024;
+            public const int CustomResolutionsMax = 4096;
         }
     }
 }

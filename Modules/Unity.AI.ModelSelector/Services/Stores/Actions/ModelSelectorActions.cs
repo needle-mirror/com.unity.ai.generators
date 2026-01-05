@@ -38,6 +38,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             }
         });
 
+
         public static Creator<long> setLastModelDiscoveryTimestamp => new($"{slice}/setLastModelDiscoveryTimestamp");
 
         public static Creator<string> setLastUsedSelectedModelID => new($"{slice}/setLastUsedSelectedModelID");
@@ -76,5 +77,7 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
         public static Creator<SortMode> setSortMode => new($"{slice}/setSortMode");
 
         public static Creator<string> setSearchQuery => new($"{slice}/setSearchQuery");
+
+        public static Creator<ModelSettings> addCustomModel => new($"{slice}/addCustomModel");
     }
 }

@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
-using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEngine;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Image.Services.Stores.States
 {
@@ -36,6 +36,7 @@ namespace Unity.AI.Image.Services.Stores.States
         public AssetUndoManager assetUndoManager;
         public int generationCount;
         public bool replaceWithoutConfirmation;
+        public bool useUnsavedAssetBytes = true;
         public Action<AssetReference> promoteNewAssetPostAction = null;
         public SerializableDictionary<string, GeneratedResultSelectorSettings> generatedResultSelectorSettings = new();
         public GenerationValidationResult generationValidation = new(true, BackendServiceConstants.ErrorTypes.Unknown, 0, new List<GenerationFeedbackData>());

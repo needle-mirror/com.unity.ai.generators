@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Generators.Redux.Toolkit
 {

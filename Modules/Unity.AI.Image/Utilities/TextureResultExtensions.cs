@@ -8,10 +8,14 @@ using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UriExtensions = Unity.AI.Generators.IO.Utilities.UriExtensions;
 
 namespace Unity.AI.Image.Services.Utilities
 {
@@ -24,12 +28,12 @@ namespace Unity.AI.Image.Services.Utilities
                 if (!textureResult.uri.IsFile)
                     throw new ArgumentException("CopyToProject should only be used for local files.", nameof(textureResult));
 
-                var path = textureResult.uri.GetLocalPath();
+                var path = UriExtensions.GetLocalPath(textureResult.uri);
                 var extension = Path.GetExtension(path);
                 if (!ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase)))
                 {
                     await using var fileStream = FileIO.OpenReadAsync(path);
-                    extension = FileIO.GetFileExtension(fileStream);
+                    extension = FileTypeSupport.GetFileExtension(fileStream);
                 }
 
                 var fileName = Path.GetFileName(path);
@@ -46,7 +50,7 @@ namespace Unity.AI.Image.Services.Utilities
                     return;
 
                 await FileIO.CopyFileAsync(path, newPath, overwrite: true);
-                Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
+                AssetDatabaseExtensions.ImportGeneratedAsset(newPath);
                 textureResult.uri = newUri;
 
                 try
@@ -103,10 +107,18 @@ namespace Unity.AI.Image.Services.Utilities
             }
         }
 
-        public static async Task<GenerationMetadata> GetMetadata(this TextureResult textureResult)
+        public static async Task<GenerationMetadata> GetMetadataAsync(this TextureResult textureResult)
         {
             var data = new GenerationMetadata();
             try { data = JsonUtility.FromJson<GenerationMetadata>(await FileIO.ReadAllTextAsync($"{textureResult.uri.GetLocalPath()}.json")); }
+            catch { /*Debug.LogWarning($"Could not read {textureResult.uri.GetLocalPath()}.json");*/ }
+            return data;
+        }
+
+        public static GenerationMetadata GetMetadata(this TextureResult textureResult)
+        {
+            var data = new GenerationMetadata();
+            try { data = JsonUtility.FromJson<GenerationMetadata>(FileIO.ReadAllText($"{textureResult.uri.GetLocalPath()}.json")); }
             catch { /*Debug.LogWarning($"Could not read {textureResult.uri.GetLocalPath()}.json");*/ }
             return data;
         }
@@ -116,21 +128,26 @@ namespace Unity.AI.Image.Services.Utilities
             if (setting == null)
                 return new GenerationMetadata { asset = asset.guid };
 
+            setting.prompt.TryGetValue(setting.refinementMode, out var prompt);
+            setting.negativePrompt.TryGetValue(setting.refinementMode, out var negativePrompt);
+
             switch (setting.refinementMode)
             {
                 case RefinementMode.Generation:
                     var customSeed = setting.useCustomSeed ? setting.customSeed : -1;
+                    var dimensions = setting.SelectImageDimensionsVector2();
 
                     return new GenerationMetadata
                     {
-                        prompt = setting.prompt,
-                        negativePrompt = setting.negativePrompt,
+                        prompt = prompt,
+                        negativePrompt = negativePrompt,
                         refinementMode = setting.refinementMode.ToString(),
                         model = setting.SelectSelectedModelID(),
                         modelName = setting.SelectSelectedModelName(),
                         asset = asset.guid,
                         customSeed = customSeed,
-                        doodles = GetDoodlesForGenerationMetadata(setting).ToArray()
+                        doodles = GetDoodlesForGenerationMetadata(setting).ToArray(),
+                        dimensions = new ImageDimensionsInt { width = dimensions.x, height = dimensions.y },
                     };
                 case RefinementMode.RemoveBackground:
                     return new GenerationMetadata
@@ -143,6 +160,7 @@ namespace Unity.AI.Image.Services.Utilities
                     {
                         refinementMode = setting.refinementMode.ToString(),
                         model = setting.SelectSelectedModelID(),
+                        modelName = setting.SelectSelectedModelName(),
                         asset = asset.guid,
                         upscaleFactor = setting.upscaleFactor
                     };
@@ -167,15 +185,32 @@ namespace Unity.AI.Image.Services.Utilities
                 case RefinementMode.Inpaint:
                     return new GenerationMetadata
                     {
-                        prompt = setting.prompt,
-                        negativePrompt = setting.negativePrompt,
+                        prompt = prompt,
+                        negativePrompt = negativePrompt,
                         refinementMode = setting.refinementMode.ToString(),
                         model = setting.SelectSelectedModelID(),
+                        modelName = setting.SelectSelectedModelName(),
                         asset = asset.guid,
                         doodles = GetDoodlesForGenerationMetadata(setting).ToArray()
                     };
+                case RefinementMode.Spritesheet:
+                    return new GenerationMetadata
+                    {
+                        prompt = prompt,
+                        negativePrompt = negativePrompt,
+                        refinementMode = setting.refinementMode.ToString(),
+                        model = setting.SelectSelectedModelID(),
+                        modelName = setting.SelectSelectedModelName(),
+                        asset = asset.guid,
+                        spriteSheet = true,
+                        duration = setting.SelectDuration(),
+                        doodles = GetDoodlesForGenerationMetadata(setting).ToArray()
+                    };
                 default:
-                    return new GenerationMetadata { asset = asset.guid };
+                    return new GenerationMetadata
+                    {
+                        asset = asset.guid
+                    };
             }
         }
 
@@ -190,18 +225,34 @@ namespace Unity.AI.Image.Services.Utilities
                 return true;
 
             var localPath = result.uri.GetLocalPath();
-            return FileIO.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
+            return FileComparison.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
         }
 
-        public static async Task<bool> CopyTo(this TextureResult generatedTexture, string destFileName)
+        public static bool IsImage(this TextureResult textureResult)
         {
+            if (!IsValid(textureResult))
+                return false;
+
+            var extension = Path.GetExtension(textureResult.uri.GetLocalPath());
+            return ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static async Task<bool> CopyTo(this TextureResult generatedTexture, AssetReference asset)
+        {
+            var destFileName = asset.GetPath();
             var sourceFileName = generatedTexture.uri.GetLocalPath();
             if (!File.Exists(sourceFileName))
                 return false;
 
             var destExtension = Path.GetExtension(destFileName).ToLower();
             var sourceExtension = Path.GetExtension(sourceFileName).ToLower();
-            if (destExtension != sourceExtension)
+
+            SpriteRect[] spriteRects = null;
+            if (generatedTexture.IsVideoClip())
+            {
+                spriteRects = await generatedTexture.CopyVideoTo(asset);
+            }
+            else if (destExtension != sourceExtension)
             {
                 await using Stream imageStream = FileIO.OpenReadAsync(generatedTexture.uri.GetLocalPath());
                 if (!ImageFileUtilities.TryConvert(imageStream, out var convertedStream, destExtension))
@@ -213,7 +264,17 @@ namespace Unity.AI.Image.Services.Utilities
             else
                 await FileIO.CopyFileAsync(sourceFileName, destFileName, overwrite: true);
 
-            Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
+            AssetDatabaseExtensions.ImportGeneratedAsset(destFileName);
+
+            if (generatedTexture.IsVideoClip() && spriteRects is { Length: > 1 } && asset.IsSprite())
+            {
+                var texture = asset.GetObject<Texture2D>();
+                if (texture != null)
+                {
+                    texture.SetSpriteRects(spriteRects);
+                }
+            }
+
             return true;
         }
 
@@ -239,6 +300,7 @@ namespace Unity.AI.Image.Services.Utilities
                     ImageReferenceType.PromptImage, ImageReferenceType.StyleImage, ImageReferenceType.PoseImage, ImageReferenceType.DepthImage,
                     ImageReferenceType.CompositionImage, ImageReferenceType.LineArtImage, ImageReferenceType.FeatureImage
                 },
+                RefinementMode.Spritesheet => new[] { ImageReferenceType.FirstImage, ImageReferenceType.LastImage },
                 _ => Enumerable.Empty<ImageReferenceType>()
             };
             foreach (var type in imageTypes)
@@ -250,7 +312,7 @@ namespace Unity.AI.Image.Services.Utilities
                 {
                     doodles.Add(new GenerationDataDoodle(type, imageReference.doodle, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength, null));
                 }
-                else if (!string.IsNullOrEmpty(imageReference?.asset.guid))
+                else if (!string.IsNullOrEmpty(imageReference?.asset?.guid))
                 {
                     doodles.Add(new GenerationDataDoodle(type, null, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength, imageReference.asset.guid));
                 }
@@ -272,6 +334,9 @@ namespace Unity.AI.Image.Services.Utilities
         public int pixelateOutlineThickness;
         public ImmutableArray<GenerationDataDoodle> doodles = ImmutableArray<GenerationDataDoodle>.Empty;
         public int upscaleFactor;
+        public ImageDimensionsInt dimensions = new();
+        public bool spriteSheet;
+        public float duration;
     }
 
     [Serializable]
@@ -294,5 +359,12 @@ namespace Unity.AI.Image.Services.Utilities
             this.invertStrength = invertStrength;
             this.assetReferenceGuid = assetReferenceGuid;
         }
+    }
+
+    [Serializable]
+    record ImageDimensionsInt
+    {
+        public int width;
+        public int height;
     }
 }

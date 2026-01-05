@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Modalities.Image.Requests.Generate.OperationSubTypes;
+using JetBrains.Annotations;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
@@ -11,18 +12,28 @@ using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.States;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
 using Unity.AI.ModelSelector.Services.Utilities;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Settings = Unity.AI.Image.Services.Stores.States.Settings;
 
 namespace Unity.AI.Image.Services.Stores.Selectors
 {
     static partial class Selectors
     {
+        static readonly ImmutableArray<ImageDimensions> k_DefaultModelSettingsResolutions = new(new []{ new ImageDimensions { width = 1024, height = 1024 } });
+        internal static readonly string[] tilableModalities = { ModelConstants.Modalities.Texture2d };
+        internal static readonly string[] spriteModalities = { ModelConstants.Modalities.Image };
+        internal static readonly string[] imageModalities = { ModelConstants.Modalities.Image, ModelConstants.Modalities.Texture2d };
+        internal static readonly string[] cubemapModalities = { ModelConstants.Modalities.Skybox };
+        internal static readonly string[] spritesheetModalities = { ModelConstants.Modalities.Video };
+
         public static GenerationSettings SelectGenerationSettings(this IState state) => state.Get<GenerationSettings>(GenerationSettingsActions.slice);
 
         public static GenerationSetting SelectGenerationSetting(this IState state, AssetReference asset)
@@ -71,21 +82,22 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return model;
         }
 
-        public static List<string> SelectRefinementOperations(this IState state, AssetReference asset)
+        public static string[] SelectRefinementOperations(RefinementMode mode)
         {
-            var mode = state.SelectRefinementMode(asset);
             var operations = mode switch
             {
                 RefinementMode.Generation => new [] { ModelConstants.Operations.TextPrompt },
+                RefinementMode.Spritesheet => new [] { ModelConstants.Operations.TextPrompt },
                 RefinementMode.Upscale => new [] { ModelConstants.Operations.Upscale },
                 RefinementMode.Pixelate => new [] { ModelConstants.Operations.Pixelate },
                 RefinementMode.Recolor => new [] { ModelConstants.Operations.RecolorReference },
                 RefinementMode.Inpaint => new [] { ModelConstants.Operations.MaskReference },
                 _ => new [] { ModelConstants.Operations.TextPrompt }
             };
-            return operations.ToList();
+            return operations;
         }
-        public static List<string> SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
+        public static string[] SelectRefinementOperations(this IState state, AssetReference asset) => SelectRefinementOperations(state.SelectRefinementMode(asset));
+        public static string[] SelectRefinementOperations(this IState state, VisualElement element) => state.SelectRefinementOperations(element.GetAsset());
 
         public static bool SelectSelectedModelOperationIsValid(this IState state, VisualElement element, string op) =>
             state.SelectSelectedModelOperationIsValid(element.GetAsset(), op);
@@ -98,28 +110,57 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return model != null && model.operations.Contains(op);
         }
 
+        public static string[] SelectModalities(AssetReference asset, RefinementMode mode)
+        {
+            if (asset.IsCubemap())
+                return cubemapModalities;
+            return mode == RefinementMode.Spritesheet ? spritesheetModalities : imageModalities;
+        }
+
+        public static string[] SelectModalities(VisualElement element, RefinementMode mode) => SelectModalities(element.GetAsset(), mode);
+        public static string SelectModality(AssetReference asset, RefinementMode mode) => SelectModalities(asset, mode).First();
+        public static string SelectModality(VisualElement element, RefinementMode mode) => SelectModality(element.GetAsset(), mode);
+
+        public static string SelectPromptPlaceholderText(AssetReference asset, [CanBeNull] IState state)
+        {
+            if (asset.IsCubemap())
+                return "Fantasy landscape, floating islands, vibrant nebula, digital painting";
+            var setting = state?.SelectGenerationSetting(asset);
+            return setting is { refinementMode: RefinementMode.Spritesheet }
+                ? "Running, jumping, idle, attack, side-scroller animation"
+                : "Small, cute slime monster, vibrant green, cartoon style, side-scroller view";
+        }
+        public static string SelectNegativePromptPlaceholderText(AssetReference asset) => "Blurry, messy pixels, jpeg artifacts, background, shadows, watermark";
+
         public static (RefinementMode mode, bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element)
         {
             var mode = state.SelectRefinementMode(element);
-            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Image, ModelConstants.Modalities.Texture2d },
-                operations: state.SelectRefinementOperations(element).ToArray()), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
+            return (mode, ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element),
+                modalities: SelectModalities(element, mode),
+                operations: state.SelectRefinementOperations(element)), timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
         }
 
-        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Image, ModelConstants.Modalities.Texture2d },
-                operations: state.SelectRefinementOperations(element).ToArray());
-
-        public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
+        public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state, AssetReference asset)
         {
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
             {
                 var selection = setting.selectedModels.Ensure(mode);
-                if (!string.IsNullOrEmpty(selection.modelID))
-                    continue;
-                var session = state.SelectSession();
-                if (session == null)
-                    continue;
-                selection.modelID = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
+                var modalities = SelectModalities(asset, mode);
+                var modality = modalities.First();
+                var lastSelectedModelId = state.SelectSession().settings.lastSelectedModels.Ensure(new LastSelectedModelKey(modality, mode)).modelID;
+                if (!string.IsNullOrEmpty(lastSelectedModelId))
+                    selection.modelID = lastSelectedModelId;
+
+                var currentModelId = selection.modelID;
+                var operations = SelectRefinementOperations(mode);
+                var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
+
+                if (shouldAutoAssign)
+                {
+                    var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
+                    if (!string.IsNullOrEmpty(autoAssignModel?.id))
+                        selection.modelID = autoAssignModel.id;
+                }
             }
             return setting;
         }
@@ -168,10 +209,18 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         }
 
         public static string SelectPrompt(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectPrompt();
-        public static string SelectPrompt(this GenerationSetting setting) => PromptUtilities.TruncatePrompt(setting.prompt);
+        public static string SelectPrompt(this GenerationSetting setting)
+        {
+            setting.prompt.TryGetValue(setting.refinementMode, out var prompt);
+            return PromptUtilities.TruncatePrompt(prompt);
+        }
 
         public static string SelectNegativePrompt(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectNegativePrompt();
-        public static string SelectNegativePrompt(this GenerationSetting setting) => PromptUtilities.TruncatePrompt(setting.negativePrompt);
+        public static string SelectNegativePrompt(this GenerationSetting setting)
+        {
+            setting.negativePrompt.TryGetValue(setting.refinementMode, out var negativePrompt);
+            return PromptUtilities.TruncatePrompt(negativePrompt);
+        }
 
         public static int SelectVariationCount(this IState state, VisualElement element) => state.SelectGenerationSetting(element).variationCount;
         public static int SelectVariationCount(this GenerationSetting setting) => setting.variationCount;
@@ -185,9 +234,43 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static (bool useCustomSeed, int customSeed) SelectGenerationOptions(this GenerationSetting setting) =>
             (setting.useCustomSeed, setting.customSeed);
 
+        public static int SelectDuration(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).SelectDuration();
+        public static int SelectDuration(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectDuration();
+        public static int SelectDuration(this GenerationSetting setting) => Mathf.RoundToInt(setting.duration);
+        public static float SelectDurationUnrounded(this GenerationSetting setting) => setting.duration;
+        public static float SelectDurationUnrounded(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectDurationUnrounded();
+
+        public static float SelectTrimStartTime(this IState state, VisualElement element) => state.SelectGenerationSetting(element).loopSettings.trimStartTime;
+        public static float SelectTrimEndTime(this IState state, VisualElement element) => state.SelectGenerationSetting(element).loopSettings.trimEndTime;
+
         public static RefinementMode SelectRefinementMode(this IState state, VisualElement element) => state.SelectGenerationSetting(element).refinementMode;
         public static RefinementMode SelectRefinementMode(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).refinementMode;
         public static RefinementMode SelectRefinementMode(this GenerationSetting setting) => setting.refinementMode;
+
+        public static IEnumerable<RefinementMode> SelectAvailableRefinementModes(this IState state, VisualElement element) =>
+            state.SelectAvailableRefinementModes(element.GetAsset());
+
+        public static IEnumerable<RefinementMode> SelectAvailableRefinementModes(this IState state, AssetReference asset)
+        {
+            if (asset.IsCubemap())
+                return new[] { RefinementMode.Generation, RefinementMode.Upscale };
+
+            return Enum.GetValues(typeof(RefinementMode)).Cast<RefinementMode>();
+        }
+
+        public static IEnumerable<RefinementMode> SelectAvailableRefinementModesOrdered(this IState state, AssetReference asset)
+        {
+            var available = state.SelectAvailableRefinementModes(asset);
+            return available.OrderBy(mode =>
+            {
+                var member = typeof(RefinementMode).GetMember(mode.ToString()).FirstOrDefault();
+                var attr = member?.GetCustomAttributes(typeof(DisplayOrderAttribute), false).FirstOrDefault() as DisplayOrderAttribute;
+                return attr?.order ?? 0;
+            });
+        }
+
+        public static IEnumerable<RefinementMode> SelectAvailableRefinementModesOrdered(this IState state, VisualElement element) =>
+            state.SelectAvailableRefinementModesOrdered(element.GetAsset());
 
         public static int SelectUpscaleFactor(this IState state, VisualElement element) => state.SelectGenerationSetting(element).upscaleFactor;
         public static int SelectUpscaleFactor(this GenerationSetting setting) => setting.upscaleFactor;
@@ -203,6 +286,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 RefinementMode.Pixelate => "Pixelating",
                 RefinementMode.Recolor => "Recoloring",
                 RefinementMode.Inpaint => $"Inpainting with {setting.prompt}",
+                RefinementMode.Spritesheet => "Creating spritesheet",
                 _ => "Failing"
             };
 
@@ -249,7 +333,45 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             if (generations.Contains(currentSelection) && currentSelection.IsValid())
                 return true;
 
-            return asset.IsValid() && !await asset.IsOneByOnePixelOrLikelyBlank();
+            return asset.IsValid() && !await asset.IsOneByOnePixelOrLikelyBlankAsync();
+        }
+
+        public static async Task<bool> SelectIsAssetToRefineSpriteSheet(this IState state, VisualElement element) => await state.SelectIsAssetToRefineSpriteSheet(element.GetAsset());
+        public static async Task<bool> SelectIsAssetToRefineSpriteSheet(this IState state, AssetReference asset)
+        {
+            var setting = state.SelectGenerationSetting(asset);
+            var unsavedAssetBytes = setting.SelectUnsavedAssetBytes();
+            if (unsavedAssetBytes is { Length: > 0 })
+                return setting.unsavedAssetBytes.spriteSheet;
+
+            var currentSelection = state.SelectSelectedGeneration(asset);
+            var generations = state.SelectGeneratedTextures(asset);
+            if (generations.Contains(currentSelection) && currentSelection.IsValid())
+                return currentSelection.IsSpriteSheet();
+
+            if (asset.IsValid() && !await asset.IsOneByOnePixelOrLikelyBlankAsync())
+                return asset.IsSpriteSheet();
+
+            return false;
+        }
+
+        public static async Task<float> SelectIsAssetToRefineDuration(this IState state, VisualElement element) => await state.SelectIsAssetToRefineDuration(element.GetAsset());
+        public static async Task<float> SelectIsAssetToRefineDuration(this IState state, AssetReference asset)
+        {
+            var setting = state.SelectGenerationSetting(asset);
+            var unsavedAssetBytes = setting.SelectUnsavedAssetBytes();
+            if (unsavedAssetBytes is { Length: > 0 })
+                return setting.unsavedAssetBytes.duration;
+
+            var currentSelection = state.SelectSelectedGeneration(asset);
+            var generations = state.SelectGeneratedTextures(asset);
+            if (generations.Contains(currentSelection) && currentSelection.IsValid())
+                return currentSelection.GetDuration();
+
+            if (asset.IsValid() && !await asset.IsOneByOnePixelOrLikelyBlankAsync())
+                return state.SelectDuration(asset);
+
+            return 0;
         }
 
         public static async Task<Stream> SelectUnsavedAssetStreamWithFallback(this IState state, VisualElement element) => await state.SelectUnsavedAssetStreamWithFallback(element.GetAsset());
@@ -262,6 +384,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
 
             // sanity check
             if (!generations.Contains(currentSelection))
+                currentSelection = new();
+
+            if (!currentSelection.IsImage())
                 currentSelection = new();
 
             // use unsaved asset bytes if available
@@ -355,7 +480,6 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static ImageReferenceMode SelectImageReferenceMode(this IState state, VisualElement element, ImageReferenceType type) => state.SelectGenerationSetting(element).imageReferences[(int)type].mode;
         public static float SelectImageReferenceStrength(this IState state, VisualElement element, ImageReferenceType type) => state.SelectGenerationSetting(element).imageReferences[(int)type].strength;
 
-
         public static bool SelectImageReferenceInvertStrength(this ImageReferenceType type)
         {
             IImageReference imageReference;
@@ -405,7 +529,11 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static bool SelectImageReferenceIsValid(this IState state, VisualElement element, ImageReferenceType type) =>
             state.SelectGenerationSetting(element).SelectImageReference(type).SelectImageReferenceIsValid();
         public static bool SelectImageReferenceIsValid(this ImageReferenceSettings imageReference) => imageReference.isActive &&
-            (imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid() || imageReference.mode == ImageReferenceMode.Doodle);
+            (imageReference.mode == ImageReferenceMode.Doodle || imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid() && !imageReference.asset.IsOneByOnePixelOrLikelyBlank());
+        public static bool SelectImageReferenceIsSpriteSheet(this ImageReferenceSettings imageReference) =>
+            imageReference.isActive && imageReference.mode != ImageReferenceMode.Doodle && imageReference.mode == ImageReferenceMode.Asset &&
+            imageReference.asset.IsValid() && imageReference.asset.IsSpriteSheet();
+
         public static async Task<Stream> SelectImageReferenceStream(this ImageReferenceSettings imageReference) =>
             imageReference.mode == ImageReferenceMode.Asset && imageReference.asset.IsValid()
                 ? await imageReference.asset.GetCompatibleImageStreamAsync()
@@ -445,8 +573,6 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return setting.pixelateSettings.outlineThickness;
         }
 
-        static readonly ImmutableArray<ImageDimensions> k_DefaultModelSettingsResolutions = new(new []{ new ImageDimensions { width = 1024, height = 1024 } });
-
         public static IEnumerable<string> SelectModelSettingsResolutions(this IState state, VisualElement element)
         {
             var imageSizes = state.SelectSelectedModel(element)?.imageSizes;
@@ -455,9 +581,31 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return imageSizes.Select(size => $"{size.width} x {size.height}");
         }
 
+        public static bool SelectModelSettingsSupportsCustomResolutions(this IState state, AssetReference asset)
+        {
+            var model = state.SelectSelectedModel(asset);
+            return model?.capabilities.Contains(ModelConstants.ModelCapabilities.CustomResolutions) ?? false;
+        }
+
+        public static bool SelectModelSettingsSupportsCustomResolutions(this IState state, VisualElement element) =>
+            state.SelectModelSettingsSupportsCustomResolutions(element.GetAsset());
+
+        public static bool SelectIsCustomResolutionInvalid(this IState state, AssetReference asset)
+        {
+            if (!state.SelectModelSettingsSupportsCustomResolutions(asset))
+                return false;
+
+            var dimensions = state.SelectGenerationSetting(asset).SelectImageDimensionsVector2();
+            return dimensions.x < ModelConstants.ModelCapabilities.CustomResolutionsMin ||
+                dimensions.x > ModelConstants.ModelCapabilities.CustomResolutionsMax || dimensions.y < ModelConstants.ModelCapabilities.CustomResolutionsMin ||
+                dimensions.y > ModelConstants.ModelCapabilities.CustomResolutionsMax;
+        }
+
+        public static string SelectImageDimensionsRaw(this IState state, VisualElement element) => state.SelectGenerationSetting(element).imageDimensions;
+
         public static string SelectImageDimensions(this IState state, VisualElement element)
         {
-            var dimension = state.SelectGenerationSetting(element).imageDimensions;
+            var dimension = state.SelectImageDimensionsRaw(element);
             var resolutions = state.SelectModelSettingsResolutions(element)?.ToList();
             if (resolutions == null || resolutions.Count == 0)
                 return $"{k_DefaultModelSettingsResolutions[0].width} x {k_DefaultModelSettingsResolutions[0].height}";
@@ -484,10 +632,10 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return dimensions;
         }
 
-        public static IEnumerable<ImageReferenceType> SelectActiveReferencesTypes(this IState state, VisualElement element)
+        public static IEnumerable<ImageReferenceType> SelectActiveReferencesTypes(this IState state, AssetReference asset)
         {
             var active = new List<ImageReferenceType>();
-            var generationSetting = state.SelectGenerationSetting(element);
+            var generationSetting = state.SelectGenerationSetting(asset);
             foreach (ImageReferenceType type in typeof(ImageReferenceType).GetEnumValues())
             {
                 var imageReference = generationSetting.SelectImageReference(type);
@@ -496,6 +644,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             }
             return active;
         }
+
+        public static IEnumerable<ImageReferenceType> SelectActiveReferencesTypes(this IState state, VisualElement element) =>
+            state.SelectActiveReferencesTypes(element.GetAsset());
 
         public static IEnumerable<string> SelectActiveReferences(this IState state, VisualElement element)
         {
@@ -573,12 +724,15 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             var model = state.SelectSelectedModelID(asset);
             var variations = settings.SelectVariationCount();
             var mode = settings.SelectRefinementMode();
+            var dimensions = state.SelectImageDimensionsRaw(element);
             var activeReferencesBitMask = state.SelectActiveReferencesBitMask(element);
             var validReferencesBitMask = state.SelectValidReferencesBitMask(element);
             var baseImageBytesTimeStamp = state.SelectBaseImageBytesTimestamp(element);
             var modelsTimeStamp = ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state);
-            return new GenerationValidationSettings(asset, asset.Exists(), prompt, negativePrompt, model, variations, mode, activeReferencesBitMask,
-                validReferencesBitMask, baseImageBytesTimeStamp.lastWriteTimeUtcTicks, modelsTimeStamp);
+            return new GenerationValidationSettings(asset: asset, valid: asset.Exists(), prompt: prompt, negativePrompt: negativePrompt, model: model,
+                variations: variations, mode: mode, dimensions: dimensions, activeReferencesBitmask: activeReferencesBitMask,
+                validReferencesBitmask: validReferencesBitMask, baseImageBytesTimeStampUtcTicks: baseImageBytesTimeStamp.lastWriteTimeUtcTicks,
+                modelsSelectorTimeStampUtcTicks: modelsTimeStamp);
         }
 
         public static float SelectHistoryDrawerHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).historyDrawerHeight;
@@ -603,7 +757,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
                 return false;
 
             // Only validate for Generation mode
-            if (mode != RefinementMode.Generation)
+            if (mode != RefinementMode.Generation && mode != RefinementMode.Spritesheet)
                 return false;
 
             // Get current active references and add the type we're testing
@@ -616,16 +770,80 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             // Build reference objects based on the test mask
             bool IsActive(ImageReferenceType refType) => (testMask & (1 << (int)refType)) != 0;
 
-            var imagePrompt = IsActive(ImageReferenceType.PromptImage) ? new ImagePrompt(Guid.NewGuid(), refs[mode][ImageReferenceType.PromptImage].strength) : null;
-            var styleReference = IsActive(ImageReferenceType.StyleImage) ? new StyleReference(Guid.NewGuid(), refs[mode][ImageReferenceType.StyleImage].strength) : null;
-            var compositionReference = IsActive(ImageReferenceType.CompositionImage) ? new CompositionReference(Guid.NewGuid(), refs[mode][ImageReferenceType.CompositionImage].strength) : null;
-            var poseReference = IsActive(ImageReferenceType.PoseImage) ? new PoseReference(Guid.NewGuid(), refs[mode][ImageReferenceType.PoseImage].strength) : null;
-            var depthReference = IsActive(ImageReferenceType.DepthImage) ? new DepthReference(Guid.NewGuid(), refs[mode][ImageReferenceType.DepthImage].strength) : null;
-            var lineArtReference = IsActive(ImageReferenceType.LineArtImage) ? new LineArtReference(Guid.NewGuid(), refs[mode][ImageReferenceType.LineArtImage].strength) : null;
-            var featureReference = IsActive(ImageReferenceType.FeatureImage) ? new FeatureReference(Guid.NewGuid(), refs[mode][ImageReferenceType.FeatureImage].strength) : null;
+            ImagePrompt imagePrompt = null;
+            StyleReference styleReference = null;
+            CompositionReference compositionReference = null;
+            PoseReference poseReference = null;
+            DepthReference depthReference = null;
+            LineArtReference lineArtReference = null;
+            FeatureReference featureReference = null;
+
+            // Safely try to get the dictionary of references for the current mode.
+            if (refs.TryGetValue(mode, out var modeRefs))
+            {
+                // Now, safely try to get each reference type from the mode-specific dictionary.
+                if (IsActive(ImageReferenceType.PromptImage) && modeRefs.TryGetValue(ImageReferenceType.PromptImage, out var promptRef))
+                    imagePrompt = new ImagePrompt(Guid.NewGuid(), promptRef.strength);
+
+                if (IsActive(ImageReferenceType.StyleImage) && modeRefs.TryGetValue(ImageReferenceType.StyleImage, out var styleRef))
+                    styleReference = new StyleReference(Guid.NewGuid(), styleRef.strength);
+
+                if (IsActive(ImageReferenceType.CompositionImage) && modeRefs.TryGetValue(ImageReferenceType.CompositionImage, out var compRef))
+                    compositionReference = new CompositionReference(Guid.NewGuid(), compRef.strength);
+
+                if (IsActive(ImageReferenceType.PoseImage) && modeRefs.TryGetValue(ImageReferenceType.PoseImage, out var poseRef))
+                    poseReference = new PoseReference(Guid.NewGuid(), poseRef.strength);
+
+                if (IsActive(ImageReferenceType.DepthImage) && modeRefs.TryGetValue(ImageReferenceType.DepthImage, out var depthRef))
+                    depthReference = new DepthReference(Guid.NewGuid(), depthRef.strength);
+
+                if (IsActive(ImageReferenceType.LineArtImage) && modeRefs.TryGetValue(ImageReferenceType.LineArtImage, out var lineArtRef))
+                    lineArtReference = new LineArtReference(Guid.NewGuid(), lineArtRef.strength);
+
+                if (IsActive(ImageReferenceType.FeatureImage) && modeRefs.TryGetValue(ImageReferenceType.FeatureImage, out var featureRef))
+                    featureReference = new FeatureReference(Guid.NewGuid(), featureRef.strength);
+            }
+
+            // Special case for models that only support a single input image
+            if (model.capabilities.Contains(ModelConstants.ModelCapabilities.SingleInputImage))
+            {
+                var referenceCount = 0;
+                if (imagePrompt != null) referenceCount++;
+                if (styleReference != null) referenceCount++;
+                if (compositionReference != null) referenceCount++;
+                if (poseReference != null) referenceCount++;
+                if (depthReference != null) referenceCount++;
+                if (lineArtReference != null) referenceCount++;
+                if (featureReference != null) referenceCount++;
+
+                if (referenceCount > 1)
+                    return false;
+            }
 
             // Use the CanGenerateWithReferences extension method to validate
             return model.CanGenerateWithReferences(textPrompt, imagePrompt, styleReference, compositionReference, poseReference, depthReference, lineArtReference, featureReference);
+        }
+
+        public static async Task<GenerationMetadata> MakeMetadata(this IState state, AssetReference asset)
+        {
+            var generationSetting = state.SelectGenerationSetting(asset);
+            var metadata = generationSetting.MakeMetadata(asset);
+            switch (generationSetting.refinementMode)
+            {
+                case RefinementMode.RemoveBackground:
+                case RefinementMode.Upscale:
+                case RefinementMode.Pixelate:
+                case RefinementMode.Recolor:
+                    metadata.spriteSheet = await state.SelectIsAssetToRefineSpriteSheet(asset);
+                    metadata.duration = await state.SelectIsAssetToRefineDuration(asset);
+                    break;
+                case RefinementMode.Spritesheet:
+                    metadata.spriteSheet = true;
+                    metadata.duration = state.SelectDuration(asset);
+                    break;
+            }
+
+            return metadata;
         }
     }
 }

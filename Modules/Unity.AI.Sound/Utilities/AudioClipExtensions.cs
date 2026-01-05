@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 
@@ -25,7 +29,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 audioClip.ApplyEnvelope(samples, envelopeSettings.controlPoints);
                 // trimming before enveloping would be more efficient, but also, more error-prone
                 samples = audioClip.ApplyTrim(samples, envelopeSettings.startPosition, envelopeSettings.endPosition);
-                playClip = AudioClip.Create(audioClip.name + "_clone", samples.Length, audioClip.channels, audioClip.frequency, false);
+                playClip = AudioClip.Create(audioClip.name + "_clone", samples.Length / Math.Max(1, audioClip.channels), audioClip.channels, audioClip.frequency, false);
                 playClip.SetData(samples, 0);
 
                 timeOffset = envelopeSettings.startPosition * audioClip.length;
@@ -317,11 +321,10 @@ namespace Unity.AI.Sound.Services.Utilities
 
         static float[] ApplyTrim(this AudioClip audioClip, float[] samples, float start = 0, float end = -1)
         {
-            var startSample = (start == 0) ? 0 : GetSampleIndexAtPosition(audioClip, start);
-            var endSample = (end == -1) ? audioClip.samples : GetSampleIndexAtPosition(audioClip, end);
-            var count = endSample - startSample;
-
-            var subSamples = new float[count * audioClip.channels];
+            var startSample = (start == 0) ? 0 : GetSampleIndexAtPosition(audioClip, start) * audioClip.channels;
+            var endSample = (end == -1) ? audioClip.samples * audioClip.channels : GetSampleIndexAtPosition(audioClip, end) * audioClip.channels;
+            var count =  Math.Max(0, endSample - startSample);
+            var subSamples = new float[count];
             Array.Copy(samples, startSample, subSamples, 0, count);
             return subSamples;
         }
@@ -384,6 +387,80 @@ namespace Unity.AI.Sound.Services.Utilities
             return 0;
         }
 
+        /// <summary>
+        /// Trim an audio clip for a given start time and end time.
+        /// </summary>
+        /// <param name="audioClip">The source AudioClip from which to extract the segment.</param>
+        /// <param name="startTimeInSeconds">The time in seconds where the new sub-clip should begin.</param>
+        /// <param name="endTimeInSeconds">The time in seconds where the new sub-clip should end.</param>
+        /// <returns>A new float array containing the audio samples of the specified segment.</returns>
+        public static float[] TrimAudioFromStartAndEndTime(this AudioClip audioClip, float startTimeInSeconds, float endTimeInSeconds)
+        {
+            audioClip.TryGetSamples(out var audioSamples);
+            if(startTimeInSeconds < 0 || endTimeInSeconds < startTimeInSeconds)
+                throw new ArgumentException("Invalid startTime or endTime values.");
+
+            var startSample = audioClip.GetSampleIndexAtPosition(audioClip.GetNormalizedPositionAtTime(startTimeInSeconds)) * audioClip.channels;
+            var endSample = audioClip.GetSampleIndexAtPosition(audioClip.GetNormalizedPositionAtTime(endTimeInSeconds)) * audioClip.channels;
+            var count = Math.Max(0, endSample - startSample);
+            var subSamples = new float[count];
+            Array.Copy(audioSamples, startSample, subSamples, 0, count);
+            return subSamples;
+        }
+
+        /// <summary>
+        /// Remove silences at the beginning and end of an audio clip.
+        /// </summary>
+        /// <param name="audioClip">The Audio Clip to remove the silences.</param>
+        /// <returns>The audio samples of the Audio Clip with the start and end position where there are no silences.</returns>
+        public static (float[] samples, float startPosition, float endPosition) TrimSilences(this AudioClip audioClip)
+        {
+            audioClip.TryGetSamples(out var audioSamples);
+            var soundStartSample = audioClip.FindNextNonSilentSample(audioSamples, 0);
+            var soundEndSample = audioClip.FindPreviousNonSilentSample(audioSamples, audioClip.samples - 1);
+            var startPosition = audioClip.GetNormalizedPositionAtSampleIndex(soundStartSample);
+            var endPosition = audioClip.GetNormalizedPositionAtSampleIndex(soundEndSample);
+
+            if (endPosition <= startPosition + Mathf.Epsilon)
+                endPosition = 1f;
+
+            return (audioSamples, startPosition, endPosition);
+        }
+
+        static int FindNextNonSilentSample(this AudioClip audioClip, IList<float> audioData, int startSample,
+            float amplitudeThreshold = 0.02f)
+        {
+            for (var i = startSample; i < audioClip.samples; i++)
+            {
+                for (var channel = 0; channel < audioClip.channels; channel++)
+                {
+                    var index = i * audioClip.channels + channel;
+                    if (Mathf.Abs(audioData[index]) > amplitudeThreshold)
+                    {
+                        return i;
+                    }
+                }
+            }
+            return 0;
+        }
+
+        static int FindPreviousNonSilentSample(this AudioClip audioClip, IList<float> audioData, int startSample,
+            float amplitudeThreshold = 0.02f)
+        {
+            for (var i = startSample; i >= 0; i--)
+            {
+                for (var channel = 0; channel < audioClip.channels; channel++)
+                {
+                    var index = i * audioClip.channels + channel;
+                    if (Mathf.Abs(audioData[index]) > amplitudeThreshold)
+                    {
+                        return i;
+                    }
+                }
+            }
+            return 0;
+        }
+
         public static (float, int) FindMaxAmplitudeAndSample(this AudioClip audioClip, IList<float> audioData)
         {
             float maxAmplitude = 0;
@@ -402,6 +479,104 @@ namespace Unity.AI.Sound.Services.Utilities
             }
 
             return (maxAmplitude, maxAmplitudeSample);
+        }
+
+        /// <summary>
+        /// Normalize an audio clip : Increase the volume of an audio file by the largest possible amount without causing any clipping.
+        /// </summary>
+        /// <param name="audioClip">Audio Clip to normalize.</param>
+        /// <returns>The normalized audio samples.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the normalization is not possible, if the max amplitude is 0 or greater than 1.</exception>
+        public static float[] NormalizeAudio(this AudioClip audioClip)
+        {
+            audioClip.TryGetSamples(out var audioSamples);
+            var (maxAmplitude, maxAmplitudeSample) = audioClip.FindMaxAmplitudeAndSample(audioSamples);
+            if (maxAmplitude is 0f or > 1f)
+                throw new InvalidOperationException("Normalization is not possible on this Audio Clip");
+            return audioClip.ChangeVolume(1f / maxAmplitude);
+        }
+
+        /// <summary>
+        /// Increase or decrease the volume of an audio clip by a given factor. If clipping occurs, normalize instead.
+        /// </summary>
+        /// <param name="audioClip">Audio Clip to work on.</param>
+        /// <param name="factor">The factor to increase or decrease the volume.</param>
+        /// <param name="normalize">To force the normalization and ignore the factor.</param>
+        /// <returns>The audio samples multiplied by the factor.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the factor is too big and is causing clipping.</exception>
+        public static float[] ChangeVolume(this AudioClip audioClip, float factor, bool normalize = false)
+        {
+            audioClip.TryGetSamples(out var audioSamples);
+            try
+            {
+                if (normalize)
+                {
+                    audioSamples = audioClip.NormalizeAudio();
+                }
+                else
+                {
+                    var (maxAmplitude, maxAmplitudeSample) = audioClip.FindMaxAmplitudeAndSample(audioSamples);
+
+                    var clippingFactor = maxAmplitude * factor;
+                    // Adds a comparison with 1f to avoid floating point precision issues. Sometimes, the value would be a little higher than 1f when
+                    // coming from NormalizeAudio and would go into an infinite loop
+                    if (clippingFactor > 1f && !Mathf.Approximately(clippingFactor, 1f))
+                        throw new InvalidOperationException("Cannot increase volume by the requested factor without causing clipping.");
+
+                    for (var i = 0; i < audioClip.samples; i++)
+                    {
+                        for (var channel = 0; channel < audioClip.channels; channel++)
+                        {
+                            var index = i * audioClip.channels + channel;
+                            audioSamples[index] *= factor;
+                        }
+                    }
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // If there is clipping, normalize instead so we have the largest possible amount without causing any clipping.
+                audioSamples = audioClip.NormalizeAudio();
+            }
+
+            return audioSamples;
+        }
+
+        /// <summary>
+        /// Creates a loop by blending the end of the audio with the beginning to eliminate clicks with crossfading.
+        /// </summary>
+        /// <param name="audioClip">The Audio Clip to work on.</param>
+        /// <param name="crossfadeDurationMs">The duration of the crossfade in milliseconds.</param>
+        /// <returns>The new audio samples in a loop.</returns>
+        public static float[] CreateCrossFade(this AudioClip audioClip, int crossfadeDurationMs)
+        {
+            if(crossfadeDurationMs <= 0)
+                throw new ArgumentException("Crossfade duration must be greater than zero.", nameof(crossfadeDurationMs));
+
+            audioClip.TryGetSamples(out var audioSamples);
+
+            var crossfadeSamples = (int)(crossfadeDurationMs * audioClip.frequency / 1000f);
+            var totalSamples = audioSamples.Length / audioClip.channels;
+            crossfadeSamples = Math.Min(crossfadeSamples, totalSamples / 2); // Ensure we don't exceed half the audio length
+
+            var looped = new float[audioSamples.Length];
+            Array.Copy(audioSamples, looped, audioSamples.Length);
+
+            for (int i = 0; i < crossfadeSamples; i++)
+            {
+                var position = i / (float)(crossfadeSamples - 1);
+                var fadeIn = (float)Math.Sqrt(position);
+                var fadeOut = (float)Math.Sqrt(1.0f - position);
+
+                for (int channel = 0; channel < audioClip.channels; channel++)
+                {
+                    var index = i * audioClip.channels + channel;
+                    var endIndex = audioSamples.Length - crossfadeSamples * audioClip.channels + i * audioClip.channels + channel;
+                    looped[index] = audioSamples[index] * fadeIn + audioSamples[endIndex] * fadeOut;
+                }
+            }
+
+            return looped;
         }
     }
 }

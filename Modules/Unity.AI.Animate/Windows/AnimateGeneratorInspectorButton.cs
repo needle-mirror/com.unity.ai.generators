@@ -5,6 +5,7 @@ using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit.Accounts.Services;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.GenerationContextMenu;
 using UnityEditor;
 using UnityEngine;

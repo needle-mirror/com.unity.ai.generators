@@ -1,6 +1,6 @@
 using System;
-using Unity.AI.Generators.Redux.Toolkit;
-using UnityEngine;
+using Unity.AI.Generators.UI;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Animate.Services.Stores.States
 {

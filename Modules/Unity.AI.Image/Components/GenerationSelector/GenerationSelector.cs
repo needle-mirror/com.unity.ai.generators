@@ -1,18 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Utilities;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Selectors;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Image.Windows;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,6 +24,7 @@ namespace Unity.AI.Image.Components
     partial class GenerationSelector : VisualElement
     {
         readonly GridView m_GridView;
+        readonly Button m_OpenGeneratorsWindowButton;
 
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Image/Components/GenerationSelector/GenerationSelector.uxml";
 
@@ -52,13 +54,18 @@ namespace Unity.AI.Image.Components
             m_GridView.BindTo<TextureResult>(m_TilePool, () => replaceAssetOnSelect);
             m_GridView.MakeTileGrid(GetPreviewSize);
             this.UseAsset(SetAsset);
-            this.Use(state => state.SelectPreviewSizeFactor(), OnPreviewSizeChanged);
+            this.Use(state => state.SelectPreviewSizeFactor(this), OnPreviewSizeChanged);
             this.Use(state => state.CalculateSelectorHash(this), OnGeneratedTexturesChanged);
 
             this.Use(state => state.SelectSelectedGeneration(this), OnGenerationSelected);
             this.UseArray(state => state.SelectGenerationProgress(this), OnGenerationProgressChanged);
             this.UseContext<ScreenScaleFactor>(OnScreenScaleFactorChanged, false);
 
+            RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.target is not GenerationTile)
+                    OnBackgroundClicked();
+            });
             RegisterCallback<GeometryChangedEvent>(_ => OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize())));
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
@@ -71,6 +78,32 @@ namespace Unity.AI.Image.Components
                 if (string.IsNullOrEmpty(m_ElementID))
                     m_ElementID = this.GetElementIdentifier().ToString();
             });
+
+            m_OpenGeneratorsWindowButton = this.Q<Button>("open-generator-window");
+            m_OpenGeneratorsWindowButton.clicked += () =>
+            {
+                var asset = this.GetAsset();
+                if (!asset.IsValid())
+                    return;
+                TextureGeneratorWindow.Display(asset.GetPath());
+            };
+
+            this.UseAsset(asset =>
+            {
+                if (asset.IsCubemap())
+                    m_GridView.MakeEquirectTileGrid(GetPreviewSize);
+                else
+                    m_GridView.MakeTileGrid(GetPreviewSize);
+            });
+        }
+
+        void OnBackgroundClicked()
+        {
+            var asset = this.GetAsset();
+            if (!asset.IsValid())
+                return;
+
+            this.Dispatch(GenerationResultsActions.selectGeneration, new(asset, new TextureResult(), false, false));
         }
 
         void OnScreenScaleFactorChanged(ScreenScaleFactor factor)
@@ -113,13 +146,16 @@ namespace Unity.AI.Image.Components
         {
             ((BindingList<TextureResult>)m_GridView.itemsSource).ReplaceRangeUnique(textures, result => result is TextureSkeleton);
             m_GridView.Rebuild();
+
+            var asset = this.GetAsset();
+            if (!asset.IsValid())
+                return;
+            if (assetMonitor)
+                this.Dispatch(Generators.UI.Actions.GenerationActions.pruneFulfilledSkeletons, new(asset));
         }
 
         void SetAsset(AssetReference asset)
         {
-            if (asset.IsValid() && assetMonitor)
-                this.Dispatch(GenerationResultsActions.pruneFulfilledSkeletons, new(this.GetAsset()));
-
             OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize()));
 
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
@@ -130,9 +166,16 @@ namespace Unity.AI.Image.Components
             if (!asset.IsValid() || !assetMonitor)
                 return;
 
-            m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, ImageFileUtilities.knownExtensions,
-                files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedTexturesAsync,
-                    new(asset, files.Select(TextureResult.FromPath).ToList())));
+            m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, AssetUtils.supportedAssetExtensions,
+                files =>
+                {
+                    if (this.SelectWindowSettingsDisablePrecaching())
+                        this.Dispatch(GenerationResultsActions.setGeneratedTextures,
+                            new(asset, files.Select(TextureResult.FromPath).ToList()));
+                    else
+                        this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedTexturesAsync,
+                            new(asset, files.Select(TextureResult.FromPath).ToList()));
+                });
             this.AddManipulator(m_GenerationFileSystemWatcher);
         }
     }

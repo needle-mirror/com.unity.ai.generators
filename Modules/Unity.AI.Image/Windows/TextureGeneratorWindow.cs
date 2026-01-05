@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using Unity.AI.Image.Components;
 using Unity.AI.Image.Services.SessionPersistence;
@@ -7,6 +8,7 @@ using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 
@@ -54,6 +56,8 @@ namespace Unity.AI.Image.Windows
 
         [SerializeField]
         bool isEditorLocked = true;
+
+        public IEnumerable<Type> allowedTypes { get; } = new[] { typeof(Texture) };
 
         void CreateGUI()
         {

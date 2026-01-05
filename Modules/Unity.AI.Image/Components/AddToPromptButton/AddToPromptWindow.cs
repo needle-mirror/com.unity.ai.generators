@@ -6,6 +6,7 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Image.Components;
 using Unity.AI.Image.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

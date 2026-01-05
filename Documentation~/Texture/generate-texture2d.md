@@ -35,7 +35,7 @@ To generate 2D images using [Texture2D](https://docs.unity3d.com/6000.0/Document
 
       Every 2D image you generate has a seed. A seed is a number that you enter or that the tool generates automatically.
 
-      For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).
+      For more information on custom seed, refer to [Use a custom seed to generate consistent sprites](xref:custom-seed).
 1. Select **Generate**.
 
    The generated images appear in the **Generations** panel. Hover over an image to view details, such as the model used and prompt settings.
@@ -51,7 +51,7 @@ To generate 2D images using [Texture2D](https://docs.unity3d.com/6000.0/Document
 * [Generate Texture2D asset with a prompt](xref:generate-texture2d)
 * [Generate window](xref:generate-window)
 * [Texture2D](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Texture2D.html)
-* [Use custom seed to generate consistent sprites](xref:custom-seed)
+* [Use a custom seed to generate consistent sprites](xref:custom-seed)
 * [Generate and assign assets with the Object Picker](xref:asset-picker)
 * [Choose the right model with the Model Picker](xref:animation-intro)
 * [Prompt guidelines for asset generation](xref:prompts)

@@ -1,31 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.AI.Generators.IO.Utilities;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
     static class SkeletonExtensions
     {
-        static int s_NextInternalId = 1;
-        static readonly Queue<int> k_AvailableInternalIds = new();
-        static readonly Dictionary<int, int> k_ExternalToInternalMap = new();
         internal const string skeletonUriPath = "file:///skeletons";
-
-        public static void Acquire(int externalId)
-        {
-            var internalId = k_AvailableInternalIds.Count > 0 ? k_AvailableInternalIds.Dequeue() : s_NextInternalId++;
-            k_ExternalToInternalMap[externalId] = internalId;
-        }
-
-        public static void Release(int externalId)
-        {
-            if (!k_ExternalToInternalMap.TryGetValue(externalId, out var internalId))
-                return;
-            k_AvailableInternalIds.Enqueue(internalId);
-            k_ExternalToInternalMap.Remove(externalId);
-        }
-
-        public static int Peek(int externalId) => k_ExternalToInternalMap.GetValueOrDefault(externalId, 0);
     }
 
     static class SkeletonRenderingUtils
@@ -34,7 +17,28 @@ namespace Unity.AI.Generators.UI.Utilities
 
         static readonly Dictionary<Tuple<int, int, float>, RenderTexture> k_Cache = new();
 
-        public static RenderTexture GetTemporary(float progress, int width, int height, float screenScaleFactor)
+        static SkeletonRenderingUtils()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+        }
+
+        static void OnBeforeAssemblyReload()
+        {
+            foreach (var rt in k_Cache.Values)
+            {
+                if (rt)
+                {
+                    rt.Release();
+                    rt.SafeDestroy();
+                }
+            }
+            k_Cache.Clear();
+
+            if (s_ProgressDiskMaterial)
+                s_ProgressDiskMaterial.SafeDestroy();
+        }
+
+        public static RenderTexture GetCached(float progress, int width, int height, float screenScaleFactor)
         {
             var texWidth = Mathf.RoundToInt(width * screenScaleFactor);
             var texHeight = Mathf.RoundToInt(height * screenScaleFactor);
@@ -45,18 +49,20 @@ namespace Unity.AI.Generators.UI.Utilities
             var bucketedProgress = progress <= 0 ? 0 : Mathf.Clamp(Mathf.Round(progress / 0.05f) * 0.05f, 0.05f, 1f);
 
             var key = Tuple.Create(texWidth, texHeight, bucketedProgress);
-            if (k_Cache.TryGetValue(key, out var cached))
-            {
-                if (cached.IsValid())
-                    return cached;
 
-                // Evict invalid texture from cache
+            if (k_Cache.TryGetValue(key, out var rt) && rt && rt.IsCreated())
+                return rt;
+
+            if (rt) // Not created or invalid
+            {
                 k_Cache.Remove(key);
-                if (cached != null)
-                    RenderTexture.ReleaseTemporary(cached);
+                rt.Release();
             }
 
-            var rt = RenderTexture.GetTemporary(texWidth, texHeight, 0);
+            rt = new RenderTexture(texWidth, texHeight, 0) { hideFlags = HideFlags.HideAndDontSave };
+            rt.Create();
+            k_Cache[key] = rt;
+
             if (!s_ProgressDiskMaterial)
                 s_ProgressDiskMaterial = new Material(Shader.Find("Hidden/AIToolkit/ProgressDisk")) { hideFlags = HideFlags.HideAndDontSave };
 
@@ -71,7 +77,6 @@ namespace Unity.AI.Generators.UI.Utilities
                 RenderTexture.active = previousRT;
             }
 
-            k_Cache.Add(key, rt);
             return rt;
         }
     }

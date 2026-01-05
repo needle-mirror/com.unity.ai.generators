@@ -5,7 +5,6 @@ using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UIElements.Core;
 using Unity.AI.Generators.UIElements.Extensions;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Utilities

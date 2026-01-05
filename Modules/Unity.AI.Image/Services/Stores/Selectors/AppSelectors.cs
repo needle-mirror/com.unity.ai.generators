@@ -1,4 +1,3 @@
-using System;
 using Unity.AI.Image.Services.SessionPersistence;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Toolkit;

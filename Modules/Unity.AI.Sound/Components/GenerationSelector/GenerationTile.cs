@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Unity.AI.Generators.Asset;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.States;
@@ -11,10 +10,12 @@ using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Generators.Contexts;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -24,7 +25,6 @@ namespace Unity.AI.Sound.Components
     [UxmlElement]
     partial class GenerationTile : VisualElement
     {
-        VisualElement image { get; }
         public VisualElement progress { get; }
 
         public AudioClipResult audioClipResult { get; private set; }
@@ -36,6 +36,7 @@ namespace Unity.AI.Sound.Components
         readonly ContextualMenuManipulator m_ContextualMenu;
         readonly ContextualMenuManipulator m_FailedContextualMenu;
 
+        readonly VisualElement m_Image;
         RenderTexture m_WaveformTexture;
         RenderTexture m_CompositeTexture;
         readonly Button m_PlayButton;
@@ -45,37 +46,19 @@ namespace Unity.AI.Sound.Components
         readonly Label m_Label;
         GenerationMetadata m_Metadata;
 
-        ~GenerationTile()
-        {
-            try
-            {
-                m_PlayManipulator?.Cancel();
-                if (m_WaveformTexture)
-                    RenderTexture.ReleaseTemporary(m_WaveformTexture);
-                m_WaveformTexture = null;
-                if (m_CompositeTexture)
-                    RenderTexture.ReleaseTemporary(m_CompositeTexture);
-                m_CompositeTexture = null;
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-
         public GenerationTile()
         {
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
             m_Label = this.Q<Label>("label");
-            image = this.Q<VisualElement>("image");
+            m_Image = this.Q<VisualElement>("image");
             m_PlayButton = this.Q<Button>(className: "play-button");
             RegisterCallback<AttachToPanelEvent>(_ => {
                 if (m_SkeletonTexture)
                     progress.style.backgroundImage = Background.FromRenderTexture(m_SkeletonTexture); });
             RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
-            RegisterCallback<MouseEnterEvent>(_ => m_PlayButton.EnableInClassList("hide", audioClipResult is TextureSkeleton || audioClipResult.IsFailed()));
+            RegisterCallback<MouseEnterEvent>(_ => m_PlayButton.EnableInClassList("hide", audioClipResult is AudioClipSkeleton || audioClipResult.IsFailed()));
             RegisterCallback<MouseLeaveEvent>(_ => m_PlayButton.EnableInClassList("hide", true));
             RegisterCallback<MouseOverEvent>(_ => UpdateTooltip());
             m_PlayButton.clickable = m_PlayManipulator = new PlayManipulator(() => null,
@@ -93,14 +76,29 @@ namespace Unity.AI.Sound.Components
 
             progress = this.Q<VisualElement>("progress");
             progress.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
+
+            this.AddManipulator(new DelayedCleanupManipulator(() =>
+            {
+                m_PlayManipulator?.Cancel();
+                if (m_WaveformTexture)
+                {
+                    RenderTexture.ReleaseTemporary(m_WaveformTexture);
+                    m_WaveformTexture = null;
+                }
+                if (m_CompositeTexture)
+                {
+                    RenderTexture.ReleaseTemporary(m_CompositeTexture);
+                    m_CompositeTexture = null;
+                }
+            }));
         }
 
         public void SetGenerationProgress(IEnumerable<GenerationProgressData> data)
         {
-            if (audioClipResult is not TextureSkeleton)
+            if (audioClipResult is not AudioClipSkeleton)
                 return;
 
-            var progressReport = data.FirstOrDefault(d => d.taskID == ((TextureSkeleton)audioClipResult).taskID);
+            var progressReport = data.FirstOrDefault(d => d.taskID == ((AudioClipSkeleton)audioClipResult).taskID);
             if (progressReport == null)
                 return;
 
@@ -111,7 +109,7 @@ namespace Unity.AI.Sound.Components
             var screenScaleFactor = this.GetContext<ScreenScaleFactor>()?.value ?? 1f;
             var previousSkeletonTexture = m_SkeletonTexture;
             var width = float.IsNaN(resolvedStyle.width) ? (int)TextureSizeHint.Carousel : (int)resolvedStyle.width;
-            m_SkeletonTexture = SkeletonRenderingUtils.GetTemporary(progressReport.progress, width, width, screenScaleFactor);
+            m_SkeletonTexture = SkeletonRenderingUtils.GetCached(progressReport.progress, width, width, screenScaleFactor);
             if (previousSkeletonTexture == m_SkeletonTexture)
                 return;
 
@@ -124,7 +122,7 @@ namespace Unity.AI.Sound.Components
         void BuildContextualMenu(ContextualMenuPopulateEvent evt)
         {
             evt.menu.MenuItems().Clear();
-            if (audioClipResult is TextureSkeleton)
+            if (audioClipResult is AudioClipSkeleton)
                 return;
 
             evt.menu.AppendAction("Select", _ =>
@@ -140,7 +138,7 @@ namespace Unity.AI.Sound.Components
                     return;
                 m_AudioClipResult.Play();
             }, DropdownMenuAction.AlwaysEnabled);*/
-            evt.menu.AppendAction("Promote to asset", _ =>
+            evt.menu.AppendAction("Promote to new asset", _ =>
             {
                 var asset = this.GetAsset();
                 this.GetStoreApi().Dispatch(SessionActions.promoteFocusedGeneration, new (asset, audioClipResult));
@@ -171,7 +169,7 @@ namespace Unity.AI.Sound.Components
         void BuildFailedContextualMenu(ContextualMenuPopulateEvent evt)
         {
             evt.menu.MenuItems().Clear();
-            if (audioClipResult is TextureSkeleton)
+            if (audioClipResult is AudioClipSkeleton)
                 return;
 
             evt.menu.AppendAction(
@@ -199,12 +197,9 @@ namespace Unity.AI.Sound.Components
 
         async void OnGeometryChanged(GeometryChangedEvent evt)
         {
-            if (audioClipResult is TextureSkeleton)
-                return;
-
-            if (audioClipResult == null)
+            if (audioClipResult is AudioClipSkeleton or null)
             {
-                image.style.backgroundImage = null;
+                m_Image.style.backgroundImage = null;
                 return;
             }
 
@@ -252,21 +247,21 @@ namespace Unity.AI.Sound.Components
                 rt = m_CompositeTexture = AudioClipMarkerRenderingUtils.GetTemporary(m_WaveformTexture, markerSettings, m_CompositeTexture);
 
                 // Set the result to the image
-                image.style.backgroundImage = Background.FromRenderTexture(rt);
-                image.MarkDirtyRepaint();
+                m_Image.style.backgroundImage = Background.FromRenderTexture(rt);
+                m_Image.MarkDirtyRepaint();
             }
             else
             {
                 rt = await TextureCache.GetPreview(new Uri(Path.GetFullPath(ImageFileUtilities.failedDownloadIcon), UriKind.Absolute), (int)(height * screenScaleFactor));
-                image.style.backgroundImage = Background.FromRenderTexture(rt);
+                m_Image.style.backgroundImage = Background.FromRenderTexture(rt);
             }
 
             if (!rt)
                 return;
 
-            image.EnableInClassList("image-stretch-to-fill", !audioClipResult.IsFailed() && (resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height));
-            image.EnableInClassList("image-scale-to-fit", audioClipResult.IsFailed() && (resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height));
-            image.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
+            m_Image.EnableInClassList("image-stretch-to-fill", !audioClipResult.IsFailed() && (resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height));
+            m_Image.EnableInClassList("image-scale-to-fit", audioClipResult.IsFailed() && (resolvedStyle.width <= rt.width || resolvedStyle.height <= rt.height));
+            m_Image.EnableInClassList("image-scale-initial", resolvedStyle.width > rt.width && resolvedStyle.height > rt.height);
         }
 
         public void OnScreenScaleFactorChanged(ScreenScaleFactor _) => OnGeometryChanged(null);
@@ -281,9 +276,9 @@ namespace Unity.AI.Sound.Components
 
             m_SpinnerManipulator.Stop();
 
-            m_Label.SetShown(result is TextureSkeleton);
+            m_Label.SetShown(result is AudioClipSkeleton);
 
-            image.style.backgroundImage = null;
+            m_Image.style.backgroundImage = null;
 
             m_PlayManipulator?.Cancel();
 
@@ -307,7 +302,7 @@ namespace Unity.AI.Sound.Components
 
             SetSelectedGeneration(this.GetState().SelectSelectedGeneration(this));
 
-            if (result is TextureSkeleton)
+            if (result is AudioClipSkeleton)
             {
                 SetGenerationProgress(new [] { this.GetState().SelectGenerationProgress(this, result) });
                 return;
@@ -319,7 +314,7 @@ namespace Unity.AI.Sound.Components
         async void UpdateTooltip()
         {
             tooltip = this.GetState()?.SelectTooltipModelSettings(null);
-            if (audioClipResult is null or TextureSkeleton)
+            if (audioClipResult is null or AudioClipSkeleton)
                 return;
 
             m_Metadata = await audioClipResult.GetMetadata();

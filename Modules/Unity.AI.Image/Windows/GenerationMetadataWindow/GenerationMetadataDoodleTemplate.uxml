@@ -5,7 +5,6 @@
                 <Label class="metadata-type" name="doodle-type" />
                 <ui:DoodlePad class="metadata hidden rounded-4px flex-grow-100pct p-0 m-0 metadata-image-display" modifier-state="1"/>
                 <editorui:ObjectField
-                    name="metadata-object-field__input-field"
                     class="metadata metadata-object-field__input-field hidden rounded-4px flex-grow-100pct p-0 m-0"
                     type="UnityEngine.Texture2D, UnityEngine.CoreModule"
                     picking-mode="Ignore">

@@ -4,6 +4,7 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Utilities

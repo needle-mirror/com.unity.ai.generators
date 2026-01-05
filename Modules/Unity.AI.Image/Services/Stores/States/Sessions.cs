@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 
 namespace Unity.AI.Image.Services.Stores.States
 {

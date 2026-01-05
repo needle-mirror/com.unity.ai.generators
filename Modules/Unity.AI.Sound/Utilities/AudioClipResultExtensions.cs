@@ -1,16 +1,20 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
+using UriExtensions = Unity.AI.Generators.UI.Utilities.UriExtensions;
 
 namespace Unity.AI.Sound.Services.Utilities
 {
@@ -61,7 +65,15 @@ namespace Unity.AI.Sound.Services.Utilities
 
         public static async Task<AudioClip> AudioClipFromResultAsync(this AudioClipResult audioClipResult)
         {
-            var request = UnityWebRequestMultimedia.GetAudioClip(audioClipResult.uri.AbsoluteUri, AudioType.WAV);
+            var extension = Path.GetExtension(audioClipResult.uri.AbsolutePath);
+            var audioType = extension.ToLowerInvariant() switch
+            {
+                AssetUtils.wavAssetExtension => AudioType.WAV,
+                AssetUtils.mp3AssetExtension => AudioType.MPEG,
+                _ => AudioType.UNKNOWN
+            };
+
+            var request = UnityWebRequestMultimedia.GetAudioClip(audioClipResult.uri.AbsoluteUri, audioType);
             var task = request.SendWebRequest();
             await task;
             if (task.webRequest.result != UnityWebRequest.Result.Success)
@@ -85,11 +97,14 @@ namespace Unity.AI.Sound.Services.Utilities
                 if (!audioClipResult.uri.IsFile)
                     throw new ArgumentException("CopyToProject should only be used for local files.", nameof(audioClipResult));
 
-                var extension = Path.GetExtension(audioClipResult.uri.GetLocalPath());
-                if (!AssetUtils.defaultAssetExtension.Equals(extension, StringComparison.OrdinalIgnoreCase))
-                    throw new ArgumentException("Only .wav files are supported.", nameof(audioClipResult));
-
                 var path = audioClipResult.uri.GetLocalPath();
+                var extension = Path.GetExtension(path);
+                if (!AssetUtils.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await using var fileStream = FileIO.OpenReadAsync(path);
+                    extension = FileTypeSupport.GetFileExtension(fileStream);
+                }
+
                 var fileName = Path.GetFileName(path);
                 if (!File.Exists(path))
                     throw new FileNotFoundException($"The file {path} does not exist.", path);
@@ -98,12 +113,13 @@ namespace Unity.AI.Sound.Services.Utilities
 
                 Directory.CreateDirectory(cacheDirectory);
                 var newPath = Path.Combine(cacheDirectory, fileName);
+                newPath = Path.ChangeExtension(newPath, extension);
                 var newUri = new Uri(Path.GetFullPath(newPath));
                 if (newUri == audioClipResult.uri)
                     return;
 
                 await FileIO.CopyFileAsync(path, newPath, overwrite: true);
-                Generators.Asset.AssetReferenceExtensions.ImportAsset(newPath);
+                AssetDatabaseExtensions.ImportGeneratedAsset(newPath);
                 audioClipResult.uri = newUri;
 
                 try
@@ -135,7 +151,7 @@ namespace Unity.AI.Sound.Services.Utilities
 
                 Directory.CreateDirectory(cacheDirectory);
 
-                var newUri = await UriExtensions.DownloadFile(audioClipResult.uri, cacheDirectory, httpClient);
+                var newUri = await Unity.AI.Generators.IO.Utilities.UriExtensions.DownloadFile(audioClipResult.uri, cacheDirectory, httpClient);
                 if (newUri == audioClipResult.uri)
                     return;
 
@@ -244,7 +260,7 @@ namespace Unity.AI.Sound.Services.Utilities
                 return false;
 
             var localPath = result.uri.GetLocalPath();
-            return  FileIO.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
+            return FileComparison.AreFilesIdentical(localPath, Path.GetFullPath(FileUtilities.failedDownloadPath));
         }
 
         public static async Task<bool> CopyToAsync(this AudioClipResult generatedAudioClip, string destFileName)
@@ -255,11 +271,32 @@ namespace Unity.AI.Sound.Services.Utilities
 
             var destExtension = Path.GetExtension(destFileName).ToLower();
             var sourceExtension = Path.GetExtension(sourceFileName).ToLower();
-            if (destExtension != sourceExtension)
-                throw new InvalidOperationException($"Cannot copy file with extension {sourceExtension} to {destExtension}");
 
-            await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
-            Generators.Asset.AssetReferenceExtensions.ImportAsset(destFileName);
+            if (destExtension != sourceExtension)
+            {
+                await using var audioStream = FileIO.OpenReadAsync(generatedAudioClip.uri.GetLocalPath());
+                var convertedStream = await AudioFileUtilities.ConvertAsync(audioStream, destExtension);
+                if (convertedStream == null)
+                    return false;
+
+                try
+                {
+                    await FileIO.WriteAllBytesAsync(destFileName, convertedStream);
+                }
+                finally
+                {
+                    if (!ReferenceEquals(convertedStream, audioStream))
+                    {
+                        await convertedStream.DisposeAsync();
+                    }
+                }
+            }
+            else
+            {
+                await FileIO.CopyFileAsync(sourceFileName, destFileName, true);
+            }
+
+            AssetDatabaseExtensions.ImportGeneratedAsset(destFileName);
             return true;
         }
     }

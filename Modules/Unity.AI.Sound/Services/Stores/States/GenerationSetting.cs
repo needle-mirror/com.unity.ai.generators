@@ -1,5 +1,6 @@
 using System;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Toolkit.Asset;
 
 namespace Unity.AI.Sound.Services.Stores.States
 {
@@ -13,6 +14,7 @@ namespace Unity.AI.Sound.Services.Stores.States
         public float duration = 10;
         public bool useCustomSeed;
         public int customSeed;
+        public bool loop;
 
         public SoundReferenceState soundReference = new();
 

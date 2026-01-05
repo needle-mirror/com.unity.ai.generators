@@ -2,9 +2,8 @@
 using System.Threading.Tasks;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Generators.Asset;
-using UnityEditor;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine;
-using Object = UnityEngine.Object;
 
 namespace Unity.AI.Animate.Services.Utilities
 {
@@ -32,27 +31,9 @@ namespace Unity.AI.Animate.Services.Utilities
             return false;
         }
 
-        public static Task<bool> IsBlank(this AssetReference asset) => Task.FromResult(GetObject<AnimationClip>(asset).IsBlank());
+        public static Task<bool> IsBlank(this AssetReference asset) => Task.FromResult(asset.GetObject<AnimationClip>().IsBlank());
 
         public static AnimationClipResult ToResult(this AssetReference asset) => AnimationClipResult.FromPath(asset.GetPath());
-
-        public static Object GetObject(this AssetReference asset)
-        {
-            var path = asset.GetPath();
-            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<Object>(path);
-        }
-
-        public static T GetObject<T>(this AssetReference asset) where T : Object
-        {
-            var path = asset.GetPath();
-            return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<T>(path);
-        }
-
-        public static AssetReference FromObject(Object obj)
-        {
-            var assetPath = AssetDatabase.GetAssetPath(obj);
-            return new AssetReference { guid = AssetDatabase.AssetPathToGUID(assetPath) };
-        }
 
         public static async Task<bool> SaveToGeneratedAssets(this AssetReference asset)
         {

@@ -6,12 +6,6 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
 {
     class GenerativeSubMenu : VisualElement
     {
-        internal const string animationMenuItem = "Assets/Create/Animation/Generate Animation Clip";
-        internal const string materialMenuItem = "Assets/Create/Rendering/Generate Material";
-        internal const string soundMenuItem = "Assets/Create/Audio/Generate Audio Clip";
-        internal const string spriteMenuItem = "Assets/Create/Rendering/Generate Sprite"; // use this one, and not the one in 2D/ as it is not guaranteed to exist
-        internal const string textureMenuItem = "Assets/Create/Rendering/Generate Texture 2D";
-
         public GenerativeSubMenu()
         {
             styleSheets.Add(AssetDatabase.LoadAssetAtPath<StyleSheet>("Packages/com.unity.ai.generators/Modules/Unity.AI.Generators.UI/Components/AIDropdownIntegrations/AIDropdownIntegration.uss"));
@@ -19,11 +13,13 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
             styleSheets.Add(AssetDatabase.LoadAssetAtPath<StyleSheet>("Packages/com.unity.ai.toolkit/Modules/Accounts/Components/AIDropdown/AIDropdown.uss"));
 
             AddToClassList("sub-menu");
-            Add(CreateStandardLabel("Animation", () => EditorApplication.ExecuteMenuItem(animationMenuItem)));
-            Add(CreateStandardLabel("Material", () => EditorApplication.ExecuteMenuItem(materialMenuItem)));
-            Add(CreateStandardLabel("Sound", () => EditorApplication.ExecuteMenuItem(soundMenuItem)));
-            Add(CreateStandardLabel("Sprite", () => EditorApplication.ExecuteMenuItem(spriteMenuItem)));
-            Add(CreateStandardLabel("Texture", () => EditorApplication.ExecuteMenuItem(textureMenuItem), false));
+            Add(CreateStandardLabel("3D Object", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.meshButtonItem)));
+            Add(CreateStandardLabel("Animation", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.animationMenuItem)));
+            Add(CreateStandardLabel("Material", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.materialMenuItem)));
+            Add(CreateStandardLabel("Sound", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.soundMenuItem)));
+            Add(CreateStandardLabel("Sprite", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.spriteMenuItem)));
+            Add(CreateStandardLabel("Texture", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.textureMenuItem)));
+            Add(CreateStandardLabel("Cubemap", () => EditorApplication.ExecuteMenuItem(Toolkit.Utility.MenuItems.cubemapMenuItem), false));
         }
 
         static Label CreateStandardLabel(string text, Action onClick, bool bottomMargin = true)
@@ -34,6 +30,28 @@ namespace Unity.AI.Generators.UI.AIDropdownIntegrations
             label.EnableInClassList("dropdown-item-with-margin", bottomMargin);
             label.AddManipulator(new Clickable(onClick));
             return label;
+        }
+    }
+
+    static class MeshGeneratorInternals
+    {
+        const string k_EnableMeshGeneratorMenu = "AI Toolkit/Internals/Feature Flags/Enable Mesh Generator (BYOK)";
+        const string k_EnableMeshGeneratorKey = "Feature_Flags_Enable_Mesh_Generator_BYOK";
+
+        [MenuItem("internal:" + k_EnableMeshGeneratorMenu, false, -1000)]
+        static void EnableMeshGeneratorOwnKey() => MeshGeneratorOwnKeyEnabled = !MeshGeneratorOwnKeyEnabled;
+
+        [MenuItem("internal:" + k_EnableMeshGeneratorMenu, true, -1000)]
+        static bool ValidateEnableMeshGeneratorOwnKey()
+        {
+            Menu.SetChecked(k_EnableMeshGeneratorMenu, MeshGeneratorOwnKeyEnabled);
+            return true;
+        }
+
+        public static bool MeshGeneratorOwnKeyEnabled
+        {
+            get => EditorPrefs.GetBool(k_EnableMeshGeneratorKey, false);
+            set => EditorPrefs.SetBool(k_EnableMeshGeneratorKey, value);
         }
     }
 }

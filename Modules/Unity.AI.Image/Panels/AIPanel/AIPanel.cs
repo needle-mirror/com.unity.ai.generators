@@ -1,4 +1,3 @@
-using System;
 using Unity.AI.Image.Services.Stores.Selectors;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.UIElements.Extensions;
@@ -17,6 +16,7 @@ namespace Unity.AI.Image.Panel
         RecolorPanel m_RecolorPanel;
         RemoveBackgroundPanel m_RemoveBackgroundPanel;
         UpscalePanel m_UpscalePanel;
+        SpritesheetPanel m_SpritesheetPanel;
 
         public AIPanel()
         {
@@ -28,6 +28,7 @@ namespace Unity.AI.Image.Panel
             m_RecolorPanel = this.Q<RecolorPanel>();
             m_RemoveBackgroundPanel = this.Q<RemoveBackgroundPanel>();
             m_UpscalePanel = this.Q<UpscalePanel>();
+            m_SpritesheetPanel = this.Q<SpritesheetPanel>();
 
             // Use() handles both initial value and changes
             this.Use(state => state.SelectRefinementMode(this), OnRefinementModeChanged);
@@ -41,6 +42,7 @@ namespace Unity.AI.Image.Panel
             m_RecolorPanel.style.display = DisplayStyle.None;
             m_RemoveBackgroundPanel.style.display = DisplayStyle.None;
             m_UpscalePanel.style.display = DisplayStyle.None;
+            m_SpritesheetPanel.style.display = DisplayStyle.None;
             switch (mode)
             {
                 case RefinementMode.Generation:
@@ -60,6 +62,9 @@ namespace Unity.AI.Image.Panel
                     break;
                 case RefinementMode.RemoveBackground:
                     m_RemoveBackgroundPanel.style.display = DisplayStyle.Flex;
+                    break;
+                case RefinementMode.Spritesheet:
+                    m_SpritesheetPanel.style.display = DisplayStyle.Flex;
                     break;
             }
         }

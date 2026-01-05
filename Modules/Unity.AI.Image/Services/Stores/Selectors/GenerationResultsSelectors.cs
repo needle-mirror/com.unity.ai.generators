@@ -6,10 +6,12 @@ using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Image.Services.Undo;
 using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
+using Unity.AI.Toolkit.Utility;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Stores.Selectors
@@ -28,7 +30,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         public static bool SelectGenerationAllowed(this IState state, VisualElement element)
         {
             var results = state.SelectGenerationResult(element);
-            return results.generationAllowed && results.generationValidation.success;
+            return results.generationAllowed && (results.generationValidation?.success ?? false);
         }
         public static List<GenerationProgressData> SelectGenerationProgress(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationProgress;
         public static GenerationProgressData SelectGenerationProgress(this IState state, VisualElement element, TextureResult result)
@@ -44,7 +46,9 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return new GenerationProgressData(-1, 1, 1);
         }
         public static List<GenerationFeedbackData> SelectGenerationFeedback(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationFeedback;
+        public static List<GenerationFeedbackData> SelectGenerationFeedback(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generationFeedback;
         public static GenerationValidationResult SelectGenerationValidationResult(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationValidation;
+        public static GenerationValidationResult SelectGenerationValidationResult(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generationValidation;
 
         public static int SelectGeneratedResultVisibleCount(this IState state, VisualElement element) => state.SelectGenerationResult(element)
             .generatedResultSelectorSettings.Values.Select(hints => hints.itemCountHint).DefaultIfEmpty(0).Max();
@@ -167,12 +171,14 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return hc.ToHashCode();
         }
 
-        public static bool HasHistory(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).generatedTextures.Count > 0;
+        public static bool HasHistory(this IState state, AssetReference asset) =>
+            state.SelectGenerationResult(asset).generatedTextures.Count > 0 || asset.HasGenerations();
         public static TextureResult SelectSelectedGeneration(this IState state, VisualElement element) => state.SelectGenerationResult(element).selectedGeneration;
         public static TextureResult SelectSelectedGeneration(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).selectedGeneration;
         public static AssetUndoManager SelectAssetUndoManager(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).assetUndoManager;
         public static int SelectGenerationCount(this IState state, VisualElement element) => state.SelectGenerationResult(element).generationCount;
         public static bool SelectReplaceWithoutConfirmationEnabled(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).replaceWithoutConfirmation;
         public static Action<AssetReference> SelectPromoteNewAssetPostAction(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).promoteNewAssetPostAction;
+        public static bool SelectUseUnsavedAssetBytes(this IState state, AssetReference asset) => state.SelectGenerationResult(asset).useUnsavedAssetBytes;
     }
 }

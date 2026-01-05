@@ -12,14 +12,21 @@ namespace Unity.AI.Image.Windows
             Toolkit.GenerationObjectPicker.RegisterTemplate<Texture2D>(
                 "Texture2D",
                 AssetUtils.CreateBlankTexture,
-                "Assets/New Texture.png",
+                $"Assets/{AssetUtils.defaultNewAssetName}.png",
                 TextureGeneratorInspectorButton.OpenGenerationWindow
             );
 
             Toolkit.GenerationObjectPicker.RegisterTemplate<Sprite>(
                 "Sprite",
                 AssetUtils.CreateBlankSprite,
-                "Assets/New Sprite.png",
+                $"Assets/{AssetUtils.defaultNewAssetNameSprite}.png",
+                TextureGeneratorInspectorButton.OpenGenerationWindow
+            );
+
+            Toolkit.GenerationObjectPicker.RegisterTemplate<Cubemap>(
+                "Cubemap",
+                AssetUtils.CreateBlankCubemap,
+                $"Assets/{AssetUtils.defaultNewAssetNameCube}.png",
                 TextureGeneratorInspectorButton.OpenGenerationWindow
             );
         }

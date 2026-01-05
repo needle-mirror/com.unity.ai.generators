@@ -4,9 +4,11 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Sound.Windows;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 
@@ -32,7 +34,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             var generativePath = promotedAsset.GetGeneratedAssetsPath();
             await promotedAudioClipResult.CopyToProject(await originalAudioClipResult.GetMetadata(), generativePath);
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAudioClipResult, true, false));
-            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
+            AssetDatabaseExtensions.ImportGeneratedAsset(promotedAsset.GetPath());
 
             Selection.activeObject = promotedAsset.GetObject();
             SoundGeneratorWindow.Display(destFileName);

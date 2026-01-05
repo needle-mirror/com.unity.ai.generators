@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Toolkit;
 using Unity.AI.Toolkit.Accounts.Services;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Connect;
 using UnityEditor;
 using UnityEngine;

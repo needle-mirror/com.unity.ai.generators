@@ -11,8 +11,11 @@ using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Generators.UI.Selectors;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Sound.Windows;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,6 +26,7 @@ namespace Unity.AI.Sound.Components
     partial class GenerationSelector : VisualElement
     {
         readonly GridView m_GridView;
+        readonly Button m_OpenGeneratorsWindowButton;
 
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Sound/Components/GenerationSelector/GenerationSelector.uxml";
 
@@ -49,7 +53,7 @@ namespace Unity.AI.Sound.Components
             m_GridView.BindTo<AudioClipResult>(m_TilePool, () => true);
             m_GridView.MakeOscillogramGrid(GetHorizontalItemCount);
             this.UseAsset(SetAsset);
-            this.Use(state => state.SelectPreviewSizeFactor(), OnPreviewSizeChanged);
+            this.Use(state => state.SelectPreviewSizeFactor(this), OnPreviewSizeChanged);
             this.Use(state => state.CalculateSelectorHash(this), OnGeneratedAudioClipsChanged);
 
             this.Use(state => state.SelectSelectedGeneration(this), OnGenerationSelected);
@@ -68,6 +72,15 @@ namespace Unity.AI.Sound.Components
                 if (string.IsNullOrEmpty(m_ElementID))
                     m_ElementID = this.GetElementIdentifier().ToString();
             });
+
+            m_OpenGeneratorsWindowButton = this.Q<Button>("open-generator-window");
+            m_OpenGeneratorsWindowButton.clicked += () =>
+            {
+                var asset = this.GetAsset();
+                if (!asset.IsValid())
+                    return;
+                SoundGeneratorWindow.Display(asset.GetPath());
+            };
         }
 
         void OnScreenScaleFactorChanged(ScreenScaleFactor factor)
@@ -108,15 +121,18 @@ namespace Unity.AI.Sound.Components
 
         void UpdateItems(IEnumerable<AudioClipResult> audioClips)
         {
-            ((BindingList<AudioClipResult>)m_GridView.itemsSource).ReplaceRangeUnique(audioClips, result => result is TextureSkeleton);
+            ((BindingList<AudioClipResult>)m_GridView.itemsSource).ReplaceRangeUnique(audioClips, result => result is AudioClipSkeleton);
             m_GridView.Rebuild();
+
+            var asset = this.GetAsset();
+            if (!asset.IsValid())
+                return;
+            if (assetMonitor)
+                this.Dispatch(Generators.UI.Actions.GenerationActions.pruneFulfilledSkeletons, new(asset));
         }
 
         void SetAsset(AssetReference asset)
         {
-            if (asset.IsValid() && assetMonitor)
-                this.Dispatch(GenerationResultsActions.pruneFulfilledSkeletons, new(this.GetAsset()));
-
             OnItemViewMaxCountChanged(this.GetOscillogramGridMaxItemsInElement(m_GridView.fixedItemHeight, GetHorizontalItemCount()));
 
             this.RemoveManipulator(m_GenerationFileSystemWatcher);
@@ -127,9 +143,16 @@ namespace Unity.AI.Sound.Components
             if (!asset.IsValid() || !assetMonitor)
                 return;
 
-            m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, new[] { AssetUtils.defaultAssetExtension },
-                files => this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedAudioClipsAsync,
-                    new(asset, files.Select(AudioClipResult.FromPath).ToList())));
+            m_GenerationFileSystemWatcher = new GenerationFileSystemWatcher(asset, AssetUtils.knownExtensions,
+                files =>
+                {
+                    if (this.SelectWindowSettingsDisablePrecaching())
+                        this.Dispatch(GenerationResultsActions.setGeneratedAudioClips,
+                            new(asset, files.Select(AudioClipResult.FromPath).ToList()));
+                    else
+                        this.GetStoreApi().Dispatch(GenerationResultsActions.setGeneratedAudioClipsAsync,
+                            new(asset, files.Select(AudioClipResult.FromPath).ToList()));
+                });
             this.AddManipulator(m_GenerationFileSystemWatcher);
         }
     }

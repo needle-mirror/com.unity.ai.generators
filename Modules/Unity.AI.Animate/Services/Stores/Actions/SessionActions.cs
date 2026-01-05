@@ -6,9 +6,11 @@ using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Animate.Windows;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 
@@ -36,7 +38,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             await promotedAnimationClipResult.CopyToProject(await originalAnimationClipResult.GetMetadata(), generativePath);
 
             await api.Dispatch(GenerationResultsActions.selectGeneration, new(promotedAsset, promotedAnimationClipResult, true, false));
-            AssetDatabase.ImportAsset(promotedAsset.GetPath(), ImportAssetOptions.ForceUpdate);
+            AssetDatabaseExtensions.ImportGeneratedAsset(promotedAsset.GetPath());
 
             Selection.activeObject = promotedAsset.GetObject();
             AnimateGeneratorWindow.Display(destFileName);

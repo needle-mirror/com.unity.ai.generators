@@ -6,6 +6,7 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 
 namespace Unity.AI.Sound.Services.Stores.Actions

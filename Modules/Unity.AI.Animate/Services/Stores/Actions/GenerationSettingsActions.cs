@@ -9,6 +9,7 @@ using Unity.AI.ModelSelector.Windows;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Animate.Services.Stores.Actions
@@ -24,7 +25,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
         public static AssetActionCreator<float> setDuration => new($"{slice}/{nameof(setDuration)}");
         public static AssetActionCreator<bool> setUseCustomSeed => new($"{slice}/{nameof(setUseCustomSeed)}");
         public static AssetActionCreator<int> setCustomSeed => new($"{slice}/{nameof(setCustomSeed)}");
-        public static AssetActionCreator<RefinementMode> setRefinementMode => new($"{slice}/setRefinementMode");
+        public static AssetActionCreator<RefinementMode> setRefinementMode => new($"{slice}/{nameof(setRefinementMode)}");
 
         public static AssetActionCreator<AssetReference> setVideoInputReferenceAsset => new($"{slice}/{nameof(setVideoInputReferenceAsset)}");
         public static AssetActionCreator<VideoInputReference> setVideoInputReference => new($"{slice}/{nameof(setVideoInputReference)}");
@@ -34,7 +35,7 @@ namespace Unity.AI.Animate.Services.Stores.Actions
             var selectedModelID = api.State.SelectSelectedModelID(element);
             var operations = api.State.SelectRefinementOperations(element);
             // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, ModelConstants.Modalities.Animate, operations.ToArray());
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, Unity.AI.Animate.Services.Stores.Selectors.Selectors.modalities, operations);
             element.Dispatch(setSelectedModelID, (api.State.SelectRefinementMode(element), selectedModelID));
         });
 

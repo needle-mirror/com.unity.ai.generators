@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using AiEditorToolsSdk.Components.Asset;
 using AiEditorToolsSdk.Components.Asset.Responses;
 using AiEditorToolsSdk.Components.Common.Responses.Wrappers;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Toolkit;
-using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AI.Generators.Sdk
@@ -25,13 +25,16 @@ namespace Unity.AI.Generators.Sdk
 #if AI_TK_DEBUG_DUMP_STREAM
             stream = await DumpStreamToDisk(stream, "stream_dump");
 #endif
-            var assetResult = await EditorTask.Run(() => assetComponent.CreateAssetUploadUrl(cancellationToken: sdkToken), sdkToken);
+            var assetResult = await assetComponent.CreateAssetUploadUrl(cancellationToken: sdkToken);
             if (sdkToken.IsCancellationRequested)
                 throw new OperationCanceledException("Operation was cancelled while creating asset upload URL.", sdkToken);
             if (assetResult.Result.IsSuccessful)
             {
                 using var content = new StreamContent(stream);
                 content.Headers.Add("x-ms-blob-type", "BlockBlob");
+                // mime-type is not strictly required but some generative ai providers may expect it, we do a best effort and skip if not detectable
+                if (FileTypeSupport.TryGetMimeTypeFromStream(stream, out var contentType))
+                    content.Headers.Add("Content-Type", contentType);
                 using var response = await client.PutAsync(assetResult.Result.Value.AssetUrl.Url, content, putToken).ConfigureAwaitMainThread();
                 response.EnsureSuccessStatusCode();
             }

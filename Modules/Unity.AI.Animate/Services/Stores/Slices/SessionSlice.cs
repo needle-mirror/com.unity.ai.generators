@@ -4,7 +4,7 @@ using Unity.AI.Animate.Services.SessionPersistence;
 using Unity.AI.Animate.Services.Stores.Actions;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Animate.Services.Stores.Slices
 {
@@ -41,8 +41,8 @@ namespace Unity.AI.Animate.Services.Stores.Slices
                     settings = state.settings with
                     {
                         lastSelectedModels = new SerializableDictionary<RefinementMode, ModelSelection>(
-                            state.settings.lastSelectedModels.ToDictionary(kvp => kvp.Key, kvp => kvp.Value with {
-                                modelID = kvp.Value.modelID
+                            state.settings.lastSelectedModels.ToDictionary(kvp => kvp.Key, kvp => (kvp.Value ?? new ModelSelection()) with {
+                                modelID = kvp.Value?.modelID ?? string.Empty
                             })),
                         previewSettings = state.settings.previewSettings with {
                             sizeFactor = state.settings.previewSettings.sizeFactor

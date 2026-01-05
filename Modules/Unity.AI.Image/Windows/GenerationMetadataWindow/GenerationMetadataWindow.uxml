@@ -42,6 +42,10 @@
             <Button text="Copy" class="data-button" name="copy-upscale-factor-button" />
             <Button text="Use" class="data-button" name="use-upscale-factor-button" />
         </VisualElement>
+        <VisualElement class="dimensions-container container hidden">
+            <Label class="metadata-type" text="Dimensions" />
+            <Label class="metadata" name="dimensions-metadata" />
+        </VisualElement>
         <VisualElement class="image-references-container">
         </VisualElement>
         <VisualElement class="pixelate-container container">

@@ -9,6 +9,62 @@ using UnityEngine;
 
 namespace Unity.AI.Generators.Sdk
 {
+    /// <summary>
+    /// Very safe and very thread-safe implementation of <see cref="IUnityAuthenticationTokenProvider"/>.
+    /// This class captures the service token at construction and always returns the same value.
+    /// Use this when stability is critical and you want to avoid any risk of race conditions or token refresh failures.
+    /// Note: Unity Genesis Staging bust be used with AI Staging environments for this to work correctly, and Genesis production with AI production.
+    /// </summary>
+    class PreCapturedServiceTokenProvider : IUnityAuthenticationTokenProvider
+    {
+        readonly string m_Token;
+
+        PreCapturedServiceTokenProvider(string token)
+        {
+            m_Token = token;
+        }
+
+        public Task<Result<string>> ForceRefreshToken()
+        {
+            return Task.FromResult(Result<string>.Ok(m_Token));
+        }
+
+        public Task<Result<string>> GetToken()
+        {
+            return Task.FromResult(Result<string>.Ok(m_Token));
+        }
+
+        public static async Task<PreCapturedServiceTokenProvider> Build()
+        {
+            var token = await CloudProjectSettings.GetServiceTokenAsync();
+            if (string.IsNullOrEmpty(token))
+            {
+                throw new InvalidOperationException("Failed to retrieve a valid service token.");
+            }
+            return new PreCapturedServiceTokenProvider(token);
+        }
+    }
+
+    /// <summary>
+    /// Very safe and very thread-safe implementation of <see cref="IUnityAuthenticationTokenProvider"/>.
+    /// This class captures the authentication token at construction and always returns the same value.
+    /// Use this when stability is critical and you want to avoid any risk of race conditions or token refresh failures.
+    /// </summary>
+    class PreCapturedAuthenticationTokenProvider : IUnityAuthenticationTokenProvider
+    {
+        readonly string m_Token = UnityConnectProvider.accessToken;
+
+        public Task<Result<string>> ForceRefreshToken()
+        {
+            return Task.FromResult(Result<string>.Ok(m_Token));
+        }
+
+        public Task<Result<string>> GetToken()
+        {
+            return Task.FromResult(Result<string>.Ok(m_Token));
+        }
+    }
+
     class AuthenticationTokenProvider : IUnityAuthenticationTokenProvider
     {
         const string k_UnityHubUriScheme = "unityhub://";

@@ -7,6 +7,7 @@ using AiEditorToolsSdk;
 using AiEditorToolsSdk.Components.Common.Enums;
 using AiEditorToolsSdk.Components.Modalities.Audio.Requests.Generate;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.Sdk;
@@ -17,8 +18,9 @@ using Unity.AI.Sound.Services.Stores.Actions.Payloads;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Accounts.Services.Sdk;
+using Unity.AI.Toolkit.Asset;
 using Unity.AI.Toolkit.Connect;
-using UnityEditor;
 using Constants = Unity.AI.Generators.Sdk.Constants;
 using Random = UnityEngine.Random;
 
@@ -70,7 +72,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                     return;
                 }
 
-                if (!asset.Exists())
+                if (!asset.Exists() && !arg.allowInvalidAsset)
                 {
                     var messages = new[] { "Selected asset is invalid. Please select a valid asset." };
                     api.Dispatch(GenerationActions.setGenerationValidationResult,
@@ -88,6 +90,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 var modelID = api.State.SelectSelectedModelID(asset);
                 var soundReference = generationSetting.SelectSoundReference();
                 var referenceAudioStrength = soundReference.strength;
+                var loop = generationSetting.SelectLoop();
 
                 var seed = Random.Range(0, int.MaxValue - variations);
                 Guid.TryParse(modelID, out var generativeModelID);
@@ -102,8 +105,8 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
 
                 var builder = Builder.Build(orgId: UnityConnectProvider.organizationKey, userId: UnityConnectProvider.userId,
                     projectId: UnityConnectProvider.projectId, httpClient: httpClientLease.client, baseUrl: WebUtils.selectedEnvironment, logger: new Logger(),
-                    unityAuthenticationTokenProvider: new AuthenticationTokenProvider(), traceIdProvider: new TraceIdProvider(asset), enableDebugLogging: true,
-                    defaultOperationTimeout: Constants.realtimeTimeout);
+                    unityAuthenticationTokenProvider: new PreCapturedAuthenticationTokenProvider(), traceIdProvider: new PreCapturedTraceIdProvider(asset), enableDebugLogging: true,
+                    defaultOperationTimeout: Constants.realtimeTimeout, packageInfoProvider: new PackageInfoProvider());
                 var audioComponent = builder.AudioComponent();
 
                 var referenceAudioGuid = Guid.Empty;
@@ -115,20 +118,20 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                 List<AudioGenerateRequest> requests;
                 if (referenceAudioGuid != Guid.Empty)
                 {
-                    var request = AudioGenerateRequestBuilder.Initialize(generativeModelID, prompt, duration)
-                        .GenerateWithReference(referenceAudioGuid, referenceAudioStrength, negativePrompt, seed);
+                    var request = AudioGenerateRequestBuilder.Initialize(generativeModelID, prompt, duration: duration)
+                        .GenerateWithReference(referenceAudioGuid, referenceAudioStrength, negativePrompt);
                     requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                 }
                 else
                 {
-                    var request = AudioGenerateRequestBuilder.Initialize(generativeModelID, prompt, duration).Generate(negativePrompt, seed);
+                    var request = AudioGenerateRequestBuilder.Initialize(generativeModelID, prompt, duration, seed: seed).Generate(negativePrompt, loop: loop, promptInfluence: 0.3f);
                     requests = variations > 1 ? request.CloneBatch(variations) : request.AsSingleInAList();
                 }
 
                 // Create a linked token source that will be canceled if the original is canceled
                 // but won't throw if the original is disposed
                 using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenSource.Token);
-                var quoteResults = await EditorTask.Run(() => audioComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token), linkedTokenSource.Token);
+                var quoteResults = await audioComponent.GenerateQuote(requests, Constants.realtimeTimeout, linkedTokenSource.Token);
 
                 if (cancellationTokenSource.IsCancellationRequested)
                 {

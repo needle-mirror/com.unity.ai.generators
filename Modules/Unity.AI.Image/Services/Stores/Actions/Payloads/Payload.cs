@@ -6,13 +6,14 @@ using Unity.AI.Image.Services.Utilities;
 using Unity.AI.Image.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.UI.Payloads;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Stores.Actions.Payloads
 {
-    record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting) : AsssetContext(asset);
-    record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId) : AsssetContext(asset);
+    record QuoteImagesData(AssetReference asset, GenerationSetting generationSetting, bool allowInvalidAsset = false) : AsssetContext(asset);
+    record GenerateImagesData(AssetReference asset, GenerationSetting generationSetting, int progressTaskId, Guid uniqueTaskId, bool autoApply) : AsssetContext(asset);
     record DownloadImagesData(
         AssetReference asset,
         List<Guid> jobIds,
@@ -23,6 +24,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
         bool isRefinement,
         bool replaceBlankAsset,
         bool replaceRefinementAsset,
+        bool autoApply,
         bool retryable) : AsssetContext(asset);
     record GenerationValidationSettings(
         AssetReference asset,
@@ -32,6 +34,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
         string model,
         int variations,
         RefinementMode mode,
+        string dimensions,
         int activeReferencesBitmask,
         int validReferencesBitmask,
         long baseImageBytesTimeStampUtcTicks,
@@ -46,6 +49,7 @@ namespace Unity.AI.Image.Services.Stores.Actions.Payloads
     record SelectedGenerationData(AssetReference asset, TextureResult result) : AsssetContext(asset);
     record AssetUndoData(AssetReference asset, AssetUndoManager undoManager) : AsssetContext(asset);
     record ReplaceWithoutConfirmationData(AssetReference asset, bool withoutConfirmation) : AsssetContext(asset);
+    record UseUnsavedAssetBytesData(AssetReference asset, bool useUnsavedAssetBytes) : AsssetContext(asset);
     record PromoteNewAssetPostActionData(AssetReference asset, Action<AssetReference> postPromoteAction) : AsssetContext(asset);
     record AddImageReferenceTypeData(AssetReference asset, ImageReferenceType[] types) : AsssetContext(asset);
     record ImageReferenceTypeData(ImageReferenceType type);

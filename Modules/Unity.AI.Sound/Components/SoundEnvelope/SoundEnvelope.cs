@@ -7,8 +7,10 @@ using Unity.AI.Sound.Services.Undo;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Contexts;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -146,7 +148,7 @@ namespace Unity.AI.Sound.Components
             try
             {
                 var path = AssetDatabase.GetAssetPath(m_Asset);
-                path = Path.ChangeExtension(path, AssetUtils.defaultAssetExtension);
+                path = Path.ChangeExtension(path, AssetUtils.wavAssetExtension);
 
                 EditorUtility.DisplayProgressBar("Saving Audio", "Writing audio data to file...", 0.1f);
                 {

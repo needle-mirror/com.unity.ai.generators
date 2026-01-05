@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using UnityEditor;
 using UnityEditor.Search;
 using UnityEngine;
@@ -57,6 +58,8 @@ namespace Unity.AI.Generators.UI.Utilities
             // Add other supported non-image formats
             k_AcceptedExtensions.Add(".fbx");
             k_AcceptedExtensions.Add(".wav");
+            k_AcceptedExtensions.Add(".mp3");
+            k_AcceptedExtensions.Add(".mp4");
         }
 
         // Helper method to check if a file is an image based on extension

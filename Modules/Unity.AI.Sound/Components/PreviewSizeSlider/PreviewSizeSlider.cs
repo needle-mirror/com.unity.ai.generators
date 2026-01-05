@@ -1,3 +1,5 @@
+using Unity.AI.Generators.Contexts;
+using Unity.AI.Generators.UI;
 using Unity.AI.Sound.Services.Stores.Actions;
 using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Generators.UIElements.Extensions;
@@ -22,9 +24,13 @@ namespace Unity.AI.Sound.Components
             AddToClassList("preview-size-slider");
 
             m_Slider = this.Q<Slider>();
-            m_Slider.RegisterValueChangedCallback(evt => this.Dispatch(SessionActions.setPreviewSizeFactor, evt.newValue));
+            m_Slider.RegisterValueChangedCallback(evt =>
+            {
+                this.ProvideRootContext(new PreviewScaleFactor(evt.newValue));
+                this.Dispatch(SessionActions.setPreviewSizeFactor, evt.newValue);
+            });
 
-            this.Use(state => state.SelectPreviewSizeFactor(), sizeFactor => m_Slider.SetValueWithoutNotify(sizeFactor));
+            this.Use(state => state.SelectPreviewSizeFactor(this), sizeFactor => m_Slider.SetValueWithoutNotify(sizeFactor));
         }
     }
 }

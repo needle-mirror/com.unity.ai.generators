@@ -3,6 +3,7 @@ using Unity.AI.Sound.Services.Stores.Selectors;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;

@@ -36,7 +36,7 @@ To generate a sprite, follow these steps:
 
       Every 2D sprite you generate has a seed. A seed is a number that you enter or that the tool generates automatically.
 
-      For more information on custom seed, refer to [Use custom seed to generate consistent sprites](xref:custom-seed).
+      For more information on custom seed, refer to [Use a custom seed to generate consistent sprites](xref:custom-seed).
 1. Select **Generate**.
 
 The button label displays the Unity Points cost for generating the asset. This number shows how many Unity Points will be deducted when you use the feature.
@@ -56,6 +56,6 @@ Hover over a sprite the **Generations** panel to view details, such as the model
 * [Generate window](xref:generate-window-sprite)
 * [Generate sprite from a reference images](xref:reference-sprite)
 * [Manage generated sprites](xref:manage-sprite)
-* [Use custom seed to generate consistent sprites](xref:custom-seed)
+* [Use a custom seed to generate consistent sprites](xref:custom-seed)
 * [Generate and assign assets with the Object Picker](xref:asset-picker)
 * [Prompt guidelines for asset generation](xref:prompts)

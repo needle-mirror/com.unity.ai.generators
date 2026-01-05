@@ -1,6 +1,7 @@
 using System;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Image.Services.Stores.States;
+using Unity.AI.Image.Services.Utilities;
 
 namespace Unity.AI.Image.Utilities
 {
@@ -11,6 +12,8 @@ namespace Unity.AI.Image.Utilities
             state.unsavedAssetBytes.data = payload.data;
             state.unsavedAssetBytes.timeStamp = DateTime.UtcNow.Ticks;
             state.unsavedAssetBytes.uri = payload.result?.uri;
+            state.unsavedAssetBytes.spriteSheet = payload.result.IsValid() && payload.result.IsSpriteSheet();
+            state.unsavedAssetBytes.duration = payload.result.IsValid() && payload.result.IsSpriteSheet() ? payload.result.GetDuration() : 0;
         }
 
         public static void ApplyEditedDoodle(this GenerationSetting state, (ImageReferenceType imageReferenceType, byte[] data) payload)

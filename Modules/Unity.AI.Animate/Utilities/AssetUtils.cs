@@ -14,8 +14,15 @@ namespace Unity.AI.Animate.Services.Utilities
         public const string fbxAssetExtension = ".fbx";
         public const string poseAssetExtension = ".pose.json";
 
-        public static string CreateBlankAnimation(string path, bool force = true)
+        public static string CreateBlankAnimation(string path) => CreateBlankAnimation(path, false);
+
+        public static string CreateBlankAnimation(string path, bool force)
         {
+            path = Path.ChangeExtension(path, defaultAssetExtension);
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
             var clip = new AnimationClip
             {
                 legacy = false,
@@ -48,6 +55,24 @@ namespace Unity.AI.Animate.Services.Utilities
             AssetDatabase.CreateAsset(clip, assetPath);
 
             clip.SetDefaultClipSettings();
+
+            return assetPath;
+        }
+
+        public static string CreateBlankSpriteAnimation(string path)
+        {
+            path = Path.ChangeExtension(path, defaultAssetExtension);
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            var clip = new AnimationClip
+            {
+                wrapMode = WrapMode.Loop
+            };
+
+            var assetPath = AssetDatabase.GenerateUniqueAssetPath(path);
+            AssetDatabase.CreateAsset(clip, assetPath);
 
             return assetPath;
         }

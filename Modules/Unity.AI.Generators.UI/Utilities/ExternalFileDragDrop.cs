@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -204,7 +206,7 @@ namespace Unity.AI.Generators.UI.Utilities
                     break;
                 case EventType.DragUpdated when DragAndDrop.objectReferences.Length != 0:
                     DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-                    evt.Use();
+                    // do not call evt.Use(), we want the builtin Unity Editor Drag Updated to occur
                     break;
             }
 
@@ -216,7 +218,7 @@ namespace Unity.AI.Generators.UI.Utilities
         static DragAndDropVisualMode HandleDropProjectBrowser(UnityEntityId dragInstanceId, string dropUponPath, bool perform)
         {
             if (!HasTemporaryAssetInDrag())
-                return DragAndDropVisualMode.None;
+                return DragAndDrop.visualMode;
 
             if (perform)
             {
@@ -239,11 +241,8 @@ namespace Unity.AI.Generators.UI.Utilities
 
         static DragAndDropVisualMode HandleDropHierarchy(UnityEntityId dropTargetInstanceID, HierarchyDropFlags dropMode, Transform parentForDraggedObjects, bool perform)
         {
-            if (!HasTemporaryAssetInDrag())
-                return DragAndDropVisualMode.None;
-
-            if (!perform)
-                return DragAndDropVisualMode.Copy;
+            if (!HasTemporaryAssetInDrag() || !perform)
+                return DragAndDrop.visualMode;
 
             try
             {
@@ -256,7 +255,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 ClearGenericData();
             }
 
-            return DragAndDropVisualMode.Copy;
+            return DragAndDrop.visualMode;
 
             Func<MoveFunctionData, string> MoveFunction() => DragAndDrop.GetGenericData(ExternalFileDragDropConstants.moveDepsFun) as Func<MoveFunctionData, string>;
         }
@@ -366,7 +365,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 {
                     var identical = compareFunction != null
                         ? compareFunction(new(externalPath, cachedPath))
-                        : FileIO.AreFilesIdentical(cachedPath, externalPath);
+                        : FileComparison.AreFilesIdentical(cachedPath, externalPath);
                     if (identical)
                     {
                         var cachedAsset = AssetDatabase.LoadAssetAtPath<Object>(cachedPath);

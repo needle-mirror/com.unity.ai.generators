@@ -79,7 +79,7 @@ namespace Unity.AI.Animate.Components
             var screenScaleFactor = this.GetContext<ScreenScaleFactor>()?.value ?? 1f;
             var previousSkeletonTexture = m_SkeletonTexture;
             var width = float.IsNaN(resolvedStyle.width) ? (int)TextureSizeHint.Carousel : (int)resolvedStyle.width;
-            m_SkeletonTexture = SkeletonRenderingUtils.GetTemporary(progressValue, width, width, screenScaleFactor);
+            m_SkeletonTexture = SkeletonRenderingUtils.GetCached(progressValue, width, width, screenScaleFactor);
             if (previousSkeletonTexture == m_SkeletonTexture)
                 return;
 

@@ -7,7 +7,7 @@ using Unity.AI.Image.Services.Stores.Actions;
 using Unity.AI.Image.Services.Stores.States;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI;
-using UnityEngine;
+using Unity.AI.Generators.UI.Selectors;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Image.Services.Utilities
@@ -52,6 +52,8 @@ namespace Unity.AI.Image.Services.Utilities
                     textures[values[0]] is TextureSkeleton)
                     return;
                 var replaceAsset = replaceAssetOnSelect?.Invoke() ?? false;
+                if (!replaceAsset)
+                    replaceAsset = gridView.SelectWindowSettingsReplaceAssetOnSelect();
                 await gridView.Dispatch(GenerationResultsActions.selectGeneration, new(gridView.GetAsset(), textures[values[0]], replaceAsset, true));
             };
             gridView.itemsSource = new BindingList<T>();

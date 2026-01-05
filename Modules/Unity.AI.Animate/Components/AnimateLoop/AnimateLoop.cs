@@ -7,11 +7,13 @@ using Unity.AI.Animate.Services.Stores.Selectors;
 using Unity.AI.Animate.Services.Stores.States;
 using Unity.AI.Animate.Services.Utilities;
 using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using Unity.AI.Toolkit;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -485,7 +487,7 @@ namespace Unity.AI.Animate.Components
             if (originalClip == null || m_PreviewClip == null)
                 return;
 
-            using var temporaryAssets = TemporaryAssetUtilities.ImportAssets(new[] { m_PreviewClip });
+            using var temporaryAssets = AnimationClipDatabaseUtils.ImportAssets(new[] { m_PreviewClip });
             var animationClip = temporaryAssets.assets[0].asset.GetObject<AnimationClip>();
             // we do not want to inherit the asset settings, especially not loop pose as it was off during the trimming and could change the behavior dramatically
             // if turned on so we do not copy any from the asset. The user will decide what to enable.

@@ -1,7 +1,12 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Unity.AI.Generators.Asset;
+using Unity.AI.Generators.IO.Utilities;
+using Unity.AI.Generators.UI;
 using Unity.AI.Generators.UI.Utilities;
-using UnityEngine;
+using Unity.AI.Toolkit.Asset;
 
 namespace Unity.AI.Sound.Services.Utilities
 {
@@ -12,7 +17,7 @@ namespace Unity.AI.Sound.Services.Utilities
         public static string GetFailedAudioUrl(string guid)
         {
             var sourceFile = Path.GetFullPath(failedDownloadPath);
-            var tempFolder = Path.Combine(UndoUtilities.projectRootPath, "Temp");
+            var tempFolder = Path.Combine(TempUtilities.projectRootPath, "Temp");
 
             if (!Directory.Exists(tempFolder))
                 Directory.CreateDirectory(tempFolder);

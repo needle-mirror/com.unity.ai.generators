@@ -10,8 +10,9 @@ using Unity.AI.Sound.Services.Stores.States;
 using Unity.AI.Sound.Services.Utilities;
 using Unity.AI.Generators.Asset;
 using Unity.AI.Generators.Redux;
-using Unity.AI.Generators.Redux.Toolkit;
+using Unity.AI.Toolkit.Utility;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -19,6 +20,8 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 {
     static partial class Selectors
     {
+        internal static readonly string[] modalities = { ModelConstants.Modalities.Sound };
+
         public static GenerationSettings SelectGenerationSettings(this IState state) => state.Get<GenerationSettings>(GenerationSettingsActions.slice);
 
         public static GenerationSetting SelectGenerationSetting(this IState state, AssetReference asset)
@@ -51,15 +54,67 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             return modelSettings?.name;
         }
 
+        public static ModelSettings SelectSelectedModel(this IState state, VisualElement element) => state.SelectSelectedModel(element.GetAsset());
+        public static ModelSettings SelectSelectedModel(this IState state, AssetReference asset)
+        {
+            var modelID = state.SelectGenerationSetting(asset).selectedModelID;
+            var model = ModelSelectorSelectors.SelectModelSettings(state).FirstOrDefault(s => s.id == modelID);
+            return model;
+        }
+
+        public static bool SelectSelectedModelDurationSupport(this GenerationSetting setting)
+        {
+            // The model settings are shared between all generation settings. We can use the modelID to find the model.
+            // Normally we try to use the store from the window context, but here we have a design flaw and will
+            // use the shared store instead of modifying the setting argument which could be risky for serialization and dictionary lookups.
+            // Suggestion: we could add an overload to MakeMetadata that takes the store as an argument and passes it here
+            var store = SessionPersistence.SharedStore.Store;
+            if (store?.State == null)
+                return false;
+
+            var modelID = setting.selectedModelID;
+            var modelSettings = store.State.SelectModelSettingsWithModelId(modelID);
+
+            // Unity models do not support duration control
+            return modelSettings != null && modelSettings.provider != ModelConstants.Providers.Unity;
+        }
+
+        public static bool SelectSelectedModelLoopSupport(this GenerationSetting setting)
+        {
+            // The model settings are shared between all generation settings. We can use the modelID to find the model.
+            // Normally we try to use the store from the window context, but here we have a design flaw and will
+            // use the shared store instead of modifying the setting argument which could be risky for serialization and dictionary lookups.
+            // Suggestion: we could add an overload to MakeMetadata that takes the store as an argument and passes it here
+            var store = SessionPersistence.SharedStore.Store;
+            if (store?.State == null)
+                return false;
+
+            var modelID = setting.selectedModelID;
+            var modelSettings = store.State.SelectModelSettingsWithModelId(modelID);
+
+            return modelSettings?.capabilities.Contains(ModelConstants.ModelCapabilities.SupportsLooping) ?? false;
+        }
+
         public static (bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
-            (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: new[] { ModelConstants.Modalities.Sound }, operations: null),
+            (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: modalities, operations: null),
                 timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
-        public static ModelSettings SelectAutoAssignModel(this IState state, VisualElement element) =>
-            ModelSelectorSelectors.SelectAutoAssignModel(state, state.SelectSelectedModelID(element), new[] { ModelConstants.Modalities.Sound }, null);
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
-            setting.selectedModelID = !string.IsNullOrEmpty(setting.selectedModelID) ? setting.selectedModelID : state.SelectSession().settings.lastSelectedModelID;
+            var lastSelectedModelId = state.SelectSession().settings.lastSelectedModelID;
+            if (!string.IsNullOrEmpty(lastSelectedModelId))
+                setting.selectedModelID = lastSelectedModelId;
+
+            var currentModelId = setting.selectedModelID;
+            var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: null);
+
+            if (shouldAutoAssign)
+            {
+                var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: null);
+                if (!string.IsNullOrEmpty(autoAssignModel?.id))
+                    setting.selectedModelID = autoAssignModel.id;
+            }
+
             return setting;
         }
 
@@ -133,9 +188,17 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
         const float k_TrainingSetDuration = 10;
         public static float SelectTrainingSetDuration(this GenerationSetting _) => k_TrainingSetDuration;
 
-        public static float SelectGenerableDuration(this GenerationSetting setting) => Mathf.Max(setting.SelectDuration(), setting.SelectTrainingSetDuration());
+        public static float SelectGenerableDuration(this GenerationSetting setting) => setting.SelectSelectedModelDurationSupport()
+            ? setting.SelectDuration()
+            : Mathf.Max(setting.SelectDuration(), setting.SelectTrainingSetDuration());
 
-        public static bool SelectShouldAutoTrim(this GenerationSetting setting) => setting.SelectDuration() < setting.SelectGenerableDuration() - float.Epsilon;
+        public static bool SelectShouldAutoTrim(this GenerationSetting setting)
+        {
+            // If the model supports duration control we do not auto trim
+            if (setting.SelectSelectedModelDurationSupport())
+                return false;
+            return setting.SelectDuration() < setting.SelectGenerableDuration() - float.Epsilon;
+        }
 
         public static (bool useCustomSeed, int customSeed) SelectGenerationOptions(this IState state, VisualElement element)
         {
@@ -145,6 +208,15 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 
         public static (bool useCustomSeed, int customSeed) SelectGenerationOptions(this GenerationSetting setting) =>
             (setting.useCustomSeed, setting.customSeed);
+
+        public static bool SelectLoop(this IState state, VisualElement element) => state.SelectGenerationSetting(element).SelectLoop();
+        public static bool SelectLoop(this GenerationSetting setting) => setting.loop;
+
+        public static (bool loop, bool supportsLooping) SelectLoopOptions(this IState state, VisualElement element)
+        {
+            var setting = state.SelectGenerationSetting(element);
+            return (setting.loop, setting.SelectSelectedModelLoopSupport());
+        }
 
         public static string SelectProgressLabel(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).SelectProgressLabel();
 
@@ -167,7 +239,11 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
 
             // input sounds shorter than the training set duration are padded with silence, input sounds longer than the maximum duration are trimmed
             var referenceStream = new MemoryStream();
-            await referenceClip.EncodeToWavUnclampedAsync(referenceStream, 0, referenceClip.GetNormalizedPositionAtTimeUnclamped(setting.SelectTrainingSetDuration()));
+            // If the model supports duration control we use the user selected duration, otherwise we use the training set duration
+            if (setting.SelectSelectedModelDurationSupport())
+                await referenceClip.EncodeToWavUnclampedAsync(referenceStream, 0, referenceClip.GetNormalizedPositionAtTimeUnclamped(setting.SelectDuration()));
+            else
+                await referenceClip.EncodeToWavUnclampedAsync(referenceStream, 0, referenceClip.GetNormalizedPositionAtTimeUnclamped(setting.SelectTrainingSetDuration()));
             referenceStream.Position = 0;
 
             return referenceStream;

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Unity.AI.Generators.Contexts;
 using Unity.AI.Generators.Redux;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -54,7 +55,25 @@ namespace Unity.AI.Generators.Asset
             if (!k_WindowLastAssetType.TryGetValue(window, out var lastAssetType))
                 return true;
 
-            return lastAssetType == AssetDatabase.GetMainAssetTypeAtPath(next.GetPath());
+            var nextAssetType = AssetDatabase.GetMainAssetTypeAtPath(next.GetPath());
+
+            if (lastAssetType == nextAssetType)
+                return true;
+
+            if (window is IAssetEditorWindow assetEditorWindow)
+            {
+                var allowedTypes = assetEditorWindow.allowedTypes;
+                if (allowedTypes != null)
+                {
+                    foreach (var allowedType in allowedTypes)
+                    {
+                        if (allowedType.IsAssignableFrom(lastAssetType) && allowedType.IsAssignableFrom(nextAssetType))
+                            return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         internal static Middleware AssetContextMiddleware(AssetReference value) => _ => next => async (action) =>
@@ -147,6 +166,7 @@ namespace Unity.AI.Generators.Asset
         /// </summary>
         /// <param name="asset">Initial asset context</param>
         /// <param name="title">Window title</param>
+        /// <param name="useAiIcon"></param>
         /// <typeparam name="T">Window type</typeparam>
         /// <returns></returns>
         public static T CreateAssetWindow<T>(AssetReference asset, string title = null, bool useAiIcon = true) where T: EditorWindow, IAssetEditorWindow
@@ -172,10 +192,7 @@ namespace Unity.AI.Generators.Asset
             if (!s_Icon)
                 s_Icon = EditorGUIUtility.FindTexture("AISparkle Icon");
 
-            if(useAiIcon)
-                window.titleContent = new GUIContent(title, s_Icon);
-            else
-                window.titleContent = new GUIContent(title);
+            window.titleContent = useAiIcon ? new GUIContent(title, s_Icon) : new GUIContent(title);
 
             return window;
         }
@@ -186,6 +203,7 @@ namespace Unity.AI.Generators.Asset
         /// <param name="store">Store context</param>
         /// <param name="title">Window title</param>
         /// <param name="storeOwner">Is this window the store owner</param>
+        /// <param name="useAiIcon"></param>
         /// <typeparam name="T">Window type</typeparam>
         /// <returns></returns>
         public static T CreateWindow<T>(IStore store, string title = null, bool storeOwner = true, bool useAiIcon = true) where T: EditorWindow
@@ -218,6 +236,7 @@ namespace Unity.AI.Generators.Asset
         /// <param name="asset">Initial asset context</param>
         /// <param name="title">Window title</param>
         /// <param name="storeOwner">Is this window the store owner</param>
+        /// <param name="useAiIcon"></param>
         /// <typeparam name="T">Window type</typeparam>
         /// <returns></returns>
         public static T CreateWindow<T>(IStore store, AssetReference asset, string title = null, bool storeOwner = true, bool useAiIcon = true) where T: EditorWindow

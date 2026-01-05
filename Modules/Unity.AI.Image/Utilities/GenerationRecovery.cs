@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.AI.Image.Services.Stores.Actions.Payloads;
 using Unity.AI.Generators.Asset;
-using Unity.AI.Generators.Redux.Toolkit;
 using Unity.AI.Generators.UI.Utilities;
+using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
+using Unity.AI.Toolkit.Utility;
 
 namespace Unity.AI.Image.Services.Utilities
 {
@@ -119,6 +120,16 @@ namespace Unity.AI.Image.Services.Utilities
             var environment = WebUtils.selectedEnvironment;
             return s_InterruptedDownloadsByEnv.GetInterruptedDownloads(environment,
                 data => data.asset == asset);
+        }
+
+        public static List<InterruptedDownloadData> GetAllInterruptedDownloads()
+        {
+            var environment = WebUtils.selectedEnvironment;
+            if (s_InterruptedDownloadsByEnv.TryGetValue(environment, out var downloads))
+            {
+                return new List<InterruptedDownloadData>(downloads);
+            }
+            return new List<InterruptedDownloadData>();
         }
 
         public static void LoadInterruptedDownloads()

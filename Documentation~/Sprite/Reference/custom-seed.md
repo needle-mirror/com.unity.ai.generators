@@ -2,7 +2,7 @@
 uid: custom-seed
 ---
 
-# Use custom seed to generate consistent sprites
+# Use a custom seed to generate consistent sprites
 
 A custom seed is a numerical value that controls the randomness of the image generation process. When you enter the same prompt with the same seed, the generator produces the same or similar results each time. Without a seed, the results might vary with each generation, even if the prompt doesn’t change.
 
