@@ -104,6 +104,38 @@ namespace Unity.AI.Generators.Tools
         /// </summary>
         public string Label;
     }
+    
+    /// <summary>
+    /// Settings specific to Texture2D (Image) generation.
+    /// </summary>
+    public class ImageSettings : ISettings
+    {
+        /// <summary>
+        /// Optional. The desired width of the generated image. If 0, a default value will be used. Requires ModelId to be specified.
+        /// </summary>
+        public int Width;
+
+        /// <summary>
+        /// Optional. The desired height of the generated image. If 0, a default value will be used. Requires ModelId to be specified.
+        /// </summary>
+        public int Height;
+
+        /// <summary>
+        /// Optional. If true, the background of the generated image will be removed.
+        /// </summary>
+        public bool RemoveBackground;
+
+        /// <summary>
+        /// Optional. An array of image references to use for generation.
+        /// Only the first element (ImageReferences[0]) is currently used as a prompt image reference.
+        /// </summary>
+        public ObjectReference[] ImageReferences;
+
+        /// <summary>
+        /// Optional. If true, the generated sheet will be seamlessly loopable.
+        /// </summary>
+        public bool Loop;
+    }    
 
     /// <summary>
     /// Settings specific to Texture2D (Sprite) generation.

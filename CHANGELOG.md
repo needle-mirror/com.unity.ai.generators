@@ -4,6 +4,16 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.5.0-pre.2] - 2026-01-15
+
+### Changed
+
+- Sprite generator no longer shows material models. Texture2D and Material generators still shows material models.
+
+### Fixed
+
+- When multiple generator windows are open on different assets, model selection no longer unexpectedly affects multiple windows at once.
+
 ## [1.5.0-pre.1] - 2026-01-05
 
 ### Added

@@ -105,23 +105,21 @@ namespace Unity.AI.Pbr.Services.Stores.Selectors
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
             {
                 var selection = setting.selectedModels.Ensure(mode);
-                var lastSelectedModelId = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
-                if (!string.IsNullOrEmpty(lastSelectedModelId))
-                    selection.modelID = lastSelectedModelId;
-
-                var currentModelId = selection.modelID;
-                var modalities = GenerationSettingsActions.spriteModelsAsMaterialModelsEnabled
-                    ? modalitiesFeatureFlag
-                    : Selectors.modalities;
+                var historyId = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
                 var operations = SelectRefinementOperations(mode);
-                var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
+        
+                // Specific logic to determine modalities
+                var specificModalities = GenerationSettingsActions.spriteModelsAsMaterialModelsEnabled
+                    ? modalitiesFeatureFlag
+                    : modalities;
 
-                if (shouldAutoAssign)
-                {
-                    var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
-                    if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                        selection.modelID = autoAssignModel.id;
-                }
+                selection.modelID = ModelSelectorSelectors.ResolveEffectiveModelID(
+                    state, 
+                    selection.modelID, 
+                    historyId, 
+                    modalities: specificModalities, 
+                    operations: operations
+                );
             }
             return setting;
         }

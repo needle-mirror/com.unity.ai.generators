@@ -95,25 +95,28 @@ namespace Unity.AI.Sound.Services.Stores.Selectors
             return modelSettings?.capabilities.Contains(ModelConstants.ModelCapabilities.SupportsLooping) ?? false;
         }
 
+        public static string[] SelectRefinementOperations()
+        {
+            var operations = new[] { ModelConstants.Operations.TextPrompt };
+            return operations;
+        }
+
+        public static string[] SelectRefinementOperations(this IState state) => SelectRefinementOperations();
         public static (bool should, long timestamp) SelectShouldAutoAssignModel(this IState state, VisualElement element) =>
             (ModelSelectorSelectors.SelectShouldAutoAssignModel(state, state.SelectSelectedModelID(element), modalities: modalities, operations: null),
                 timestamp: ModelSelectorSelectors.SelectLastModelDiscoveryTimestamp(state));
 
         public static GenerationSetting EnsureSelectedModelID(this GenerationSetting setting, IState state)
         {
-            var lastSelectedModelId = state.SelectSession().settings.lastSelectedModelID;
-            if (!string.IsNullOrEmpty(lastSelectedModelId))
-                setting.selectedModelID = lastSelectedModelId;
-
-            var currentModelId = setting.selectedModelID;
-            var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: null);
-
-            if (shouldAutoAssign)
-            {
-                var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: null);
-                if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                    setting.selectedModelID = autoAssignModel.id;
-            }
+            var historyId = state.SelectSession().settings.lastSelectedModelID;
+    
+            setting.selectedModelID = ModelSelectorSelectors.ResolveEffectiveModelID(
+                state, 
+                setting.selectedModelID, 
+                historyId, 
+                modalities: modalities, // Provided by class scope
+                operations: null
+            );
 
             return setting;
         }

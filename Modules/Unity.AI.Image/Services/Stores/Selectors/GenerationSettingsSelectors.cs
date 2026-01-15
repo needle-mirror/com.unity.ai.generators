@@ -28,7 +28,7 @@ namespace Unity.AI.Image.Services.Stores.Selectors
     static partial class Selectors
     {
         static readonly ImmutableArray<ImageDimensions> k_DefaultModelSettingsResolutions = new(new []{ new ImageDimensions { width = 1024, height = 1024 } });
-        internal static readonly string[] tilableModalities = { ModelConstants.Modalities.Texture2d };
+        internal static readonly string[] tileableModalities = { ModelConstants.Modalities.Texture2d };
         internal static readonly string[] spriteModalities = { ModelConstants.Modalities.Image };
         internal static readonly string[] imageModalities = { ModelConstants.Modalities.Image, ModelConstants.Modalities.Texture2d };
         internal static readonly string[] cubemapModalities = { ModelConstants.Modalities.Skybox };
@@ -114,7 +114,11 @@ namespace Unity.AI.Image.Services.Stores.Selectors
         {
             if (asset.IsCubemap())
                 return cubemapModalities;
-            return mode == RefinementMode.Spritesheet ? spritesheetModalities : imageModalities;
+            if (mode == RefinementMode.Spritesheet)
+                return spritesheetModalities;
+            if(asset.IsSprite())
+                return spriteModalities;
+            return imageModalities;
         }
 
         public static string[] SelectModalities(VisualElement element, RefinementMode mode) => SelectModalities(element.GetAsset(), mode);
@@ -146,21 +150,19 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             {
                 var selection = setting.selectedModels.Ensure(mode);
                 var modalities = SelectModalities(asset, mode);
-                var modality = modalities.First();
-                var lastSelectedModelId = state.SelectSession().settings.lastSelectedModels.Ensure(new LastSelectedModelKey(modality, mode)).modelID;
-                if (!string.IsNullOrEmpty(lastSelectedModelId))
-                    selection.modelID = lastSelectedModelId;
-
-                var currentModelId = selection.modelID;
                 var operations = SelectRefinementOperations(mode);
-                var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
+        
+                // Specific logic to fetch history
+                var modality = modalities.First();
+                var historyId = state.SelectSession().settings.lastSelectedModels.Ensure(new LastSelectedModelKey(modality, mode)).modelID;
 
-                if (shouldAutoAssign)
-                {
-                    var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
-                    if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                        selection.modelID = autoAssignModel.id;
-                }
+                selection.modelID = ModelSelectorSelectors.ResolveEffectiveModelID(
+                    state, 
+                    selection.modelID, 
+                    historyId, 
+                    modalities: modalities, 
+                    operations: operations
+                );
             }
             return setting;
         }

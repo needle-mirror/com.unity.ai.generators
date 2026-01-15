@@ -71,6 +71,9 @@ namespace Unity.AI.Generators.Tools
                 case AnimationSettings animSettings:
                     return GenerateAnimationAsync(parameters, animSettings, cancellationToken);
 
+                case ImageSettings imageSettings:
+                    return GenerateImageAsync(parameters, imageSettings, cancellationToken);
+                
                 case SpriteSettings spriteSettings:
                     return GenerateSpriteAsync(parameters, spriteSettings, cancellationToken);
 
@@ -184,36 +187,71 @@ namespace Unity.AI.Generators.Tools
 
         static GenerationHandle<Object> GenerateSpriteAsync<TSettings>(GenerationParameters<TSettings> parameters, SpriteSettings spriteSettings, CancellationToken cancellationToken) where TSettings : ISettings
         {
+            return GenerateTexture2DAsync(
+                parameters, 
+                spriteSettings.ImageReferences, 
+                spriteSettings.Width, 
+                spriteSettings.Height, 
+                spriteSettings.RemoveBackground,
+                ImageUtils.AssetUtils.CreateBlankSprite, 
+                ImageUtils.AssetUtils.defaultNewAssetNameSprite,
+                cancellationToken
+            );
+        }
+
+        static GenerationHandle<Object> GenerateImageAsync<TSettings>(GenerationParameters<TSettings> parameters, ImageSettings imageSettings, CancellationToken cancellationToken) where TSettings : ISettings
+        {
+            return GenerateTexture2DAsync(
+                parameters, 
+                imageSettings.ImageReferences, 
+                imageSettings.Width, 
+                imageSettings.Height, 
+                imageSettings.RemoveBackground,
+                ImageUtils.AssetUtils.CreateBlankTexture,
+                ImageUtils.AssetUtils.defaultNewAssetName,
+                cancellationToken
+            );
+        }
+        
+        static GenerationHandle<Object> GenerateTexture2DAsync<TSettings>(
+            GenerationParameters<TSettings> parameters, 
+            ObjectReference[] imageReferences,
+            int width,
+            int height,
+            bool removeBackground,
+            Func<string, string> createPlaceholderFunc,
+            string defaultAssetName,
+            CancellationToken cancellationToken) where TSettings : ISettings
+        {
             ValidateModelId(ImageStore.Store, ImageSelectors.Selectors.imageModalities, parameters.ModelId);
 
-            var hasImageReference = spriteSettings.ImageReferences is { Length: > 0 } && spriteSettings.ImageReferences[0].Image != null;
+            var hasImageReference = imageReferences is { Length: > 0 } && imageReferences[0].Image != null;
             if (hasImageReference)
             {
-                if (ImageUtils.AssetReferenceExtensions.IsOneByOnePixelOrLikelyBlank(spriteSettings.ImageReferences[0].Image as Texture2D))
+                if (ImageUtils.AssetReferenceExtensions.IsOneByOnePixelOrLikelyBlank(imageReferences[0].Image as Texture2D))
                     throw new InvalidOperationException("The provided image reference is blank or a 1x1 pixel, and cannot be used for generation.");
 
                 ValidateImageReferenceSupport(ImageStore.Store, parameters.ModelId);
             }
 
-            if (spriteSettings is { Width: > 0, Height: > 0 })
+            if (width > 0 && height > 0)
             {
                 var model = ImageStore.Store.State.SelectModelSettingsWithModelId(parameters.ModelId);
                 if (model?.capabilities.Contains(ModelConstants.ModelCapabilities.CustomResolutions) ?? false)
                 {
-                    if (spriteSettings.Width < ModelConstants.ModelCapabilities.CustomResolutionsMin || spriteSettings.Width > ModelConstants.ModelCapabilities.CustomResolutionsMax ||
-                        spriteSettings.Height < ModelConstants.ModelCapabilities.CustomResolutionsMin || spriteSettings.Height > ModelConstants.ModelCapabilities.CustomResolutionsMax)
+                    if (width < ModelConstants.ModelCapabilities.CustomResolutionsMin || width > ModelConstants.ModelCapabilities.CustomResolutionsMax ||
+                        height < ModelConstants.ModelCapabilities.CustomResolutionsMin || height > ModelConstants.ModelCapabilities.CustomResolutionsMax)
                         throw new ArgumentException($"Invalid image dimensions. Width and height must be between {ModelConstants.ModelCapabilities.CustomResolutionsMin} and {ModelConstants.ModelCapabilities.CustomResolutionsMax} pixels.", nameof(parameters));
                 }
             }
 
-            // Asynchronously quote before creating placeholder
             Task downloadTask = null;
-            var spriteHandle = new GenerationHandle<Texture2D>(
+            var textureHandle = new GenerationHandle<Texture2D>(
                 validationTaskFactory: async handle =>
                 {
-                    handle.PointCost = await QuoteSpriteGenerationAsync(ImageStore.Store, parameters.Prompt, parameters.ModelId, spriteSettings, cancellationToken);
+                    handle.PointCost = await QuoteImageGenerationAsync(ImageStore.Store, parameters.Prompt, parameters.ModelId, ImageStates.RefinementMode.Generation, imageReferences, width, height, cancellationToken);
                     handle.Placeholder = await PreparePlaceholderAsync(handle, parameters.TargetAsset, parameters.SavePath,
-                        ImageUtils.AssetUtils.CreateBlankSprite, parameters.PermissionCheckAsync, ImageUtils.AssetUtils.defaultNewAssetNameSprite,
+                        createPlaceholderFunc, parameters.PermissionCheckAsync, defaultAssetName,
                         ImageUtils.AssetUtils.defaultAssetExtension);
                 },
                 generationTaskFactory: async handle =>
@@ -237,7 +275,7 @@ namespace Unity.AI.Generators.Tools
 
                     if (hasImageReference)
                     {
-                        var imageRef = spriteSettings.ImageReferences[0];
+                        var imageRef = imageReferences[0];
                         var imageAssetRef = AssetReferenceExtensions.FromObject(imageRef.Image);
                         if (imageAssetRef.IsValid())
                         {
@@ -260,16 +298,16 @@ namespace Unity.AI.Generators.Tools
                         storeApi.Dispatch(ImageActions.GenerationSettingsActions.clearImageReferences, new());
                     }
 
-                    if (spriteSettings is { Width: > 0, Height: > 0 })
+                    if (width > 0 && height > 0)
                     {
                         var model = storeApi.State.SelectModelSettingsWithModelId(parameters.ModelId);
                         if (model?.capabilities.Contains(ModelConstants.ModelCapabilities.CustomResolutions) ?? false)
                         {
-                            storeApi.Dispatch(ImageActions.GenerationSettingsActions.setImageDimensions, $"{spriteSettings.Width} x {spriteSettings.Height}");
+                            storeApi.Dispatch(ImageActions.GenerationSettingsActions.setImageDimensions, $"{width} x {height}");
                         }
                         else if (model?.imageSizes != null && model.imageSizes.Any())
                         {
-                            var requestedSize = new Vector2(spriteSettings.Width, spriteSettings.Height);
+                            var requestedSize = new Vector2(width, height);
                             var bestSize = model.imageSizes
                                 .OrderBy(s => Vector2.Distance(new Vector2(s.width, s.height), requestedSize))
                                 .First();
@@ -301,7 +339,7 @@ namespace Unity.AI.Generators.Tools
                     handle.SetMessages(ImageSelectors.Selectors.SelectGenerationFeedback(store.State, assetRef).Select(f => f.message).ToList());
 
                     var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GetAssetPath(handle.Placeholder));
-                    if (spriteSettings.RemoveBackground)
+                    if (removeBackground)
                     {
                         await RemoveSpriteBackgroundAsync(texture, null, cancellationToken);
 
@@ -313,7 +351,7 @@ namespace Unity.AI.Generators.Tools
                     return texture;
                 });
 
-            return ConvertToObjectHandle(spriteHandle);
+            return ConvertToObjectHandle(textureHandle);
         }
 
         static GenerationHandle<Object> GenerateCubemapAsync<TSettings>(GenerationParameters<TSettings> parameters, CubemapSettings cubemapSettings, CancellationToken cancellationToken) where TSettings : ISettings

@@ -39,8 +39,10 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public static readonly AsyncThunkCreatorWithArg<VisualElement> openSelectModelPanel = new($"{slice}/{nameof(openSelectModelPanel)}", async (element, api) =>
         {
             var selectedModelID = api.State.SelectSelectedModelID(element);
+            var operations = Selectors.Selectors.SelectRefinementOperations();
+
             // the model selector is modal (in the common sense) and it is shared by all modalities (in the generative sense)
-            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, Unity.AI.Sound.Services.Stores.Selectors.Selectors.modalities, Array.Empty<string>());
+            selectedModelID = await ModelSelectorWindow.Open(element, selectedModelID, Unity.AI.Sound.Services.Stores.Selectors.Selectors.modalities, operations);
             element.Dispatch(setSelectedModelID, selectedModelID);
         });
 

@@ -15,7 +15,7 @@ To generate 2D images using [Texture2D](https://docs.unity3d.com/6000.0/Document
 
 1. To choose a model, select **Change**.
 
-   The **Select Model** window opens. It displays the third-party AI models from partners, such as Scenario and Layer. For more information, refer to [Choose the right model with the Model Picker](xref:animation-intro).
+   The **Select Model** window opens. It displays the third-party AI models from partners, such as Scenario and Layer. For more information, refer to [Choose the right model with the Model Picker](xref:model-picker).
 1. Filter and search for models by tags or specific training styles, for example, **Anime** or **Cartoon 3D**.
 1. Select a model suited for the type of image you want to create.
 1. In the **Prompt** field, describe the image you want to generate.

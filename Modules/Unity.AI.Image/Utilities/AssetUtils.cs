@@ -48,8 +48,10 @@ namespace Unity.AI.Image.Services.Utilities
                 texture.SafeDestroy();
             }
         }
+        
+        public static string CreateBlankTexture(string path) => CreateBlankTexture(path, false);
 
-        public static string CreateBlankTexture(string path, bool force = true)
+        public static string CreateBlankTexture(string path, bool force)
         {
             const int size = 256;
             var texturePath = CreateBlankTexture(path, force, size, size);

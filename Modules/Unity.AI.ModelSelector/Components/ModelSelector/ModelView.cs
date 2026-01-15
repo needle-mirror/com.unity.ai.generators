@@ -291,7 +291,11 @@ namespace Unity.AI.ModelSelector.Components
             var selectedModalities = m_ModalitiesElement.Query<Toggle>()
                 .Where(t => t.value).Build().Select(t => t.name).ToList();
 
-            var providers = m_Models.Where(m => selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase))
+            // Operations should not change in the model selection window, if it happens, we will have to rebuild the providers list
+            var selectedOperations = this.GetState().SelectSelectedOperations();
+
+            var providers = m_Models.Where(m => selectedModalities.Contains(m.modality.ToString(), StringComparer.InvariantCultureIgnoreCase) &&
+                (!selectedOperations.Any() || m.operations.Any(op => selectedOperations.Contains(op, StringComparer.InvariantCultureIgnoreCase))))
                 .Select(model => model.provider).Distinct().OrderBy(s => s).ToList();
 
             m_ProvidersElement.Query<Toggle>().ForEach(t => t.UnregisterValueChangedCallback(OnFilterSelectionChanged));

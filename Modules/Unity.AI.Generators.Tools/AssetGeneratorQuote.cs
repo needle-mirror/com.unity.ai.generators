@@ -102,10 +102,6 @@ namespace Unity.AI.Generators.Tools
             throw new InvalidOperationException(errorMessage);
         }
 
-        static async Task<int> QuoteSpriteGenerationAsync(Store store, string prompt, string modelId, SpriteSettings spriteSettings,
-            CancellationToken cancellationToken) => await QuoteImageGenerationAsync(store, prompt, modelId, ImageStates.RefinementMode.Generation,
-            spriteSettings.ImageReferences, spriteSettings.Width, spriteSettings.Height, cancellationToken);
-
         static async Task<int> QuoteAnimationGenerationAsync(Store store, string prompt, string modelId, AnimationSettings animSettings, CancellationToken cancellationToken)
         {
             var tempAssetRef = new AssetReference { guid = Guid.NewGuid().ToString() };

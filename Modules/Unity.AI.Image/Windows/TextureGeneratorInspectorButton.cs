@@ -83,7 +83,7 @@ namespace Unity.AI.Image.Windows
             doCreate.action = (_, path, _) =>
             {
                 path = AssetDatabase.GenerateUniqueAssetPath(path);
-                path = AssetUtils.CreateBlankTexture(path);
+                path = AssetUtils.CreateBlankTexture(path, true);
                 if (string.IsNullOrEmpty(path))
                     Debug.Log($"Failed to create texture file for '{path}'.");
                 AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);

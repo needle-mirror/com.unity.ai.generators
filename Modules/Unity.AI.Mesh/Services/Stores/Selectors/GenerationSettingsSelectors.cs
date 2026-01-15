@@ -97,20 +97,16 @@ namespace Unity.AI.Mesh.Services.Stores.Selectors
             foreach (RefinementMode mode in Enum.GetValues(typeof(RefinementMode)))
             {
                 var selection = setting.selectedModels.Ensure(mode);
-                var lastSelectedModelId = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
-                if (!string.IsNullOrEmpty(lastSelectedModelId))
-                    selection.modelID = lastSelectedModelId;
-
-                var currentModelId = selection.modelID;
+                var historyId = state.SelectSession().settings.lastSelectedModels.Ensure(mode).modelID;
                 var operations = SelectRefinementOperations(mode);
-                var shouldAutoAssign = ModelSelectorSelectors.SelectShouldAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
 
-                if (shouldAutoAssign)
-                {
-                    var autoAssignModel = ModelSelectorSelectors.SelectAutoAssignModel(state, currentModelId, modalities: modalities, operations: operations);
-                    if (!string.IsNullOrEmpty(autoAssignModel?.id))
-                        selection.modelID = autoAssignModel.id;
-                }
+                selection.modelID = ModelSelectorSelectors.ResolveEffectiveModelID(
+                    state, 
+                    selection.modelID, 
+                    historyId, 
+                    modalities: modalities, // Provided by class scope
+                    operations: operations
+                );
             }
             return setting;
         }

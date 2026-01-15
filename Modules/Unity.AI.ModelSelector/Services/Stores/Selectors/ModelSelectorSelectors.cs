@@ -94,6 +94,35 @@ namespace Unity.AI.ModelSelector.Services.Stores.Selectors
             return models is { Count: 1 } ? models[0] : k_InvalidModelSettings;
         }
 
+        public static string ResolveEffectiveModelID(
+            IState state, 
+            string currentId, 
+            string historyId, 
+            IEnumerable<string> modalities, 
+            IEnumerable<string> operations)
+        {
+            // 1. Validate Input
+            var inputNeedsReplacement = SelectShouldAutoAssignModel(
+                state, currentId, modalities: modalities, operations: operations);
+
+            if (!inputNeedsReplacement) 
+                return currentId;
+
+            // 2. Validate History
+            var historyIsGood = !string.IsNullOrEmpty(historyId) 
+                                && !SelectShouldAutoAssignModel(
+                                    state, historyId, modalities: modalities, operations: operations);
+
+            if (historyIsGood) 
+                return historyId;
+
+            // 3. Fallback to Default
+            var autoAssignModel = SelectAutoAssignModel(
+                state, currentId, modalities: modalities, operations: operations);
+        
+            return !string.IsNullOrEmpty(autoAssignModel?.id) ? autoAssignModel.id : currentId;
+        }        
+
         public static string SelectModel(IEnumerable<ModelSettings> models, string operatorSubType)
         {
             var operatorModels = models.Where(s => s.operations.Contains(operatorSubType)).ToList();
