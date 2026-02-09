@@ -575,6 +575,16 @@ namespace Unity.AI.Image.Services.Stores.Selectors
             return setting.pixelateSettings.outlineThickness;
         }
 
+        public static SpritesheetSettingsState SelectSpritesheetSettings(this IState state, VisualElement element) => state.SelectGenerationSetting(element).spritesheetSettings;
+        public static SpritesheetSettingsState SelectSpritesheetSettings(this IState state, AssetReference asset) => state.SelectGenerationSetting(asset).spritesheetSettings;
+        public static int SelectSpritesheetTileColumns(this IState state, VisualElement element) => state.SelectGenerationSetting(element).spritesheetSettings.tileColumns;
+        public static int SelectSpritesheetTileRows(this IState state, VisualElement element) => state.SelectGenerationSetting(element).spritesheetSettings.tileRows;
+        public static int SelectSpritesheetOutputWidth(this IState state, VisualElement element) => state.SelectGenerationSetting(element).spritesheetSettings.outputWidth;
+        public static int SelectSpritesheetOutputHeight(this IState state, VisualElement element) => state.SelectGenerationSetting(element).spritesheetSettings.outputHeight;
+        public static bool SelectSpritesheetSettingsButtonVisible(this IState state, VisualElement element) => state.SelectSpritesheetSettingsButtonVisible(element.GetAsset());
+        public static bool SelectSpritesheetSettingsButtonVisible(this IState state, AssetReference asset) =>
+            asset.IsValid() && (state.SelectRefinementMode(asset) == RefinementMode.Spritesheet || asset.IsSpriteSheet());
+
         public static IEnumerable<string> SelectModelSettingsResolutions(this IState state, VisualElement element)
         {
             var imageSizes = state.SelectSelectedModel(element)?.imageSizes;

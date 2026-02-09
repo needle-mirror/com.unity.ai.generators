@@ -80,7 +80,6 @@ namespace Unity.AI.Pbr.Services.Stores.Actions.Backend
 
             // clamping is important as the backend will increment the value
             var seed = useCustomSeed ? Math.Clamp(customSeed, 0, int.MaxValue - variations) : Random.Range(0, int.MaxValue - variations);
-            var cost = 0;
 
             Guid.TryParse(modelID, out var generativeModelID);
             var modelSettings = api.State.SelectSelectedModel(asset);
@@ -182,7 +181,6 @@ namespace Unity.AI.Pbr.Services.Stores.Actions.Backend
                             ids = upscaleResults.Batch.Value.Where(v => v.IsSuccessful)
                                 .Select(r => r.Value.JobId)
                                 .ToList();
-                            cost = upscaleResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                             materialGenerations = upscaleResults.Batch.Value.Where(v => v.IsSuccessful)
                                 .Select(r => r.Value.JobId)
                                 .Select(id => new Dictionary<MapType, Guid> { [MapType.Preview] = id })
@@ -223,7 +221,6 @@ namespace Unity.AI.Pbr.Services.Stores.Actions.Backend
                             ids = pbrResults.Batch.Value.Where(v => v.IsSuccessful)
                                 .SelectMany(r => r.Value.MapResults.Select(mr => mr.JobId))
                                 .ToList();
-                            cost = pbrResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                             pbrResults.Batch.Value.Where(v => v.IsSuccessful)
                                 .SelectMany(batchItemResult => batchItemResult.Value.MapResults,
                                     (batchItemResult, itemResult) => new { batchItemResult, itemResult })
@@ -276,7 +273,6 @@ namespace Unity.AI.Pbr.Services.Stores.Actions.Backend
                             ids = generateResults.Batch.Value.Where(v => v.IsSuccessful)
                                 .Select(r => r.Value.JobId)
                                 .ToList();
-                            cost = generateResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                             materialGenerations = generateResults.Batch.Value.Where(v => v.IsSuccessful)
                                 .Select(r => r.Value.JobId)
                                 .Select(id => new Dictionary<MapType, Guid> { [MapType.Preview] = id })
@@ -338,7 +334,8 @@ namespace Unity.AI.Pbr.Services.Stores.Actions.Backend
              * If you got here, points were consumed so a restore point is saved
              */
 
-            AIToolbarButton.ShowPointsCostNotification(cost);
+            var cost = api.State.SelectGenerationValidationResult(asset)?.cost ?? 0;
+            AIToolbarButton.ShowPointsCostNotification((int)cost);
 
             var downloadMaterialsData = new DownloadMaterialsData(asset: asset, jobIds: materialGenerations, progressTaskId: arg.progressTaskId,
                 uniqueTaskId: arg.uniqueTaskId, generationMetadata: generationMetadata, customSeeds: customSeeds, autoApply: arg.autoApply, retryable: false);

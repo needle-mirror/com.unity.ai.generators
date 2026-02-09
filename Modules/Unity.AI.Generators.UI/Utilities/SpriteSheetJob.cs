@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Unity.AI.Generators.IO.Utilities;
 using UnityEditor.Media;
 using UnityEngine;
-using UnityEngine.Video;
 
 namespace Unity.AI.Generators.UI.Utilities
 {
@@ -15,19 +14,16 @@ namespace Unity.AI.Generators.UI.Utilities
 
         RenderTexture m_GpuSpriteSheet;
 
-        public SpriteSheetJob(VideoClip clip, TaskCompletionSource<object> tcs, Texture2D targetTexture,
+        public SpriteSheetJob(VideoInfo videoInfo, TaskCompletionSource<object> tcs, Texture2D targetTexture,
             int totalCells, Func<long, Rect?> destinationRectProvider, double startTime, double endTime, Action<float> progressCallback = null)
-            : base(clip, tcs, startTime, endTime, progressCallback, FrameSelectionMode.Distributed)
+            : base(videoInfo, tcs, startTime, endTime, progressCallback, FrameSelectionMode.Distributed)
         {
             m_TargetTexture = targetTexture;
             m_TotalCells = totalCells;
             m_DestinationRectProvider = destinationRectProvider;
         }
 
-        protected override int GetTotalFramesToProcess()
-        {
-            return m_FrameSelection == FrameSelectionMode.Distributed ? m_TotalCells : 0;
-        }
+        protected override int GetTotalFramesToProcess() => m_FrameSelection == FrameSelectionMode.Distributed ? m_TotalCells : 0;
 
         protected override void InitializeProcessing()
         {

@@ -61,8 +61,13 @@ namespace Unity.AI.Generators.IO.Utilities
             {
                 // This is called by the base class after the decoder is ready.
                 // We just need to set up our encoder.
-                var outputSize = new Vector2Int((int)m_Clip.width, (int)m_Clip.height);
-                var videoAttrs = CreateVideoTrackAttributes(outputSize, m_Clip.frameRate, m_OutputFormat);
+                // Use video info dimensions/framerate, with fallback to 720p/24fps if uninitialized
+                var width = m_VideoInfo.width > 0 ? m_VideoInfo.width : 1280;
+                var height = m_VideoInfo.height > 0 ? m_VideoInfo.height : 720;
+                var frameRate = m_VideoInfo.frameRate > 0 ? m_VideoInfo.frameRate : 24.0;
+
+                var outputSize = new Vector2Int(width, height);
+                var videoAttrs = CreateVideoTrackAttributes(outputSize, frameRate, m_OutputFormat);
 
                 m_TempOutputPath = Path.GetFullPath(FileUtil.GetUniqueTempPathInProject());
                 m_TempOutputPath = Path.ChangeExtension(m_TempOutputPath, m_OutputFormat == Format.MP4 ? ".mp4" : ".webm");

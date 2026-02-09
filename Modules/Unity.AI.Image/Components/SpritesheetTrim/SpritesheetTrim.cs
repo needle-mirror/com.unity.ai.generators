@@ -36,6 +36,7 @@ namespace Unity.AI.Image.Components
         bool m_IsUpdatingSlider; // Prevents recursive updates
         bool m_IsDraggingSlider; // Prevents playback resume during drag
         CancellationTokenSource m_ResumePlaybackCts;
+        CancellationTokenSource m_UpdateDurationCts;
 
         readonly VideoPreview m_Preview;
         readonly MultiSlider m_TimeSlider;
@@ -62,7 +63,9 @@ namespace Unity.AI.Image.Components
             m_TimeSlider.RegisterValueChangedCallback(OnTimeSliderValueChanged);
             m_TimeSlider.controlDragStarted += OnControlDragStarted;
             m_TimeSlider.controlDragEnded += OnControlDragEnded;
-            m_Preview.currentTimeChanged += OnPreviewTimeUpdated;
+            
+            // Listen for time updates from VideoPreview to update the slider thumb
+            m_Preview.CurrentTimeChanged += OnPreviewTimeUpdated;
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
 
             // Configure slider: Current time is visual-only, start/end are draggable
@@ -77,55 +80,89 @@ namespace Unity.AI.Image.Components
             m_ResumePlaybackCts?.Cancel();
             m_ResumePlaybackCts?.Dispose();
             m_ResumePlaybackCts = null;
+
+            m_UpdateDurationCts?.Cancel();
+            m_UpdateDurationCts?.Dispose();
+            m_UpdateDurationCts = null;
         }
 
         void SetSelectedGeneration(TextureResult result)
         {
-            var clipLength = result.GetDuration();
-            if (clipLength <= 0)
-                clipLength = this.GetState().SelectDuration(this);
-            SetEnabled(result.IsVideoClip() && clipLength > 0.05);
-
             if (!result.IsVideoClip())
             {
                 m_OriginalClip = null;
+                SetEnabled(false);
+                return;
             }
-            else if (m_OriginalClip != result)
+
+            if (m_OriginalClip == result)
+                return;
+
+            m_OriginalClip = result;
+
+            // Cancel any previous duration polling task
+            m_UpdateDurationCts?.Cancel();
+            m_UpdateDurationCts?.Dispose();
+            m_UpdateDurationCts = new CancellationTokenSource();
+
+            // Reset trim times in the state for the new clip
+            this.Dispatch(GenerationSettingsActions.setTrimStartTime, 0f);
+            this.Dispatch(GenerationSettingsActions.setTrimEndTime, 1f);
+
+            // Get duration from the preview player (which has probed the actual video)
+            _ = UpdateDurationFromPreviewAsync(m_UpdateDurationCts.Token);
+        }
+
+        async Task UpdateDurationFromPreviewAsync(CancellationToken token)
+        {
+            // Wait a bit for the preview to load the video
+            for (var attempt = 0; attempt < 50; attempt++)
             {
-                m_OriginalClip = result;
-                m_OriginalClipLength = clipLength > 0 ? clipLength : 1.0;
+                if (token.IsCancellationRequested)
+                    return;
 
-                // Reset trim times in the state for the new clip
-                this.Dispatch(GenerationSettingsActions.setTrimStartTime, 0f);
-                this.Dispatch(GenerationSettingsActions.setTrimEndTime, 1f);
-
-                // Update the preview component with the new video
-                UpdatePreviewPlaybackRange();
+                if (m_Preview.duration > 0.05)
+                {
+                    m_OriginalClipLength = m_Preview.duration;
+                    SetEnabled(true);
+                    UpdatePreviewPlaybackRange();
+                    return;
+                }
+                await EditorTask.Delay(100, token);
             }
+
+            if (token.IsCancellationRequested)
+                return;
+
+            // Timeout or no valid duration - disable
+            SetEnabled(false);
         }
 
         void UpdateStartTime(float time)
         {
-            if (Mathf.Approximately(m_StartTimeNormalized, time)) return;
+            if (Mathf.Approximately(m_StartTimeNormalized, time))
+                return;
             m_StartTimeNormalized = time;
             UpdatePreviewPlaybackRange();
         }
 
         void UpdateEndTime(float time)
         {
-            if (Mathf.Approximately(m_EndTimeNormalized, time)) return;
+            if (Mathf.Approximately(m_EndTimeNormalized, time))
+                return;
             m_EndTimeNormalized = time;
             UpdatePreviewPlaybackRange();
         }
 
         void UpdatePreviewPlaybackRange()
         {
-            if (m_OriginalClip == null) return;
+            if (m_OriginalClip == null)
+                return;
 
             var startTimeSeconds = (float)(m_StartTimeNormalized * m_OriginalClipLength);
             var endTimeSeconds = (float)(m_EndTimeNormalized * m_OriginalClipLength);
 
-            // Assume the preview component can restrict its playback to a time range
+            // This ensures the Double Buffer player loops between these two points
             m_Preview.SetPlaybackRange(startTimeSeconds, endTimeSeconds);
 
             UpdateSliderControls();
@@ -133,7 +170,8 @@ namespace Unity.AI.Image.Components
 
         void UpdateSliderControls()
         {
-            if (m_IsUpdatingSlider) return;
+            if (m_IsUpdatingSlider)
+                return;
 
             m_IsUpdatingSlider = true;
             try
@@ -145,6 +183,7 @@ namespace Unity.AI.Image.Components
 
                 var startTimeInSeconds = m_StartTimeNormalized * m_OriginalClipLength;
                 var endTimeInSeconds = m_EndTimeNormalized * m_OriginalClipLength;
+                
                 m_TimeSlider.SetControlTooltip(k_StartTimeIndex, $"Start: {startTimeInSeconds:F2}s");
                 m_TimeSlider.SetControlTooltip(k_EndTimeIndex, $"End: {endTimeInSeconds:F2}s");
             }
@@ -156,31 +195,35 @@ namespace Unity.AI.Image.Components
 
         void OnControlDragStarted(int controlIndex)
         {
-            if (controlIndex is k_StartTimeIndex or k_EndTimeIndex)
-            {
-                m_IsDraggingSlider = true;
-                m_Preview.isPlaying = false;
-                m_ResumePlaybackCts?.Cancel();
-            }
+            if (controlIndex is not (k_StartTimeIndex or k_EndTimeIndex))
+                return;
+            
+            m_IsDraggingSlider = true;
+            // Pause while dragging so the seek is instant and not fighting playback
+            m_Preview.isPlaying = false;
+            m_ResumePlaybackCts?.Cancel();
         }
 
         void OnControlDragEnded(int controlIndex)
         {
-            if (controlIndex is k_StartTimeIndex or k_EndTimeIndex)
-            {
-                m_IsDraggingSlider = false;
-                m_Preview.isPlaying = true;
-            }
+            if (controlIndex is not (k_StartTimeIndex or k_EndTimeIndex))
+                return;
+            
+            m_IsDraggingSlider = false;
+            // Resume playback immediately on release
+            m_Preview.isPlaying = true;
         }
 
         void OnTimeSliderValueChanged(ChangeEvent<float[]> evt)
         {
-            if (m_IsUpdatingSlider) return;
+            if (m_IsUpdatingSlider)
+                return;
 
             var newStartTime = evt.newValue[k_StartTimeIndex];
             var newEndTime = evt.newValue[k_EndTimeIndex];
             var hasChanged = false;
 
+            // Handle Start Time Change
             if (!Mathf.Approximately(m_StartTimeNormalized, newStartTime))
             {
                 this.Dispatch(GenerationSettingsActions.setTrimStartTime, newStartTime);
@@ -188,6 +231,7 @@ namespace Unity.AI.Image.Components
                 hasChanged = true;
             }
 
+            // Handle End Time Change
             if (!Mathf.Approximately(m_EndTimeNormalized, newEndTime))
             {
                 this.Dispatch(GenerationSettingsActions.setTrimEndTime, newEndTime);
@@ -213,17 +257,19 @@ namespace Unity.AI.Image.Components
 
                 await EditorTask.Delay(k_DebounceResumePlaybackMs, token);
 
-                m_Preview.isPlaying = true;
+                if (!token.IsCancellationRequested)
+                    m_Preview.isPlaying = true;
             }
             catch (TaskCanceledException)
             {
-                // This is expected when the task is cancelled, so we can ignore it.
+                // Task cancelled, safe to ignore
             }
         }
 
         void OnPreviewTimeUpdated(float currentTime)
         {
-            if (m_IsUpdatingSlider || m_OriginalClipLength <= 0) return;
+            if (m_IsUpdatingSlider || m_IsDraggingSlider || m_OriginalClipLength <= 0)
+                return;
 
             m_IsUpdatingSlider = true;
             try
@@ -231,6 +277,7 @@ namespace Unity.AI.Image.Components
                 var values = m_TimeSlider.value;
                 values[k_CurrentTimeIndex] = (float)(currentTime / m_OriginalClipLength);
                 m_TimeSlider.SetValueWithoutNotify(values);
+                m_TimeSlider.SetControlTooltip(k_CurrentTimeIndex, $"{currentTime:F2}s");
             }
             finally
             {
@@ -240,7 +287,8 @@ namespace Unity.AI.Image.Components
 
         async Task OnApplyButtonClick()
         {
-            if (m_OriginalClip == null) return;
+            if (m_OriginalClip == null)
+                return;
 
             var path = TempUtilities.GetTempFileName("Trim");
             await SaveTrimmedVideoAsync(path);
@@ -248,24 +296,34 @@ namespace Unity.AI.Image.Components
 
         async Task SaveTrimmedVideoAsync(string outputPath)
         {
-            if (m_OriginalClip == null) return;
-
-            var (success, length) = await m_OriginalClip.TrimAndSaveAsync(m_StartTimeNormalized, m_EndTimeNormalized, outputPath, progress => {
-                EditorUtility.DisplayProgressBar("Trimming Video", $"Processing... {(int)(progress * 100)}%", progress);
-            });
-
-            EditorUtility.ClearProgressBar();
-
-            if (!success)
+            if (m_OriginalClip == null)
                 return;
 
-            var asset = this.GetAsset();
-            var tempResult = TextureResult.FromPath(outputPath);
-            var metadata = TextureResultExtensions.MakeMetadata(null, asset);
-            metadata.refinementMode = nameof(RefinementMode.Spritesheet);
-            metadata.spriteSheet = true;
-            metadata.duration = length;
-            await tempResult.CopyToProject(metadata, asset.GetGeneratedAssetsPath());
+            var wasPlaying = m_Preview.isPlaying;
+            m_Preview.isPlaying = false;
+
+            try
+            {
+                var (success, length) = await m_OriginalClip.TrimAndSaveAsync(m_StartTimeNormalized, m_EndTimeNormalized, outputPath, progress => {
+                    EditorUtility.DisplayProgressBar("Trimming Video", $"Processing... {(int)(progress * 100)}%", progress);
+                });
+
+                if (!success)
+                    return;
+
+                var asset = this.GetAsset();
+                var tempResult = TextureResult.FromPath(outputPath);
+                var metadata = TextureResultExtensions.MakeMetadata(null, asset);
+                metadata.refinementMode = nameof(RefinementMode.Spritesheet);
+                metadata.spriteSheet = true;
+                metadata.duration = length;
+                await tempResult.CopyToProject(metadata, asset.GetGeneratedAssetsPath());
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+                m_Preview.isPlaying = wasPlaying;
+            }
         }
     }
 
@@ -280,10 +338,9 @@ namespace Unity.AI.Image.Components
                     throw new Exception($"Cannot import a sprite sheet from '{textureResult.uri}'.");
 
                 var length = endTime * videoClip.length - startTime * videoClip.length;
+                if (length <= 0)
+                    return (false, 0);
 
-                // Use the existing VideoClipExtensions.ConvertAsync to perform the trim.
-                // It returns a stream of the converted video data.
-                // We set deleteOutputOnClose to true, as the converter creates a temp file.
                 using var videoStream = await videoClip.ConvertAsync(startTime * videoClip.length, endTime * videoClip.length, VideoClipExtensions.Format.MP4, deleteOutputOnClose: true, progress);
                 if (videoStream == null)
                 {
@@ -291,7 +348,6 @@ namespace Unity.AI.Image.Components
                     return (false, 0);
                 }
 
-                // Write the stream from the converter to the final destination file.
                 using var fileStream = FileIO.OpenWrite(outputPath);
                 await videoStream.CopyToAsync(fileStream);
 

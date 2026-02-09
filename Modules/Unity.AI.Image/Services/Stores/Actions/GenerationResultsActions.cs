@@ -33,6 +33,11 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static readonly string slice = "generationResults";
         public static Creator<GenerationTextures> setGeneratedTextures => new($"{slice}/setGeneratedTextures");
 
+        /// <summary>
+        /// Fired when precaching starts (true) or ends (false) for a given asset.
+        /// </summary>
+        public static event Action<AssetReference, bool> PrecachingStateChanged;
+
         // k_ActiveDownloads is used to track downloads that are currently in progress.
         // This prevents interrupted downloads from being resumed while they are still active.
         static readonly HashSet<string> k_ActiveDownloads = new();
@@ -51,6 +56,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
             int taskID = 0;
             try
             {
+                PrecachingStateChanged?.Invoke(payload.asset, true);
                 taskID = ProgressUtility.Start("Precaching generations.");
 
                 // Wait to acquire the semaphore
@@ -72,6 +78,7 @@ namespace Unity.AI.Image.Services.Stores.Actions
                         k_SetGeneratedTexturesAsyncSemaphore.Release();
                     if (Progress.Exists(taskID))
                         ProgressUtility.Finish(taskID);
+                    PrecachingStateChanged?.Invoke(payload.asset, false);
                 }
             }
         });
@@ -112,11 +119,17 @@ namespace Unity.AI.Image.Services.Stores.Actions
                 precacheCount = Math.Min(payload.textures.Count, precacheCount);
                 Progress.Report(taskID, processedTextures, precacheCount, $"Precaching {precacheCount} generations");
 
+                // Skip failed textures - they display an icon, not the actual texture.
+                if (texture.IsFailed())
+                    continue;
+
                 // Skip texture if it is already cached.
                 if (TextureCache.Peek(texture.uri))
                     continue;
 
-                var loadTask = TextureCache.GetTexture(texture.uri);
+                // Use GetPreview to match what GenerationTile displays.
+                // This caches both the source texture and the resized preview render texture.
+                var loadTask = TextureCache.GetPreview(texture.uri, (int)TextureSizeHint.Carousel);
                 inFlightTasks.Add(loadTask);
 
                 if (inFlightTasks.Count >= maxInFlight)
@@ -182,7 +195,8 @@ namespace Unity.AI.Image.Services.Stores.Actions
                     {
                         Debug.Assert(assetUndoManager != null);
                         assetUndoManager.BeginRecord(payload.asset);
-                        if (await payload.asset.Replace(payload.result))
+                        var spritesheetSettingsState = payload.result.IsVideoClip() ? api.State.SelectSpritesheetSettings(payload.asset) : null;
+                        if (await payload.asset.Replace(payload.result, spritesheetSettingsState))
                         {
                             AssetDatabase.ImportAsset(payload.asset.GetPath(), ImportAssetOptions.ForceUpdate);
                             api.Dispatch(setReplaceWithoutConfirmation, new(payload.asset, replaceWithoutConfirmation));

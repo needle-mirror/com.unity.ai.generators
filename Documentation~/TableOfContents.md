@@ -37,6 +37,7 @@
    * [Use the Upscale tab](xref:material-upscale)
    * [Manage generated material](xref:material-manage)
 * [Terrain Layer Generator](xref:terrain-overview)
+* [3D Object Generator](xref:3d-generator-overview)
 * [Tool reference](xref:tool-reference)
    * [Use a custom seed to generate consistent sprites](xref:custom-seed)
    * [Remove unwanted elements with negative prompts](xref:negative-prompt)

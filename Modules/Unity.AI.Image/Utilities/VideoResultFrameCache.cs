@@ -8,7 +8,6 @@ using Unity.AI.Image.Services.Stores.States;
 using UnityEditor.Media;
 using UnityEngine;
 using UnityEngine.Assertions;
-using UnityEngine.Video;
 
 namespace Unity.AI.Image.Services.Utilities
 {
@@ -36,21 +35,15 @@ namespace Unity.AI.Image.Services.Utilities
         {
             Assert.IsTrue(source.IsVideoClip(), "Attempted to cache video frames from a TextureResult that is not a video.");
 
-            var (videoClip, scope) = await source.GetVideoClipWithScope();
-            try
-            {
-                if (videoClip == null)
-                    return null;
+            // Use file path directly without importing as Unity asset
+            var videoInfo = await source.GetVideoInfoAsync();
+            if (videoInfo.width <= 0 || videoInfo.height <= 0)
+                return null;
 
-                var tcs = new TaskCompletionSource<List<RenderTexture>>();
-                var job = new VideoFrameCaptureJob(videoClip, tcs, new List<RenderTexture>(), size, frameCount);
-                job.Start();
-                return await tcs.Task;
-            }
-            finally
-            {
-                scope?.Dispose();
-            }
+            var tcs = new TaskCompletionSource<List<RenderTexture>>();
+            var job = new VideoFrameCaptureJob(videoInfo, tcs, new List<RenderTexture>(), size, frameCount);
+            job.Start();
+            return await tcs.Task;
         }
 
         class VideoFrameCaptureJob : VideoProcessorJob<List<RenderTexture>>
@@ -59,18 +52,15 @@ namespace Unity.AI.Image.Services.Utilities
             readonly int m_Size;
             readonly int m_FrameCount;
 
-            public VideoFrameCaptureJob(VideoClip clip, TaskCompletionSource<List<RenderTexture>> tcs, List<RenderTexture> frames, int size, int frameCount)
-                : base(clip, tcs, 0, -1, null, FrameSelectionMode.Distributed)
+            public VideoFrameCaptureJob(VideoInfo videoInfo, TaskCompletionSource<List<RenderTexture>> tcs, List<RenderTexture> frames, int size, int frameCount)
+                : base(videoInfo, tcs, 0, -1, null, FrameSelectionMode.Distributed)
             {
                 m_Frames = frames;
                 m_Size = size;
                 m_FrameCount = frameCount;
             }
 
-            protected override int GetTotalFramesToProcess()
-            {
-                return m_FrameCount;
-            }
+            protected override int GetTotalFramesToProcess() => m_FrameCount;
 
             protected override void ProcessFrame(Texture2D frameTexture, MediaTime frameTime)
             {

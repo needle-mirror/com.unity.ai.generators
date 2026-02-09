@@ -32,6 +32,11 @@ namespace Unity.AI.Sound.Services.Stores.Actions
         public const string slice = "generationResults";
         public static Creator<GenerationAudioClips> setGeneratedAudioClips => new($"{slice}/setGeneratedAudioClips");
 
+        /// <summary>
+        /// Fired when precaching starts (true) or ends (false) for a given asset.
+        /// </summary>
+        public static event Action<AssetReference, bool> PrecachingStateChanged;
+
         // k_ActiveDownloads is used to track downloads that are currently in progress.
         // This prevents interrupted downloads from being resumed while they are still active.
         static readonly HashSet<string> k_ActiveDownloads = new();
@@ -50,6 +55,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
             int taskID = 0;
             try
             {
+                PrecachingStateChanged?.Invoke(payload.asset, true);
                 taskID = ProgressUtility.Start("Precaching generations.");
 
                 // Wait to acquire the semaphore
@@ -71,6 +77,7 @@ namespace Unity.AI.Sound.Services.Stores.Actions
                         k_SetGeneratedAudioClipsAsyncSemaphore.Release();
                     if (Progress.Exists(taskID))
                         ProgressUtility.Finish(taskID);
+                    PrecachingStateChanged?.Invoke(payload.asset, false);
                 }
             }
         });

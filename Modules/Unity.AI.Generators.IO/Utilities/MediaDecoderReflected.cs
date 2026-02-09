@@ -15,9 +15,12 @@ namespace Unity.AI.Generators.IO.Utilities
     {
         static readonly Type k_MediaDecoderType;
         static readonly ConstructorInfo k_ConstructorFromClip;
+        static readonly ConstructorInfo k_ConstructorFromPath;
         static readonly MethodInfo k_GetNextFrameMethod;
         static readonly MethodInfo k_SetPositionMethod;
         static readonly MethodInfo k_DisposeMethod;
+
+        const BindingFlags k_BindingFlags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
         object m_DecoderInstance;
 
@@ -32,12 +35,13 @@ namespace Unity.AI.Generators.IO.Utilities
                 return;
             }
 
-            k_ConstructorFromClip = k_MediaDecoderType.GetConstructor(new[] { typeof(VideoClip) });
-            k_GetNextFrameMethod = k_MediaDecoderType.GetMethod("GetNextFrame");
-            k_SetPositionMethod = k_MediaDecoderType.GetMethod("SetPosition");
-            k_DisposeMethod = k_MediaDecoderType.GetMethod("Dispose");
+            k_ConstructorFromClip = k_MediaDecoderType.GetConstructor(k_BindingFlags, null, new[] { typeof(VideoClip) }, null);
+            k_ConstructorFromPath = k_MediaDecoderType.GetConstructor(k_BindingFlags, null, new[] { typeof(string) }, null);
+            k_GetNextFrameMethod = k_MediaDecoderType.GetMethod("GetNextFrame", k_BindingFlags);
+            k_SetPositionMethod = k_MediaDecoderType.GetMethod("SetPosition", k_BindingFlags);
+            k_DisposeMethod = k_MediaDecoderType.GetMethod("Dispose", k_BindingFlags);
 
-            if (k_ConstructorFromClip == null || k_GetNextFrameMethod == null || k_SetPositionMethod == null || k_DisposeMethod == null)
+            if (k_ConstructorFromClip == null || k_ConstructorFromPath == null || k_GetNextFrameMethod == null || k_SetPositionMethod == null || k_DisposeMethod == null)
             {
                 Debug.LogError("MediaDecoderReflected: Could not find one or more required methods or constructors on MediaDecoder. This may be due to a Unity version change.");
             }
@@ -55,6 +59,22 @@ namespace Unity.AI.Generators.IO.Utilities
                 throw new InvalidOperationException("MediaDecoderReflected is not initialized properly. Check for reflection errors on startup.");
             }
             m_DecoderInstance = k_ConstructorFromClip.Invoke(new object[] { clip });
+        }
+
+        /// <summary>
+        /// Creates a new MediaDecoder for the given file path.
+        /// This allows decoding video frames without importing the file as a Unity asset.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the video file (e.g., mp4).</param>
+        /// <exception cref="InvalidOperationException">Thrown if the internal MediaDecoder class or its methods cannot be found via reflection.</exception>
+        /// <exception cref="TargetInvocationException">Thrown if the internal constructor fails to open the file.</exception>
+        public MediaDecoderReflected(string filePath)
+        {
+            if (k_ConstructorFromPath == null)
+            {
+                throw new InvalidOperationException("MediaDecoderReflected file path constructor is not available. Check for reflection errors on startup.");
+            }
+            m_DecoderInstance = k_ConstructorFromPath.Invoke(new object[] { filePath });
         }
 
         /// <summary>

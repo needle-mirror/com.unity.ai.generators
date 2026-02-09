@@ -17,9 +17,14 @@ namespace Unity.AI.Image.Services.Utilities
         public static async Task<Stream> GetCompatibleImageStreamAsync(this AssetReference asset) =>
             asset.Exists() ? await ImageFileUtilities.GetCompatibleImageStreamAsync(new Uri(Path.GetFullPath(asset.GetPath()))) : null;
 
-        public static async Task<bool> Replace(this AssetReference asset, TextureResult generatedTexture)
+        public static Task<bool> Replace(this AssetReference asset, TextureResult generatedTexture)
         {
-            if (await generatedTexture.CopyTo(asset))
+            return asset.Replace(generatedTexture, null);
+        }
+
+        public static async Task<bool> Replace(this AssetReference asset, TextureResult generatedTexture, SpritesheetSettingsState spritesheetSettings)
+        {
+            if (await generatedTexture.CopyTo(asset, spritesheetSettings))
             {
                 asset.EnableGenerationLabel();
                 return true;

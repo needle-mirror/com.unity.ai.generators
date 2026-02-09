@@ -29,6 +29,7 @@ Use the following topics to get started with using Generators.
 | [Animation Generator](xref:animation-intro) | Learn how to create animation clips directly from text or video inputs. |
 | [Material Generator](xref:material-overview) | Learn how to create realistic materials for 3D objects with text-based prompts and reference images. |
 | [Terrain Layer Generator](xref:terrain-overview) | Learn how to generate and apply Terrain-compatible materials directly to Unity Terrain Layers with text-based prompts. |
+| [3D Object Generator](xref:3d-generator-overview) | Learn how to generate static 3D object prefabs from text prompts or reference images and add them to your Scene. |
 
 ## Additional resources
 

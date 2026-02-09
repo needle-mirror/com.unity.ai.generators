@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using GLTFast;
+using Unity.AI.Generators.Utils;
 using UnityEditor;
 using UnityEngine;
 
@@ -14,7 +15,7 @@ namespace Unity.AI.Mesh.Services.Utilities
 
         static GltfImporterProxy()
         {
-            var editorAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "glTFast.Editor");
+            var editorAssembly = AssemblyUtils.GetLoadedAssemblies().FirstOrDefault(a => a.GetName().Name == "glTFast.Editor");
             if (editorAssembly == null)
             {
                 Debug.LogError("Could not find glTFast.Editor assembly.");

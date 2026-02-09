@@ -47,7 +47,6 @@ namespace Unity.AI.Mesh.Services.Stores.Actions.Backend
             var generationSetting = arg.generationSetting;
             var generationMetadata = generationSetting.MakeMetadata(arg.asset);
             var variations = generationSetting.SelectVariationCount();
-            var cost = 0;
 
             api.Dispatch(GenerationResultsActions.setGeneratedSkeletons,
                 new(arg.asset, Enumerable.Range(0, variations).Select(i => new MeshSkeleton(arg.progressTaskId, i)).ToList()));
@@ -179,7 +178,6 @@ namespace Unity.AI.Mesh.Services.Stores.Actions.Backend
                         api.DispatchFailedMessage(arg.asset, generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? generateResults.W3CTraceId : generateResult.Error.W3CTraceId);
                     }
 
-                    cost = generateResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                     ids = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId.ToString()).ToList();
                     generationMetadata.w3CTraceId = generateResults.W3CTraceId;
 
@@ -228,7 +226,8 @@ namespace Unity.AI.Mesh.Services.Stores.Actions.Backend
              * If you got here, points were consumed so a restore point is saved
              */
 
-            AIToolbarButton.ShowPointsCostNotification(cost);
+            var cost = api.State.SelectGenerationValidationResult(asset)?.cost ?? 0;
+            AIToolbarButton.ShowPointsCostNotification((int)cost);
 
             var downloadMeshesData = new DownloadMeshesData(asset: asset, jobIds: ids, progressTaskId: arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId,
                 generationMetadata: generationMetadata, customSeeds: customSeeds, autoApply: arg.autoApply, retryable: false);

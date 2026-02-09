@@ -27,6 +27,9 @@ namespace Unity.AI.Mesh.Components
     {
         readonly GridView m_GridView;
         readonly Button m_OpenGeneratorsWindowButton;
+        readonly VisualElement m_PrecacheSpinner;
+        readonly Label m_PrecacheLabel;
+        readonly SpinnerManipulator m_SpinnerManipulator;
 
         const string k_Uxml = "Packages/com.unity.ai.generators/modules/Unity.AI.Mesh/Components/GenerationSelector/GenerationSelector.uxml";
 
@@ -49,6 +52,11 @@ namespace Unity.AI.Mesh.Components
 
             this.SetupInfoIcon();
 
+            // Set up the precache spinner and label defined in UXML
+            m_PrecacheSpinner = this.Q<VisualElement>("precache-spinner");
+            m_PrecacheSpinner.AddManipulator(m_SpinnerManipulator = new SpinnerManipulator());
+            m_PrecacheLabel = this.Q<Label>("precache-label");
+
             m_GridView = this.Q<GridView>();
             m_GridView.BindTo<MeshResult>(m_TilePool, () => true);
             m_GridView.MakeTileGrid(GetPreviewSize);
@@ -65,12 +73,14 @@ namespace Unity.AI.Mesh.Components
             {
                 OnItemViewMaxCountChanged(0);
                 this.RemoveManipulator(m_GenerationFileSystemWatcher);
+                GenerationResultsActions.PrecachingStateChanged -= OnPrecachingStateChanged;
             });
             RegisterCallback<AttachToPanelEvent>(_ =>
             {
                 this.AddManipulator(m_GenerationFileSystemWatcher);
                 if (string.IsNullOrEmpty(m_ElementID))
                     m_ElementID = this.GetElementIdentifier().ToString();
+                GenerationResultsActions.PrecachingStateChanged += OnPrecachingStateChanged;
             });
 
             m_OpenGeneratorsWindowButton = this.Q<Button>("open-generator-window");
@@ -81,6 +91,20 @@ namespace Unity.AI.Mesh.Components
                     return;
                 MeshGeneratorWindow.Display(asset.GetPath());
             };
+        }
+
+        void OnPrecachingStateChanged(AssetReference asset, bool isPrecaching)
+        {
+            // Only show spinner for our asset
+            if (asset != this.GetAsset())
+                return;
+
+            m_PrecacheSpinner.SetShown(isPrecaching);
+            m_PrecacheLabel.SetShown(isPrecaching);
+            if (isPrecaching)
+                m_SpinnerManipulator.Start();
+            else
+                m_SpinnerManipulator.Stop();
         }
 
         void OnScreenScaleFactorChanged(ScreenScaleFactor factor)
@@ -133,6 +157,11 @@ namespace Unity.AI.Mesh.Components
 
         void SetAsset(AssetReference asset)
         {
+            // Reset spinner state when switching assets
+            m_PrecacheSpinner.SetShown(false);
+            m_PrecacheLabel.SetShown(false);
+            m_SpinnerManipulator.Stop();
+
             OnItemViewMaxCountChanged(this.GetTileGridMaxItemsInElement(GetPreviewSize()));
 
             this.RemoveManipulator(m_GenerationFileSystemWatcher);

@@ -46,6 +46,12 @@ namespace Unity.AI.Image.Services.Stores.Actions
         public static AssetActionCreator<PixelateMode> setPixelateMode => new($"{slice}/{nameof(setPixelateMode)}");
         public static AssetActionCreator<int> setPixelateOutlineThickness => new($"{slice}/{nameof(setPixelateOutlineThickness)}");
 
+        public static AssetActionCreator<SpritesheetSettingsState> setSpritesheetSettings => new($"{slice}/{nameof(setSpritesheetSettings)}");
+        public static AssetActionCreator<int> setSpritesheetTileColumns => new($"{slice}/{nameof(setSpritesheetTileColumns)}");
+        public static AssetActionCreator<int> setSpritesheetTileRows => new($"{slice}/{nameof(setSpritesheetTileRows)}");
+        public static AssetActionCreator<int> setSpritesheetOutputWidth => new($"{slice}/{nameof(setSpritesheetOutputWidth)}");
+        public static AssetActionCreator<int> setSpritesheetOutputHeight => new($"{slice}/{nameof(setSpritesheetOutputHeight)}");
+
         public static AssetActionCreator<string> setPendingPing => new($"{slice}/{nameof(setPendingPing)}");
         public static AssetActionCreator<(ImageReferenceType type, byte[] data)> applyEditedImageReferenceDoodle => new($"{slice}/{nameof(applyEditedImageReferenceDoodle)}");
 
@@ -69,6 +75,9 @@ namespace Unity.AI.Image.Services.Stores.Actions
 
         public static readonly AsyncThunkCreatorWithArg<AddToPromptWindowArgs> openAddToPromptWindow = new($"{slice}/{nameof(openAddToPromptWindow)}",
             async (args, api) => await AddToPromptWindow.Open(args.element.GetStore(), args.asset, args.element, args.typesValidationResults));
+
+        public static readonly AsyncThunkCreatorWithArg<VisualElement> openSpritesheetSettingsWindow = new($"{slice}/{nameof(openSpritesheetSettingsWindow)}",
+            async (element, api) => await SpritesheetSettingsWindow.Open(element.GetStore(), element.GetAsset(), element));
 
         public static readonly AssetActionCreator<float> setHistoryDrawerHeight = new($"{slice}/{nameof(setHistoryDrawerHeight)}");
 

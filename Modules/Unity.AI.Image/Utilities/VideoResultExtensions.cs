@@ -79,7 +79,12 @@ namespace Unity.AI.Image.Services.Utilities
             return metadata.duration;
         }
 
-        public static async Task<SpriteRect[]> CopyVideoTo(this TextureResult generatedTexture, AssetReference asset)
+        public static Task<SpriteRect[]> CopyVideoTo(this TextureResult generatedTexture, AssetReference asset)
+        {
+            return generatedTexture.CopyVideoTo(asset, null);
+        }
+
+        public static async Task<SpriteRect[]> CopyVideoTo(this TextureResult generatedTexture, AssetReference asset, SpritesheetSettingsState settings)
         {
             if (!generatedTexture.IsVideoClip())
             {
@@ -87,49 +92,61 @@ namespace Unity.AI.Image.Services.Utilities
             }
 
             var destFileName = asset.GetPath();
-            var (tempSpriteSheetPath, spriteRects) = await generatedTexture.ImportSpriteSheetTemporarilyAsync(asset);
+            var (tempSpriteSheetPath, spriteRects) = await generatedTexture.ImportSpriteSheetTemporarilyAsync(settings);
 
             await FileIO.CopyFileAsync(tempSpriteSheetPath, destFileName, overwrite: true);
 
             return spriteRects;
         }
 
-        static async Task<(string path, SpriteRect[] spriteRects)> ImportSpriteSheetTemporarilyAsync(this TextureResult textureResult, AssetReference asset)
+        static Task<(string path, SpriteRect[] spriteRects)> ImportSpriteSheetTemporarilyAsync(this TextureResult textureResult)
         {
-            var (videoClip, scope) = await textureResult.GetVideoClipWithScope();
+            return textureResult.ImportSpriteSheetTemporarilyAsync(null);
+        }
+
+        static async Task<(string path, SpriteRect[] spriteRects)> ImportSpriteSheetTemporarilyAsync(this TextureResult textureResult, SpritesheetSettingsState settings)
+        {
+            // Use file path directly without importing as Unity asset
+            var videoInfo = await textureResult.GetVideoInfoAsync();
+            if (videoInfo.width <= 0 || videoInfo.height <= 0)
+                throw new Exception($"Cannot import a sprite sheet from '{textureResult.uri}': invalid video dimensions.");
+
+            Texture2D spriteSheetTexture = null;
+
             try
             {
-                if (videoClip == null)
-                    throw new Exception($"Cannot import a sprite sheet from '{textureResult.uri}'.");
+                SpriteRect[] rects;
 
-                Texture2D spriteSheetTexture = null;
-
-                try
+                if (settings != null)
                 {
-                    SpriteRect[] rects;
-                    (spriteSheetTexture, rects) = await videoClip.ConvertToSpriteSheetAsync(VideoResultFrameCache.FrameCount);
-
-                    var tempFolder = Path.Combine(TempUtilities.projectRootPath, "Temp");
-                    if (!Directory.Exists(tempFolder))
-                        Directory.CreateDirectory(tempFolder);
-                    var tempSpriteSheetPath = Path.Combine(tempFolder, Path.GetRandomFileName());
-                    tempSpriteSheetPath = Path.ChangeExtension(tempSpriteSheetPath, ".png");
-
-                    await FileIO.WriteAllBytesAsync(tempSpriteSheetPath, spriteSheetTexture.EncodeToPNG());
-
-                    return (tempSpriteSheetPath, rects);
+                    (spriteSheetTexture, rects) = await SpriteSheetExtensions.ConvertToSpriteSheetAsync(
+                        videoInfo,
+                        settings.tileColumns,
+                        settings.tileRows,
+                        settings.outputWidth,
+                        settings.outputHeight);
                 }
-                finally
+                else
                 {
-                    if (spriteSheetTexture != null)
-                    {
-                        spriteSheetTexture.SafeDestroy();
-                    }
+                    (spriteSheetTexture, rects) = await SpriteSheetExtensions.ConvertToSpriteSheetAsync(videoInfo, VideoResultFrameCache.FrameCount);
                 }
+
+                var tempFolder = Path.Combine(TempUtilities.projectRootPath, "Temp");
+                if (!Directory.Exists(tempFolder))
+                    Directory.CreateDirectory(tempFolder);
+                var tempSpriteSheetPath = Path.Combine(tempFolder, Path.GetRandomFileName());
+                tempSpriteSheetPath = Path.ChangeExtension(tempSpriteSheetPath, ".png");
+
+                await FileIO.WriteAllBytesAsync(tempSpriteSheetPath, spriteSheetTexture.EncodeToPNG());
+
+                return (tempSpriteSheetPath, rects);
             }
             finally
             {
-                scope?.Dispose();
+                if (spriteSheetTexture != null)
+                {
+                    spriteSheetTexture.SafeDestroy();
+                }
             }
         }
 
@@ -139,6 +156,29 @@ namespace Unity.AI.Image.Services.Utilities
                 return (null, null);
 
             return await textureResult.ImportVideoClipTemporarily();
+        }
+
+        /// <summary>
+        /// Gets video metadata directly from the file path.
+        /// This is the fast path that bypasses the expensive temporary asset import.
+        /// Uses VideoPlaybackReflected for reliable probing on main thread.
+        /// </summary>
+        internal static async Task<VideoInfo> GetVideoInfoAsync(this TextureResult textureResult)
+        {
+            var filePath = textureResult.uri.GetLocalPath();
+
+            // Probe the video file directly to get accurate dimensions
+            var probedInfo = await VideoInfo.FromFileAsync(filePath);
+
+            // Use probed values, with fallback duration
+            return new VideoInfo
+            {
+                filePath = filePath,
+                width = probedInfo.width,
+                height = probedInfo.height,
+                duration = probedInfo.duration > 0 ? probedInfo.duration : VideoResultFrameCache.Duration,
+                frameRate = probedInfo.frameRate > 0 ? probedInfo.frameRate : 30.0
+            };
         }
 
         public static async Task<(VideoClip videoClip, TemporaryAsset.Scope temporaryAssetScope)> ImportVideoClipTemporarily(this TextureResult generatedVideo)

@@ -41,7 +41,7 @@ namespace Unity.AI.Generators.Tools
         /// <summary>
         /// The estimated point cost for this generation, if available.
         /// </summary>
-        public int PointCost { get; internal set; }
+        public long PointCost { get; internal set; }
 
         internal GenerationHandle(T placeholder, Task<T> generationTask)
         {

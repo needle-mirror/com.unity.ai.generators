@@ -10,6 +10,7 @@ using Unity.AI.Generators.IO.Utilities;
 using Unity.AI.Generators.Redux;
 using Unity.AI.Generators.Redux.Thunks;
 using Unity.AI.Generators.UI.Actions;
+using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.ModelSelector.Services.Stores.Actions;
 using Unity.AI.ModelSelector.Services.Stores.Actions.Payloads;
 using Unity.AI.ModelSelector.Services.Stores.Selectors;
@@ -101,7 +102,7 @@ namespace Unity.AI.Generators.Tools
         /// Helper to resolve asset path, perform permission check, and create placeholder.
         /// </summary>
         static async Task<TAsset> PreparePlaceholderAsync<TAsset>(GenerationHandle<TAsset> handle, Object targetAsset, string savePath,
-            Func<string, string> createPlaceholderAssetFunc, Func<string, int, Task> permissionCheckAsync, string defaultAssetName, string defaultAssetExtension)
+            Func<string, string> createPlaceholderAssetFunc, Func<string, long, Task> permissionCheckAsync, string defaultAssetName, string defaultAssetExtension)
             where TAsset : Object
         {
             var finalPath = targetAsset != null ? AssetDatabase.GetAssetPath(targetAsset) : savePath ?? GetTemporaryAssetPath(defaultAssetName, defaultAssetExtension);
@@ -135,6 +136,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = AnimateStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -263,6 +266,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = ImageStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     cancellationToken.ThrowIfCancellationRequested();
                     await storeApi.Dispatch(ModelSelectorActions.discoverModels, new DiscoverModelsData(ImageUtils.WebUtils.selectedEnvironment), cancellationToken);
@@ -382,6 +387,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = ImageStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -467,6 +474,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = SoundStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -563,6 +572,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = MaterialStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -676,6 +687,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = MaterialStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -787,6 +800,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = MeshStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -862,7 +877,7 @@ namespace Unity.AI.Generators.Tools
         /// <param name="permissionCheckAsync"></param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         /// <returns>A GenerationHandle for the modification task.</returns>
-        public static GenerationHandle<Object> RemoveSpriteBackgroundAsync(Texture2D sprite, Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
+        public static GenerationHandle<Object> RemoveSpriteBackgroundAsync(Texture2D sprite, Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
         {
             if (ImageUtils.AssetReferenceExtensions.IsOneByOnePixelOrLikelyBlank(sprite))
                 throw new InvalidOperationException("The provided sprite is likely blank or a 1x1 pixel, background removal is not applicable.");
@@ -889,6 +904,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = ImageStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -944,7 +961,7 @@ namespace Unity.AI.Generators.Tools
         /// <param name="permissionCheckAsync"></param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         /// <returns>A GenerationHandle for the modification task.</returns>
-        public static GenerationHandle<Object> UpscaleCubemapAsync(Cubemap cubemap, Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
+        public static GenerationHandle<Object> UpscaleCubemapAsync(Cubemap cubemap, Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
         {
             if (ImageUtils.AssetReferenceExtensions.IsOneByOnePixelOrLikelyBlank(cubemap))
                 throw new InvalidOperationException("The provided cubemap is likely blank or a 1x1 pixel, upscaling is not applicable.");
@@ -969,6 +986,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = ImageStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -1026,7 +1045,7 @@ namespace Unity.AI.Generators.Tools
         /// <param name="permissionCheckAsync"></param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         /// <returns>A GenerationHandle for the modification task.</returns>
-        public static GenerationHandle<Object> AddPbrToMaterialAsync(Material material, MaterialSettings settings, string modelId, Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
+        public static GenerationHandle<Object> AddPbrToMaterialAsync(Material material, MaterialSettings settings, string modelId, Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
         {
             Task downloadTask = null;
             var handle = new GenerationHandle<Material>(
@@ -1048,6 +1067,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = MaterialStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -1122,7 +1143,7 @@ namespace Unity.AI.Generators.Tools
         /// <param name="permissionCheckAsync"></param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         /// <returns>A GenerationHandle for the modification task.</returns>
-        public static GenerationHandle<Object> AddPbrToTerrainLayerAsync(TerrainLayer terrainLayer, TerrainLayerSettings settings, string modelId, Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
+        public static GenerationHandle<Object> AddPbrToTerrainLayerAsync(TerrainLayer terrainLayer, TerrainLayerSettings settings, string modelId, Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
         {
             Task downloadTask = null;
             var handle = new GenerationHandle<TerrainLayer>(
@@ -1144,6 +1165,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = MaterialStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -1252,6 +1275,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = ImageStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {
@@ -1354,7 +1379,7 @@ namespace Unity.AI.Generators.Tools
         }
 
         public static GenerationHandle<AnimationClip> ConvertSpriteSheetToAnimationClipAsync(Texture2D spriteSheet, string savePath,
-            Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
+            Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default)
         {
             return new GenerationHandle<AnimationClip>(
                 validationTaskFactory: async handle =>
@@ -1463,17 +1488,17 @@ namespace Unity.AI.Generators.Tools
         }
 
         public static GenerationHandle<Material> ConvertToMaterialAsync(MaterialSettings settings, string savePath = null, Material targetAsset = null,
-            Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default) => CreatePreviewMaterialAsync(settings, savePath,
+            Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default) => CreatePreviewMaterialAsync(settings, savePath,
             targetAsset, permissionCheckAsync, MaterialUtils.AssetUtils.defaultNewAssetName, MaterialUtils.AssetUtils.materialExtension,
             MaterialUtils.AssetUtils.CreateBlankMaterial, cancellationToken);
 
         public static GenerationHandle<Material> ConvertToTerrainLayerAsync(TerrainLayerSettings settings, string savePath = null, Material targetAsset = null,
-            Func<string, int, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default) => CreatePreviewMaterialAsync(settings, savePath,
+            Func<string, long, Task> permissionCheckAsync = null, CancellationToken cancellationToken = default) => CreatePreviewMaterialAsync(settings, savePath,
             targetAsset, permissionCheckAsync, MaterialUtils.AssetUtils.defaultTerrainLayerName, MaterialUtils.AssetUtils.terrainLayerExtension,
             MaterialUtils.AssetUtils.CreateBlankTerrainLayer, cancellationToken);
 
         static GenerationHandle<T> CreatePreviewMaterialAsync<T, TSettings>(TSettings settings, string savePath, T targetAsset,
-            Func<string, int, Task> permissionCheckAsync, string defaultAssetName, string defaultAssetExtension, Func<string, string> createPlaceholderAssetFunc,
+            Func<string, long, Task> permissionCheckAsync, string defaultAssetName, string defaultAssetExtension, Func<string, string> createPlaceholderAssetFunc,
             CancellationToken cancellationToken) where T : Object where TSettings : ISettings
         {
             var imageReferences = settings switch
@@ -1504,6 +1529,8 @@ namespace Unity.AI.Generators.Tools
                     var assetRef = AssetReferenceExtensions.FromPath(placeholderPath);
                     var storeApi = MaterialStore.Store.CreateApi(AssetContextMiddleware(assetRef));
                     storeApi.Dispatch(GenerationActions.initializeAsset, assetRef);
+                    storeApi.Dispatch(GenerationActions.setGenerationValidationResult,
+                        new GenerationsValidationResult(assetRef, new GenerationValidationResult(true, null, handle.PointCost, new List<GenerationFeedbackData>())));
 
                     try
                     {

@@ -35,7 +35,7 @@ namespace Unity.AI.Generators.Tools
     /// </summary>
     public static partial class AssetGenerators
     {
-        static async Task<int> QuoteImageGenerationAsync(Store store, string prompt, string modelId, ImageStates.RefinementMode refinementMode, ObjectReference[] imageReferences, int width, int height, CancellationToken cancellationToken)
+        static async Task<long> QuoteImageGenerationAsync(Store store, string prompt, string modelId, ImageStates.RefinementMode refinementMode, ObjectReference[] imageReferences, int width, int height, CancellationToken cancellationToken)
         {
             var tempAssetRef = new AssetReference { guid = Guid.NewGuid().ToString() };
             var storeApi = store.CreateApi(AssetContextMiddleware(tempAssetRef));
@@ -102,7 +102,7 @@ namespace Unity.AI.Generators.Tools
             throw new InvalidOperationException(errorMessage);
         }
 
-        static async Task<int> QuoteAnimationGenerationAsync(Store store, string prompt, string modelId, AnimationSettings animSettings, CancellationToken cancellationToken)
+        static async Task<long> QuoteAnimationGenerationAsync(Store store, string prompt, string modelId, AnimationSettings animSettings, CancellationToken cancellationToken)
         {
             var tempAssetRef = new AssetReference { guid = Guid.NewGuid().ToString() };
             var storeApi = store.CreateApi(AssetContextMiddleware(tempAssetRef));
@@ -127,7 +127,7 @@ namespace Unity.AI.Generators.Tools
             throw new InvalidOperationException(errorMessage);
         }
 
-        static async Task<int> QuoteSoundGenerationAsync(Store store, string prompt, string modelId, SoundSettings soundSettings, CancellationToken cancellationToken)
+        static async Task<long> QuoteSoundGenerationAsync(Store store, string prompt, string modelId, SoundSettings soundSettings, CancellationToken cancellationToken)
         {
             var tempAssetRef = new AssetReference { guid = Guid.NewGuid().ToString() };
             var storeApi = store.CreateApi(AssetContextMiddleware(tempAssetRef));
@@ -154,7 +154,7 @@ namespace Unity.AI.Generators.Tools
             throw new InvalidOperationException(errorMessage);
         }
 
-        static async Task<int> QuoteMaterialGenerationAsync(Store store, string prompt, string modelId, ObjectReference[] imageReferences, MaterialStates.RefinementMode refinementMode, CancellationToken cancellationToken)
+        static async Task<long> QuoteMaterialGenerationAsync(Store store, string prompt, string modelId, ObjectReference[] imageReferences, MaterialStates.RefinementMode refinementMode, CancellationToken cancellationToken)
         {
             var tempAssetRef = new AssetReference { guid = Guid.NewGuid().ToString() };
             var storeApi = store.CreateApi(AssetContextMiddleware(tempAssetRef));
@@ -187,7 +187,7 @@ namespace Unity.AI.Generators.Tools
             throw new InvalidOperationException(errorMessage);
         }
 
-        static async Task<int> QuoteMeshGenerationAsync(Store store, string prompt, string modelId, MeshSettings meshSettings, CancellationToken cancellationToken)
+        static async Task<long> QuoteMeshGenerationAsync(Store store, string prompt, string modelId, MeshSettings meshSettings, CancellationToken cancellationToken)
         {
             var tempAssetRef = new AssetReference { guid = Guid.NewGuid().ToString() };
             var storeApi = store.CreateApi(AssetContextMiddleware(tempAssetRef));

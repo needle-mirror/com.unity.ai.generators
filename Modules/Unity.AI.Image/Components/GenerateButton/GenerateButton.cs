@@ -11,6 +11,7 @@ using Unity.AI.Generators.UI.Payloads;
 using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Generators.UIElements.Extensions;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 using Unity.AI.Toolkit.Accounts.Manipulators;
 using Unity.AI.Toolkit;
@@ -44,6 +45,9 @@ namespace Unity.AI.Image.Components
             var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(k_Uxml);
             tree.CloneTree(this);
 
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
+
             this.AddManipulator(new GeneratorsSessionStatusTracker());
 
             m_InsufficientPointsManipulator = new GenerateButtonInsufficientPointsManipulator(() => OnGenerationValidationResultsChanged(this.GetState().SelectGenerationValidationResult(this)));
@@ -51,11 +55,7 @@ namespace Unity.AI.Image.Components
 
             m_Button = this.Q<Button>("generate-button");
             m_Label = m_Button.Q<Label>();
-            m_Button.clickable = new Clickable(() =>
-            {
-                this.GetStoreApi().Dispatch(GenerationResultsActions.generateImagesMain, this.GetAsset());
-                this.Dispatch(GenerationResultsActions.incrementGenerationCount, this.GetAsset());
-            });
+            m_Button.clickable = new Clickable(OnGenerate);
 
             this.Use(state => state.SelectGenerationAllowed(this), OnGenerationAllowedChanged);
             // ReSharper disable once AsyncVoidLambda
@@ -113,6 +113,27 @@ namespace Unity.AI.Image.Components
             {
                 // The token was cancelled, so do nothing
             }
+        }
+
+        void OnAttachToPanel(AttachToPanelEvent evt) =>
+            evt.destinationPanel.visualTree.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.NoTrickleDown);
+
+        void OnDetachFromPanel(DetachFromPanelEvent evt) =>
+            evt.originPanel.visualTree.UnregisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.NoTrickleDown);
+
+        void OnKeyDown(KeyDownEvent evt)
+        {
+            if ((evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter) && evt.actionKey && m_Button.enabledInHierarchy)
+            {
+                evt.StopPropagation();
+                OnGenerate();
+            }
+        }
+
+        void OnGenerate()
+        {
+            this.GetStoreApi().Dispatch(GenerationResultsActions.generateImagesMain, this.GetAsset());
+            this.Dispatch(GenerationResultsActions.incrementGenerationCount, this.GetAsset());
         }
     }
 }

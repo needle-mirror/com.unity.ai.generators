@@ -80,7 +80,6 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
             var modelID = api.State.SelectSelectedModelID(asset);
             var dimensions = generationSetting.SelectImageDimensionsVector2();
             var upscaleFactor = generationSetting.SelectUpscaleFactor();
-            var cost = 0;
 
             var imageReferences = generationSetting.SelectImageReferencesByRefinement();
             var (useCustomSeed, customSeed) = generationSetting.SelectGenerationOptions();
@@ -311,7 +310,6 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             api.DispatchFailedMessage(arg.asset, generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? generateResults.W3CTraceId : generateResult.Error.W3CTraceId);
                         }
 
-                        cost = generateResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                         ids = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
                         customSeeds = generateResults.Batch.Value.Where(v => v.IsSuccessful).Select(result => result.Value.Request.Seed ?? -1).ToArray();
                         generationMetadata.w3CTraceId = w3CTraceId;
@@ -340,7 +338,6 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             api.DispatchFailedMessage(arg.asset, transformResult.Error, string.IsNullOrEmpty(transformResult.Error?.W3CTraceId) ? transformResults.W3CTraceId : transformResult.Error.W3CTraceId);
                         }
 
-                        cost = transformResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                         ids = transformResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
                         generationMetadata.w3CTraceId = w3CTraceId;
                     }
@@ -367,7 +364,6 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
                             api.DispatchFailedMessage(arg.asset, generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? videoResults.W3CTraceId : generateResult.Error.W3CTraceId);
                         }
 
-                        cost = videoResults.Batch.Value.Where(v => v.IsSuccessful).Sum(itemResult => itemResult.Value.PointsCost);
                         ids = videoResults.Batch.Value.Where(v => v.IsSuccessful).Select(itemResult => itemResult.Value.JobId).ToList();
                         customSeeds = videoResults.Batch.Value.Where(v => v.IsSuccessful).Select(result => result.Value.Request.Seed ?? -1).ToArray();
                         generationMetadata.w3CTraceId = w3CTraceId;
@@ -423,7 +419,8 @@ namespace Unity.AI.Image.Services.Stores.Actions.Backend
              * If you got here, points were consumed so a restore point is saved
              */
 
-            AIToolbarButton.ShowPointsCostNotification(cost);
+            var cost = api.State.SelectGenerationValidationResult(asset)?.cost ?? 0;
+            AIToolbarButton.ShowPointsCostNotification((int)cost);
 
             // Generate a unique task ID for download recovery
             var downloadImagesData = new DownloadImagesData(asset: asset, jobIds: ids, progressTaskId: arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId,

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Unity.AI.Generators.IO.Srp.Utilities;
 using UnityEditor;
 using UnityEngine;
 
@@ -105,15 +106,15 @@ namespace Unity.AI.Generators.IO.Utilities
         static void ConfigurePreviewUtility(PreviewRenderUtility utility)
         {
             utility.camera.fieldOfView = 30.0f;
-            utility.camera.allowHDR = false;
+            utility.camera.allowHDR = true;
             utility.camera.allowMSAA = true;
             utility.camera.farClipPlane = 1000.0f;
             utility.camera.nearClipPlane = 0.1f;
             utility.ambientColor = new Color(.4f, .4f, .4f, 0);
-            utility.lights[0].intensity = 1.2f;
             utility.lights[0].transform.rotation = Quaternion.Euler(50f, 50f, 0);
-            utility.lights[1].intensity = 0.8f;
+            SrpUtilities.SetupPreviewLight(utility.lights[0], 1.2f);
             utility.lights[1].transform.rotation = Quaternion.Euler(-50f, -50f, 0);
+            SrpUtilities.SetupPreviewLight(utility.lights[1], 0.8f);
         }
 
         protected abstract void InitializeProcessing(GameObject previewInstance);

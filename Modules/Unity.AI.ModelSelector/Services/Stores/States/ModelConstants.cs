@@ -12,7 +12,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
             public const string Unity = "Unity";
             public const string Scenario = "Scenario";
             public const string Layer = "Layer";
-            public const string CSM = "CSM";
 
             public static IEnumerable<string> EnumerateAll()
             {
@@ -20,7 +19,6 @@ namespace Unity.AI.ModelSelector.Services.Stores.States
                 yield return Unity;
                 yield return Scenario;
                 yield return Layer;
-                yield return CSM;
             }
         }
 

@@ -29,6 +29,7 @@ namespace Unity.AI.Generators.UI.Utilities
             public const string UserUnauthorized = "UserUnauthorized";
             public const string RateLimitExceeded = "RateLimitExceeded";
             public const string ApiNoLongerSupported = "ApiNoLongerSupported";
+            public const string ModelParameterValidationFailed = "ModelParameterValidationFailed";
             public const string UnavailableForLegalReasons = "UnavailableForLegalReasons";
 
             public static IEnumerable<string> EnumerateAll()
@@ -54,6 +55,7 @@ namespace Unity.AI.Generators.UI.Utilities
                 yield return UserUnauthorized;
                 yield return RateLimitExceeded;
                 yield return ApiNoLongerSupported;
+                yield return ModelParameterValidationFailed;
                 yield return UnavailableForLegalReasons;
             }
         }

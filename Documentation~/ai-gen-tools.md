@@ -14,6 +14,7 @@ Generators consists of the following tools:
 | **[Animation Generator](xref:animation-intro)** | Creates animations based on character models and motion data. |
 | **[Material Generator](xref:material-overview)** | Produces realistic surface materials using physically based rendering (PBR) properties. |
 | **[Terrain Layer Generator](xref:terrain-overview)** | Generates Terrain-compatible materials that can be applied directly to Unity Terrain Layers. |
+| **[3D Object Generator](xref:3d-generator-overview)** | Generates static 3D object prefabs from text prompts or reference images for use as simple props and environment assets. |
 
 ## Features of Generators
 

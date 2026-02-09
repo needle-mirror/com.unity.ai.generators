@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Unity.AI.Toolkit;
 using UnityEditor;
@@ -9,6 +9,50 @@ using UnityEngine.Video;
 namespace Unity.AI.Generators.IO.Utilities
 {
     /// <summary>
+    /// Lightweight struct holding video metadata, used to decouple video processing from VideoClip assets.
+    /// This allows processing videos directly from file paths without requiring Unity asset import.
+    /// NOTE: filePath must be an absolute filesystem path for MediaDecoderReflected to work correctly.
+    /// </summary>
+    struct VideoInfo
+    {
+        public string filePath;
+        public int width;
+        public int height;
+        public double duration;
+        public double frameRate;
+
+        public static VideoInfo FromClip(VideoClip clip) => new()
+        {
+            // AssetDatabase.GetAssetPath returns paths like "Assets/..." which can be resolved
+            // to an absolute path relative to the project's root directory.
+            filePath = System.IO.Path.GetFullPath(AssetDatabase.GetAssetPath(clip)),
+            width = (int)clip.width,
+            height = (int)clip.height,
+            duration = clip.length,
+            frameRate = clip.frameRate
+        };
+
+        /// <summary>
+        /// Probes a video file to get its actual dimensions and metadata.
+        /// Uses VideoPlaybackReflected (low-level native API) as primary method for reliability,
+        /// with VideoPlayer as fallback if the reflection-based approach is unavailable.
+        /// </summary>
+        /// <param name="filePath">Path to the video file.</param>
+        /// <param name="timeoutSeconds">Maximum time to wait for video preparation.</param>
+        /// <returns>VideoInfo with actual dimensions from the file, or empty VideoInfo if probe fails or produces invalid results.</returns>
+        public static async Task<VideoInfo> FromFileAsync(string filePath, double timeoutSeconds = 10.0)
+        {
+            if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+            {
+                Debug.LogWarning($"VideoInfo.FromFileAsync: File not found or path is empty: {filePath}");
+                return new VideoInfo { filePath = filePath, width = 0, height = 0, duration = 0, frameRate = 0 };
+            }
+
+            return await VideoPlaybackReflected.ProbeVideoAsync(filePath, timeoutSeconds);
+        }
+    }
+
+    /// <summary>
     /// Abstract base class to manage a video processing job using the direct MediaDecoder API.
     /// This implementation is simpler and more robust than the previous VideoManager-based approach.
     /// </summary>
@@ -16,7 +60,7 @@ namespace Unity.AI.Generators.IO.Utilities
     {
         public enum FrameSelectionMode { Sequential, Distributed }
 
-        protected readonly VideoClip m_Clip;
+        protected readonly VideoInfo m_VideoInfo;
         protected readonly TaskCompletionSource<T> m_Tcs;
         protected readonly double m_StartTime;
         protected readonly double m_EndTime;
@@ -31,9 +75,9 @@ namespace Unity.AI.Generators.IO.Utilities
         protected long m_CurrentFrame;
         protected int m_ProcessedDistributedFrames;
 
-        protected VideoProcessorJob(VideoClip clip, TaskCompletionSource<T> tcs, double startTime, double endTime, Action<float> progressCallback, FrameSelectionMode frameSelection = FrameSelectionMode.Sequential)
+        protected VideoProcessorJob(VideoInfo videoInfo, TaskCompletionSource<T> tcs, double startTime, double endTime, Action<float> progressCallback, FrameSelectionMode frameSelection = FrameSelectionMode.Sequential)
         {
-            m_Clip = clip;
+            m_VideoInfo = videoInfo;
             m_Tcs = tcs;
             m_StartTime = startTime;
             m_EndTime = endTime;
@@ -41,30 +85,49 @@ namespace Unity.AI.Generators.IO.Utilities
             m_FrameSelection = frameSelection;
         }
 
+        /// <summary>
+        /// Legacy constructor for backward compatibility with VideoClip-based workflows.
+        /// </summary>
+        protected VideoProcessorJob(VideoClip clip, TaskCompletionSource<T> tcs, double startTime, double endTime, Action<float> progressCallback, FrameSelectionMode frameSelection = FrameSelectionMode.Sequential)
+            : this(VideoInfo.FromClip(clip), tcs, startTime, endTime, progressCallback, frameSelection) { }
+
         public void Start()
         {
             try
             {
-                if (m_Clip == null) throw new ArgumentNullException(nameof(m_Clip));
-                if (m_Clip.width == 0 || m_Clip.height == 0) throw new InvalidOperationException("VideoClip has invalid dimensions (width or height is zero).");
-                if (m_Clip.frameRate <= 0) throw new InvalidOperationException("VideoClip has no frame rate information.");
+                StartInternal();
+            }
+            catch (Exception e)
+            {
+                // Ensure any scheduling or execution failures are reported to callers
+                m_Tcs.TrySetException(e);
+            }
+        }
 
-                var finalEndTime = (m_EndTime < 0 || m_EndTime > m_Clip.length) ? m_Clip.length : m_EndTime;
+        void StartInternal()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(m_VideoInfo.filePath)) throw new ArgumentException("Video file path is required.");
+                if (m_VideoInfo.width == 0 || m_VideoInfo.height == 0) throw new InvalidOperationException("Video has invalid dimensions (width or height is zero).");
+                if (m_VideoInfo.frameRate <= 0) throw new InvalidOperationException("Video has no frame rate information.");
+
+                var finalEndTime = (m_EndTime < 0 || m_EndTime > m_VideoInfo.duration) ? m_VideoInfo.duration : m_EndTime;
                 if (m_StartTime < 0 || m_StartTime >= finalEndTime) throw new ArgumentOutOfRangeException(nameof(m_StartTime), "Invalid time range specified.");
 
-                m_StartFrame = (long)(m_StartTime * m_Clip.frameRate);
-                m_EndFrame = (long)(finalEndTime * m_Clip.frameRate);
+                m_StartFrame = (long)(m_StartTime * m_VideoInfo.frameRate);
+                m_EndFrame = (long)(finalEndTime * m_VideoInfo.frameRate);
                 m_CurrentFrame = m_StartFrame;
 
-                m_Decoder = new MediaDecoderReflected(m_Clip);
-                m_FrameBuffer = new Texture2D((int)m_Clip.width, (int)m_Clip.height, TextureFormat.RGBA32, false);
+                m_Decoder = new MediaDecoderReflected(m_VideoInfo.filePath);
+                m_FrameBuffer = new Texture2D(m_VideoInfo.width, m_VideoInfo.height, TextureFormat.RGBA32, false);
 
                 // Seek to the starting position before the update loop begins to start at the correct time.
                 const uint rate = 10000;
                 var count = (long)(m_StartTime * rate);
                 if (!m_Decoder.SetPosition(new MediaTime(count, rate)))
                 {
-                    throw new InvalidOperationException($"Failed to seek video '{m_Clip.name}' to start time {m_StartTime:F2}s.");
+                    throw new InvalidOperationException($"Failed to seek video to start time {m_StartTime:F2}s.");
                 }
 
                 InitializeProcessing();
@@ -116,7 +179,7 @@ namespace Unity.AI.Generators.IO.Utilities
                     sourceFrameIndex = m_StartFrame + (long)Math.Round(progress * (totalFramesInRange - 1));
                 }
 
-                var seekTime = sourceFrameIndex / m_Clip.frameRate;
+                var seekTime = sourceFrameIndex / m_VideoInfo.frameRate;
                 const uint rate = 10000;
                 var count = (long)(seekTime * rate);
 
@@ -263,8 +326,14 @@ namespace Unity.AI.Generators.IO.Utilities
     {
         Texture2D m_CapturedTexture;
 
+        public FirstFrameCaptureJob(VideoInfo videoInfo, TaskCompletionSource<Texture2D> tcs)
+            : base(videoInfo, tcs, 0, 1.0d / videoInfo.frameRate, null, FrameSelectionMode.Sequential) { }
+
+        /// <summary>
+        /// Legacy constructor for backward compatibility with VideoClip-based workflows.
+        /// </summary>
         public FirstFrameCaptureJob(VideoClip clip, TaskCompletionSource<Texture2D> tcs)
-            : base(clip, tcs, 0, 1.0d / clip.frameRate, null, FrameSelectionMode.Sequential) { }
+            : this(VideoInfo.FromClip(clip), tcs) { }
 
         protected override void InitializeProcessing() { }
 

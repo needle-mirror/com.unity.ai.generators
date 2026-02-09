@@ -45,7 +45,6 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
             var generationSetting = arg.generationSetting;
             var generationMetadata = generationSetting.MakeMetadata(asset: arg.asset);
             var variations = generationSetting.SelectVariationCount();
-            var cost = 0;
 
             api.Dispatch(actionCreator: GenerationResultsActions.setGeneratedSkeletons,
                 args: new(asset: arg.asset, skeletons: Enumerable.Range(start: 0, count: variations).Select(selector: i => new AudioClipSkeleton(taskID: arg.progressTaskId, counter: i)).ToList()));
@@ -172,7 +171,6 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
                         api.DispatchFailedMessage(asset: arg.asset, result: generateResult.Error, string.IsNullOrEmpty(generateResult.Error?.W3CTraceId) ? generateResults.W3CTraceId : generateResult.Error.W3CTraceId);
                     }
 
-                    cost = generateResults.Batch.Value.Where(predicate: v => v.IsSuccessful).Sum(selector: itemResult => itemResult.Value.PointsCost);
                     ids = generateResults.Batch.Value.Where(predicate: v => v.IsSuccessful).Select(selector: itemResult => itemResult.Value.JobId).ToList();
                     generationMetadata.w3CTraceId = generateResults.W3CTraceId;
 
@@ -221,7 +219,8 @@ namespace Unity.AI.Sound.Services.Stores.Actions.Backend
              * If you got here, points were consumed so a restore point is saved
              */
 
-            AIToolbarButton.ShowPointsCostNotification(amount: cost);
+            var cost = api.State.SelectGenerationValidationResult(asset)?.cost ?? 0;
+            AIToolbarButton.ShowPointsCostNotification(amount: (int)cost);
 
             var downloadAudioData = new DownloadAudioData(asset: asset, jobIds: ids, progressTaskId: arg.progressTaskId, uniqueTaskId: arg.uniqueTaskId,
                 generationMetadata: generationMetadata, customSeeds: customSeeds, autoApply: arg.autoApply, retryable: false);

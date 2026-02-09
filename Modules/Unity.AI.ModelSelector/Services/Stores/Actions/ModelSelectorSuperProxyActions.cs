@@ -57,8 +57,12 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
             var nameLower = (model.name ?? string.Empty).ToLowerInvariant();
             if (nameLower.StartsWith(k_SeedreamStartsWith))
             {
-                model.capabilities.Add(ModelConstants.ModelCapabilities.EditWithPrompt);
                 model.capabilities.Add(ModelConstants.ModelCapabilities.CustomResolutions);
+            }
+            if ((nameLower.StartsWith(k_SeedreamStartsWith) || nameLower.StartsWith(k_GeminiStartsWith))
+                && model.operations.Contains(ModelConstants.Operations.ReferencePrompt))
+            {
+                model.capabilities.Add(ModelConstants.ModelCapabilities.EditWithPrompt);
             }
             if (model.modality == ModelConstants.Modalities.Skybox)
                 model.capabilities.Add(ModelConstants.ModelCapabilities.SingleInputImage);
@@ -90,10 +94,11 @@ namespace Unity.AI.ModelSelector.Services.Stores.Actions
         }
 
         const string k_SeedreamStartsWith = "seedream";
+        const string k_GeminiStartsWith = "gemini";
         const string k_ElevenLabsStartsWith = "elevenlabs";
         const string k_GameUIStartsWith = "game ui elements (flux)";
 
-        static readonly List<string> k_PreferredAssistantFavorites = new() { "gpt image", "nano banana", k_SeedreamStartsWith, "standard", "cinematic", "hunyuan", k_ElevenLabsStartsWith, k_GameUIStartsWith, "gemini" };
+        static readonly List<string> k_PreferredAssistantFavorites = new() { "gpt image", "nano banana", k_SeedreamStartsWith, "standard", "cinematic", "hunyuan", k_ElevenLabsStartsWith, k_GameUIStartsWith, k_GeminiStartsWith };
         static readonly List<string> k_PreferredFavorites = new(k_PreferredAssistantFavorites) { "flux.1 dev", "realistic textures" };
 
         // While fetching models is safe to do concurrently, we use this mutex as a best-effort

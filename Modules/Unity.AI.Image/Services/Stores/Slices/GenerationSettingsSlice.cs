@@ -74,6 +74,18 @@ namespace Unity.AI.Image.Services.Stores.Slices
                         .Add(GenerationSettingsActions.setTrimStartTime, (state, payload) => state.loopSettings.trimStartTime = payload)
                         .Add(GenerationSettingsActions.setTrimEndTime, (state, payload) => state.loopSettings.trimEndTime = payload)
 
+                        .Add(GenerationSettingsActions.setSpritesheetTileColumns, (state, payload) => state.spritesheetSettings.tileColumns = payload)
+                        .Add(GenerationSettingsActions.setSpritesheetTileRows, (state, payload) => state.spritesheetSettings.tileRows = payload)
+                        .Add(GenerationSettingsActions.setSpritesheetOutputWidth, (state, payload) => state.spritesheetSettings.outputWidth = payload)
+                        .Add(GenerationSettingsActions.setSpritesheetOutputHeight, (state, payload) => state.spritesheetSettings.outputHeight = payload)
+                        .Add(GenerationSettingsActions.setSpritesheetSettings, (state, payload) =>
+                        {
+                            state.spritesheetSettings.tileColumns = payload.tileColumns;
+                            state.spritesheetSettings.tileRows = payload.tileRows;
+                            state.spritesheetSettings.outputWidth = payload.outputWidth;
+                            state.spritesheetSettings.outputHeight = payload.outputHeight;
+                        })
+
                         .Add(GenerationSettingsActions.setPendingPing, (state, payload) => state.pendingPing = payload)
                         .Add(GenerationSettingsActions.applyEditedImageReferenceDoodle, (state, payload) => state.ApplyEditedDoodle(payload))
 

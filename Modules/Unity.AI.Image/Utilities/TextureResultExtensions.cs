@@ -21,6 +21,12 @@ namespace Unity.AI.Image.Services.Utilities
 {
     static class TextureResultExtensions
     {
+        static readonly Dictionary<string, GenerationMetadata> k_MetadataCache = new(StringComparer.OrdinalIgnoreCase);
+        const int k_MaxDoodleSize = 128;
+
+        [InitializeOnLoadMethod]
+        static void Initialize() => AssemblyReloadEvents.beforeAssemblyReload += () => k_MetadataCache.Clear();
+
         public static async Task CopyToProject(this TextureResult textureResult, GenerationMetadata generationMetadata, string cacheDirectory)
         {
             try
@@ -28,7 +34,7 @@ namespace Unity.AI.Image.Services.Utilities
                 if (!textureResult.uri.IsFile)
                     throw new ArgumentException("CopyToProject should only be used for local files.", nameof(textureResult));
 
-                var path = UriExtensions.GetLocalPath(textureResult.uri);
+                var path = textureResult.uri.GetLocalPath();
                 var extension = Path.GetExtension(path);
                 if (!ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -55,8 +61,10 @@ namespace Unity.AI.Image.Services.Utilities
 
                 try
                 {
-                    await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
+                    var jsonPath = $"{textureResult.uri.GetLocalPath()}.json";
+                    await FileIO.WriteAllTextAsync(jsonPath,
                         JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                    k_MetadataCache.Remove(jsonPath);
                 }
                 catch (Exception e)
                 {
@@ -91,9 +99,11 @@ namespace Unity.AI.Image.Services.Utilities
                 {
                     var path = textureResult.uri.GetLocalPath();
                     var fileName = Path.GetFileName(path);
+                    var jsonPath = $"{path}.json";
 
-                    await FileIO.WriteAllTextAsync($"{textureResult.uri.GetLocalPath()}.json",
+                    await FileIO.WriteAllTextAsync(jsonPath,
                         JsonUtility.ToJson(generationMetadata with { fileName = fileName }, true));
+                    k_MetadataCache.Remove(jsonPath);
                 }
                 catch (Exception e)
                 {
@@ -109,18 +119,42 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static async Task<GenerationMetadata> GetMetadataAsync(this TextureResult textureResult)
         {
-            var data = new GenerationMetadata();
-            try { data = JsonUtility.FromJson<GenerationMetadata>(await FileIO.ReadAllTextAsync($"{textureResult.uri.GetLocalPath()}.json")); }
-            catch { /*Debug.LogWarning($"Could not read {textureResult.uri.GetLocalPath()}.json");*/ }
-            return data;
+            var jsonPath = $"{textureResult.uri.GetLocalPath()}.json";
+
+            if (k_MetadataCache.TryGetValue(jsonPath, out var cached))
+                return cached;
+
+            try
+            {
+                var data = JsonUtility.FromJson<GenerationMetadata>(await FileIO.ReadAllTextAsync(jsonPath));
+                k_MetadataCache[jsonPath] = data;
+                return data;
+            }
+            catch
+            {
+                // Don't cache failed reads - they may be due to temporary file locks
+                return new GenerationMetadata();
+            }
         }
 
         public static GenerationMetadata GetMetadata(this TextureResult textureResult)
         {
-            var data = new GenerationMetadata();
-            try { data = JsonUtility.FromJson<GenerationMetadata>(FileIO.ReadAllText($"{textureResult.uri.GetLocalPath()}.json")); }
-            catch { /*Debug.LogWarning($"Could not read {textureResult.uri.GetLocalPath()}.json");*/ }
-            return data;
+            var jsonPath = $"{textureResult.uri.GetLocalPath()}.json";
+
+            if (k_MetadataCache.TryGetValue(jsonPath, out var cached))
+                return cached;
+
+            try
+            {
+                var data = JsonUtility.FromJson<GenerationMetadata>(FileIO.ReadAllText(jsonPath));
+                k_MetadataCache[jsonPath] = data;
+                return data;
+            }
+            catch
+            {
+                // Don't cache failed reads - they may be due to temporary file locks
+                return new GenerationMetadata();
+            }
         }
 
         public static GenerationMetadata MakeMetadata(this GenerationSetting setting, AssetReference asset)
@@ -218,7 +252,7 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static bool IsFailed(this TextureResult result)
         {
-            if (!IsValid(result))
+            if (!result.IsValid())
                 return false;
 
             if (string.IsNullOrEmpty(result.uri.GetLocalPath()))
@@ -230,14 +264,19 @@ namespace Unity.AI.Image.Services.Utilities
 
         public static bool IsImage(this TextureResult textureResult)
         {
-            if (!IsValid(textureResult))
+            if (!textureResult.IsValid())
                 return false;
 
             var extension = Path.GetExtension(textureResult.uri.GetLocalPath());
             return ImageFileUtilities.knownExtensions.Any(suffix => suffix.Equals(extension, StringComparison.OrdinalIgnoreCase));
         }
 
-        public static async Task<bool> CopyTo(this TextureResult generatedTexture, AssetReference asset)
+        public static Task<bool> CopyTo(this TextureResult generatedTexture, AssetReference asset)
+        {
+            return generatedTexture.CopyTo(asset, null);
+        }
+
+        public static async Task<bool> CopyTo(this TextureResult generatedTexture, AssetReference asset, SpritesheetSettingsState spritesheetSettings)
         {
             var destFileName = asset.GetPath();
             var sourceFileName = generatedTexture.uri.GetLocalPath();
@@ -250,7 +289,7 @@ namespace Unity.AI.Image.Services.Utilities
             SpriteRect[] spriteRects = null;
             if (generatedTexture.IsVideoClip())
             {
-                spriteRects = await generatedTexture.CopyVideoTo(asset);
+                spriteRects = await generatedTexture.CopyVideoTo(asset, spritesheetSettings);
             }
             else if (destExtension != sourceExtension)
             {
@@ -310,7 +349,8 @@ namespace Unity.AI.Image.Services.Utilities
                 var invertStrength = type.SelectImageReferenceInvertStrength();
                 if (imageReference?.doodle?.Length > 0)
                 {
-                    doodles.Add(new GenerationDataDoodle(type, imageReference.doodle, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength, null));
+                    var resizedDoodle = ResizeDoodleIfNeeded(imageReference.doodle);
+                    doodles.Add(new GenerationDataDoodle(type, resizedDoodle, type.GetInternalDisplayNameForType(), imageReference.strength, invertStrength, null));
                 }
                 else if (!string.IsNullOrEmpty(imageReference?.asset?.guid))
                 {
@@ -318,6 +358,59 @@ namespace Unity.AI.Image.Services.Utilities
                 }
             }
             return doodles;
+        }
+
+        /// <summary>
+        /// Resizes doodle image bytes if they exceed the maximum allowed size for metadata storage.
+        /// This prevents metadata JSON files from becoming excessively large.
+        /// </summary>
+        static byte[] ResizeDoodleIfNeeded(byte[] doodleBytes)
+        {
+            if (doodleBytes == null || doodleBytes.Length == 0)
+                return doodleBytes;
+
+            Texture2D sourceTexture = null;
+            Texture2D resultTexture = null;
+            RenderTexture rt = null;
+            var previousActive = RenderTexture.active;
+
+            try
+            {
+                sourceTexture = new Texture2D(2, 2);
+                if (!sourceTexture.LoadImage(doodleBytes))
+                    return doodleBytes;
+
+                // Check if resize is needed
+                if (sourceTexture.width <= k_MaxDoodleSize && sourceTexture.height <= k_MaxDoodleSize)
+                    return doodleBytes;
+
+                // Calculate target size maintaining aspect ratio
+                var scale = Mathf.Min((float)k_MaxDoodleSize / sourceTexture.width, (float)k_MaxDoodleSize / sourceTexture.height);
+                var targetWidth = Mathf.Max(1, Mathf.RoundToInt(sourceTexture.width * scale));
+                var targetHeight = Mathf.Max(1, Mathf.RoundToInt(sourceTexture.height * scale));
+
+                rt = RenderTexture.GetTemporary(targetWidth, targetHeight);
+                Graphics.Blit(sourceTexture, rt);
+
+                resultTexture = new Texture2D(targetWidth, targetHeight, TextureFormat.RGBA32, false);
+                RenderTexture.active = rt;
+                resultTexture.ReadPixels(new Rect(0, 0, targetWidth, targetHeight), 0, 0);
+                resultTexture.Apply();
+
+                return resultTexture.EncodeToPNG();
+            }
+            catch
+            {
+                return doodleBytes;
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                if (rt)
+                    RenderTexture.ReleaseTemporary(rt);
+                sourceTexture.SafeDestroy();
+                resultTexture.SafeDestroy();
+            }
         }
     }
 

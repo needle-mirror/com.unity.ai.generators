@@ -338,6 +338,10 @@
     margin-top: 8px;
 }
 
+.mb-0 {
+    margin-bottom: 0;
+}
+
 .mb-4 {
     margin-bottom: 4px;
 }

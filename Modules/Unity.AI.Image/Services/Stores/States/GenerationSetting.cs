@@ -43,6 +43,7 @@ namespace Unity.AI.Image.Services.Stores.States
         };
 
         public PixelateSettings pixelateSettings = new();
+        public SpritesheetSettingsState spritesheetSettings = new();
 
         public string pendingPing;
         public float historyDrawerHeight = 200;

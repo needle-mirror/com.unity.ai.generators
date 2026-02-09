@@ -54,7 +54,7 @@ namespace Unity.AI.Generators.Tools
         /// Optional. An asynchronous callback to perform permission checks before generation begins.
         /// The callback receives the final, resolved asset path and the estimated points cost.
         /// </summary>
-        public Func<string, int, Task> PermissionCheckAsync;
+        public Func<string, long, Task> PermissionCheckAsync;
     }
 
     /// <summary>

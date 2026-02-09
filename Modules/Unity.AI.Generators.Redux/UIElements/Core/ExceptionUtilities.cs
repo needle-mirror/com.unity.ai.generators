@@ -26,7 +26,7 @@ namespace Unity.AI.Generators.UIElements.Core
         }
 
         const string k_InternalMenu = "internal:";
-        const string k_DetailedExceptionStackMenu = "AI Toolkit/Internals/Detailed Redux Exceptions";
+        const string k_DetailedExceptionStackMenu = "AI Toolkit/Internals/Detailed Redux Exceptions [Generators]";
         public static bool detailedExceptionStack => Data.instance.detailedExceptionStack;
 
         [MenuItem(k_InternalMenu + k_DetailedExceptionStackMenu, false, 1021)]
@@ -39,7 +39,7 @@ namespace Unity.AI.Generators.UIElements.Core
             return true;
         }
 
-        const string k_reduxLog = "AI Toolkit/Internals/Redux Log";
+        const string k_reduxLog = "AI Toolkit/Internals/Redux Log [Generators]";
         public static bool reduxLog => Data.instance.reduxLog;
 
         [MenuItem(k_InternalMenu + k_reduxLog, false, 1021)]

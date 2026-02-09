@@ -1,5 +1,6 @@
 using System;
 using Unity.AI.Generators.UI.Utilities;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AI.Generators.UI
@@ -26,7 +27,8 @@ namespace Unity.AI.Generators.UI
             m_IsSpinning = true;
 
             m_Scheduler = target.schedule.Execute(UpdateRotation);
-            m_Scheduler.Every(16); // ~60fps
+            var interval = Application.platform == RuntimePlatform.OSXEditor ? 100 : 16;
+            m_Scheduler.Every(interval); // 10fps on macOS editor, ~60fps elsewhere
         }
 
         public void Stop()
