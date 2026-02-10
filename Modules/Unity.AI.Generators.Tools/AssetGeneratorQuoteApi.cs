@@ -65,9 +65,13 @@ namespace Unity.AI.Generators.Tools
         {
             // -1 indicates "not set" (default), 0 is an invalid instance ID in Unity
             var referenceImage = parameters.ReferenceImageInstanceId != -1 && parameters.ReferenceImageInstanceId != 0
+#if UNITY_6000_3_OR_NEWER
                 ? EditorUtility.EntityIdToObject(parameters.ReferenceImageInstanceId)
+#else
+                ? EditorUtility.InstanceIDToObject(parameters.ReferenceImageInstanceId)
+#endif
                 : null;
-
+            
             ObjectReference[] imageReferences = null;
             if (referenceImage != null)
             {
