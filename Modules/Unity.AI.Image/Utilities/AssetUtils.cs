@@ -7,6 +7,7 @@ using Unity.AI.Generators.UI.Utilities;
 using Unity.AI.Toolkit.Asset;
 using UnityEditor;
 using UnityEngine;
+using ShaderUtilities = Unity.AI.Toolkit.Asset.ShaderUtilities;
 
 namespace Unity.AI.Image.Services.Utilities
 {
@@ -107,6 +108,58 @@ namespace Unity.AI.Image.Services.Utilities
             }
 
             return texturePath;
+        }
+
+        public static string CreateBlankSkyboxMaterial(string path, bool force)
+        {
+            var shader = ShaderUtilities.GetCubemapShader();
+            if (shader == null)
+                return string.Empty;
+
+            // Create the cubemap first
+            var cubemapPath = Path.ChangeExtension(path, ".png");
+            cubemapPath = CreateBlankCubemap(cubemapPath, force);
+            if (string.IsNullOrEmpty(cubemapPath))
+                return string.Empty;
+
+            var cubemap = AssetDatabase.LoadAssetAtPath<Cubemap>(cubemapPath);
+
+            // Create the material and assign the cubemap
+            var material = new Material(shader);
+            if (cubemap != null)
+                material.SetTexture("_Tex", cubemap);
+
+            var materialPath = Path.ChangeExtension(path, ".mat");
+            if (!force)
+                materialPath = AssetDatabase.GenerateUniqueAssetPath(materialPath);
+            AssetDatabase.CreateAsset(material, materialPath);
+            AssetDatabase.ImportAsset(materialPath);
+
+            return materialPath;
+        }
+
+        public static Cubemap GetSkyboxMaterialCubemap(Material material)
+        {
+            if (material == null || material.shader == null)
+                return null;
+
+            var shaderName = material.shader.name;
+            if (!shaderName.StartsWith("Skybox/") && !shaderName.StartsWith("HDRP/Sky/"))
+                return null;
+
+            // Try common cubemap property names
+            string[] cubemapProperties = { "_Tex", "_Cubemap", "_MainTex" };
+            foreach (var propName in cubemapProperties)
+            {
+                if (material.HasProperty(propName))
+                {
+                    var texture = material.GetTexture(propName);
+                    if (texture is Cubemap cubemap)
+                        return cubemap;
+                }
+            }
+
+            return null;
         }
     }
 }

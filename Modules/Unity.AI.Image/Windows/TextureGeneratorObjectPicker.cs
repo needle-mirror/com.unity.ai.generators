@@ -29,6 +29,25 @@ namespace Unity.AI.Image.Windows
                 $"Assets/{AssetUtils.defaultNewAssetNameCube}.png",
                 TextureGeneratorInspectorButton.OpenGenerationWindow
             );
+
+            Toolkit.GenerationObjectPicker.RegisterTemplate<Material>(
+                "SkyboxMaterial",
+                AssetUtils.CreateBlankSkyboxMaterial,
+                $"Assets/New Skybox Material.mat",
+                OpenSkyboxGenerationWindow,
+                Toolkit.GenerationObjectPicker.TemplateFlags.SkyboxOnly
+            );
+        }
+
+        static void OpenSkyboxGenerationWindow(string materialPath)
+        {
+            var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+            var cubemap = AssetUtils.GetSkyboxMaterialCubemap(material);
+            if (cubemap != null)
+            {
+                var cubemapPath = AssetDatabase.GetAssetPath(cubemap);
+                TextureGeneratorInspectorButton.OpenGenerationWindow(cubemapPath);
+            }
         }
     }
 }

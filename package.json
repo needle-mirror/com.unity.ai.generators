@@ -1,30 +1,27 @@
 {
   "name": "com.unity.ai.generators",
   "displayName": "Generators",
-  "version": "1.6.0-pre.2",
+  "version": "1.6.0-pre.3",
   "unity": "6000.0",
   "description": "Unity AI Generators is a package that provides tools for adding generative AI to Unity asset workflows.",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.mathematics": "1.3.2",
-    "com.unity.ai.toolkit": "1.6.0-pre.2",
+    "com.unity.ai.toolkit": "1.6.0-pre.3",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.cloud.gltfast": "6.14.1"
   },
   "relatedPackages": {
-    "com.unity.ai.generators.tests": "1.6.0-pre.2"
+    "com.unity.ai.generators.tests": "1.6.0-pre.3"
   },
   "unityRelease": "60f1",
-  "_upm": {
-    "changelog": "### Added\n\n- Re-enabled Unity 6.0 support"
-  },
   "upmCi": {
-    "footprint": "748e36ad32b6f25f5ea4a5caa619e4d5963ec450"
+    "footprint": "b43a2049abd70b5ddcad562dc1c82e6d127f059d"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.ai.generators@1.6/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/muse-editor.git",
     "type": "git",
-    "revision": "7b92d78fc78a5514e1cd112f32da12eab77c8d6b"
+    "revision": "56a3d2198111713c214f948b277c31db33e7be35"
   }
 }

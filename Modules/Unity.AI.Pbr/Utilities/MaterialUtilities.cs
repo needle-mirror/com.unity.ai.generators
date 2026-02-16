@@ -13,6 +13,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using Unity.AI.Pbr.Srp.Utilities;
 using Unity.AI.Toolkit.Asset;
+using ShaderUtilities = Unity.AI.Toolkit.Asset.ShaderUtilities;
 
 namespace Unity.AI.Pbr.Services.Utilities
 {
@@ -456,16 +457,6 @@ namespace Unity.AI.Pbr.Services.Utilities
             return mapping;
         }
 
-        public static Shader GetCubemapShader()
-        {
-            const string builtinSkybox = "Skybox/Cubemap";
-
-            var builtinShader = Shader.Find(builtinSkybox);
-            if (builtinShader != null)
-                return builtinShader;
-
-            Debug.LogWarning($"'{builtinSkybox}' was not found.");
-            return null;
-        }
+        public static Shader GetCubemapShader() => ShaderUtilities.GetCubemapShader();
     }
 }
